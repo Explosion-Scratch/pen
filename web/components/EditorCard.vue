@@ -12,7 +12,9 @@
           @keydown.enter="handleFilenameChange"
           spellcheck="false"
         />
-        <span v-else class="editor-filename-vertical">{{ editor.filename }}</span>
+        <span v-else :class="layoutMode === 'rows' ? 'editor-filename-vertical' : 'editor-filename-horizontal'">
+          {{ editor.filename }}
+        </span>
       </div>
       <div class="editor-actions" v-if="!isCollapsed">
         <button class="action-btn" @click="showSettings = true" title="Editor settings">
@@ -72,6 +74,10 @@ const props = defineProps({
   isCollapsed: {
     type: Boolean,
     default: false
+  },
+  layoutMode: {
+    type: String,
+    default: 'columns'
   }
 })
 
@@ -264,8 +270,19 @@ onUnmounted(() => {
 }
 
 .editor-card.collapsed {
+  /* No fixed min/max width/height here as Splitpanes handles it, 
+     but we ensure it doesn't try to grow too much if splitpanes is buggy */
+  overflow: hidden;
+}
+
+.rows .editor-card.collapsed {
   min-width: 40px;
   max-width: 40px;
+}
+
+.columns .editor-card.collapsed {
+  min-height: 40px;
+  max-height: 40px;
 }
 
 .editor-header {
@@ -279,12 +296,21 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.collapsed .editor-header {
+.rows .editor-card.collapsed .editor-header {
   flex-direction: column;
   height: auto;
   padding: 8px 4px;
   min-height: 100%;
   justify-content: flex-start;
+  gap: 8px;
+}
+
+.columns .editor-card.collapsed .editor-header {
+  flex-direction: row;
+  height: var(--pane-header-height);
+  padding: 0 8px;
+  min-width: 100%;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -296,11 +322,17 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.collapsed .editor-info {
+.rows .editor-card.collapsed .editor-info {
   flex-direction: column;
   align-items: center;
   writing-mode: vertical-rl;
   text-orientation: mixed;
+}
+
+.columns .editor-card.collapsed .editor-info {
+  flex-direction: row;
+  align-items: center;
+  writing-mode: horizontal-tb;
 }
 
 .editor-info i {
@@ -344,14 +376,27 @@ onUnmounted(() => {
   padding-top: 8px;
 }
 
+.editor-filename-horizontal {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .editor-actions {
   display: flex;
   align-items: center;
   gap: 2px;
 }
 
-.collapsed .editor-actions {
+.rows .editor-card.collapsed .editor-actions {
   flex-direction: column;
+}
+
+.columns .editor-card.collapsed .editor-actions {
+  flex-direction: row;
 }
 
 .action-btn {

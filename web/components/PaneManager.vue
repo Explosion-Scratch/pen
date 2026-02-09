@@ -26,6 +26,7 @@
               :editor="editor"
               :content="files[editor.filename] || ''"
               :is-collapsed="isPaneCollapsed(idx)"
+              :layout-mode="layoutMode"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
               @settings-update="handleSettingsUpdate"
@@ -42,7 +43,7 @@
           @refresh="$emit('render')" 
           @toggle-auto-run="$emit('toggle-auto-run')"
         />
-        <div v-if="isAnyDragging" class="iframe-blocker"></div>
+        <div v-show="isAnyDragging" class="iframe-blocker"></div>
       </Pane>
     </Splitpanes>
     
@@ -121,16 +122,13 @@ function isPaneCollapsed(idx) {
 function togglePaneCollapse(idx) {
   const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
   if (isPaneCollapsed(idx)) {
-    // Expand to even share
     const remainingSpace = 100 - minPaneSize
     const expandedSize = remainingSpace / props.editors.length
     sizes.value[idx] = Math.max(expandedSize, 20)
-    // Redraw others to accommodate
     const otherIdxs = props.editors.map((_, i) => i).filter(i => i !== idx)
     const newShareForOthers = (100 - sizes.value[idx]) / otherIdxs.length
     otherIdxs.forEach(i => { sizes.value[i] = newShareForOthers })
   } else {
-    // Collapse to minimal
     const oldSize = sizes.value[idx]
     sizes.value[idx] = minPaneSize
     const gainedSpace = oldSize - minPaneSize
@@ -143,6 +141,7 @@ function togglePaneCollapse(idx) {
 function onMouseDown(e) {
   const splitter = e.target.closest('.splitpanes__splitter')
   if (splitter) {
+    // We update this globally, but we use v-show for the blocker to avoid DOM thrash
     isAnyDragging.value = true
     activeSplitter = splitter
     activeSplitter.classList.add('is-active')
@@ -160,13 +159,22 @@ function onMouseUp() {
 
 function onReady() {}
 
-watch(() => props.editors.length, () => {
+function initializeSizes() {
   if (props.editors.length > 0) {
-    const defaultSize = 100 / props.editors.length
-    columnsEditorSizes.value = props.editors.map(() => defaultSize)
-    rowsEditorSizes.value = props.editors.map(() => defaultSize)
+    const count = props.editors.length
+    const defaultSize = 100 / count
+    const sizes = new Array(count).fill(defaultSize)
+    // Ensure perfect 100% sum
+    const sum = sizes.reduce((a, b) => a + b, 0)
+    if (sum !== 100) {
+      sizes[count - 1] += (100 - sum)
+    }
+    columnsEditorSizes.value = [...sizes]
+    rowsEditorSizes.value = [...sizes]
   }
-}, { immediate: true })
+}
+
+watch(() => props.editors.length, initializeSizes, { immediate: true })
 
 function handleMainResize(event) {
   if (event[1]) {
