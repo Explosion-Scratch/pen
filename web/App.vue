@@ -42,8 +42,8 @@ const previewHtml = ref('')
 const showSettings = ref(false)
 const layoutMode = ref('columns')
 const autoRun = ref(true)
-const isSaving = ref(false)
-const lastSaved = ref(false)
+const lastActivity = ref({})
+const IDLE_THRESHOLD = 2000 // 2 seconds
 let ws = null
 let saveDebounceTimer = null
 let renderDebounceTimer = null
@@ -74,15 +74,17 @@ function connectWebSocket() {
       }
 
       if (message.type === 'external-update') {
-        files.value[message.filename] = message.content
+        const now = Date.now()
+        const lastEdit = lastActivity.value[message.filename] || 0
+        if (now - lastEdit > IDLE_THRESHOLD) {
+          files.value[message.filename] = message.content
+        } else {
+          console.log(`⏳ Squashing external update for ${message.filename} because user is active`)
+        }
       }
 
-      if (message.type === 'save-complete') {
-        isSaving.value = false
-        lastSaved.value = true
-        setTimeout(() => {
-          lastSaved.value = false
-        }, 2000)
+      if (message.type === 'update-ack') {
+        // acknowledged
       }
     } catch (err) {
       console.error('WebSocket message error:', err)
@@ -101,13 +103,14 @@ function connectWebSocket() {
 
 function handleFileUpdate(filename, content) {
   files.value[filename] = content
+  lastActivity.value[filename] = Date.now()
   
   if (saveDebounceTimer) {
     clearTimeout(saveDebounceTimer)
   }
   saveDebounceTimer = setTimeout(() => {
-    saveFiles()
-  }, 500)
+    saveFile(filename, content)
+  }, 200)
 
   if (autoRun.value) {
     if (renderDebounceTimer) {
@@ -119,9 +122,20 @@ function handleFileUpdate(filename, content) {
   }
 }
 
+function saveFile(filename, content) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Send only the updated file content via a specific update message
+    // instead of sending all files via 'save' message.
+    ws.send(JSON.stringify({
+      type: 'update',
+      filename,
+      content
+    }))
+  }
+}
+
 function saveFiles() {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    isSaving.value = true
     ws.send(JSON.stringify({
       type: 'save',
       files: files.value

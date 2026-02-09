@@ -2,7 +2,7 @@ import { WebSocketServer } from 'ws'
 import express from 'express'
 import { createServer } from 'http'
 import { watch } from 'chokidar'
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, unlinkSync, promises as fs } from 'fs'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import open from 'open'
@@ -57,12 +57,20 @@ export async function launchEditorFlow(projectPath) {
           fileMap[message.filename] = message.content
           ignoreNextChange.add(message.filename)
 
-          writeFileSync(join(projectPath, message.filename), message.content)
+          const filePath = join(projectPath, message.filename)
+          
+          // These can happen in background
+          fs.writeFile(filePath, message.content).then(() => {
+            setTimeout(() => ignoreNextChange.delete(message.filename), 1000)
+          }).catch(err => console.error(`Failed to write ${message.filename}:`, err))
 
-          setTimeout(() => ignoreNextChange.delete(message.filename), 200)
-
-          const html = await executeSequentialRender(fileMap, config)
-          broadcast({ type: 'preview', html })
+          // Render can also happen in background or we can await it if we want the preview to be immediate
+          executeSequentialRender(fileMap, config).then(html => {
+            broadcast({ type: 'preview', html })
+          })
+          
+          // Ack immediately to the client
+          ws.send(JSON.stringify({ type: 'update-ack', filename: message.filename }))
         }
 
         if (message.type === 'rename') {
@@ -144,9 +152,16 @@ export async function launchEditorFlow(projectPath) {
         }
 
         if (message.type === 'save') {
+          const writePromises = []
           for (const [filename, content] of Object.entries(message.files)) {
-            writeFileSync(join(projectPath, filename), content)
+            fileMap[filename] = content
+            const filePath = join(projectPath, filename)
+            writePromises.push(fs.writeFile(filePath, content))
           }
+          Promise.all(writePromises).then(async () => {
+            const html = await executeSequentialRender(fileMap, config)
+            broadcast({ type: 'preview', html })
+          }).catch(err => console.error('Bulk save error:', err))
         }
 
         if (message.type === 'render') {

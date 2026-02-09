@@ -7,14 +7,6 @@
       </div>
     </div>
     <div class="toolbar-center">
-      <div class="save-status" v-if="isSaving">
-        <i class="ph-duotone ph-spinner"></i>
-        <span>Saving...</span>
-      </div>
-      <div class="save-status saved" v-else-if="lastSaved">
-        <i class="ph-duotone ph-check-circle"></i>
-        <span>Saved</span>
-      </div>
     </div>
     <div class="toolbar-right">
       <button class="toolbar-btn" @click="openPreviewTab" title="Open in new tab">
@@ -32,14 +24,6 @@ defineProps({
   projectName: {
     type: String,
     default: 'Pen'
-  },
-  isSaving: {
-    type: Boolean,
-    default: false
-  },
-  lastSaved: {
-    type: Boolean,
-    default: false
   }
 })
 
@@ -100,26 +84,6 @@ function openPreviewTab() {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
-}
-
-.save-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.save-status i {
-  font-size: 14px;
-}
-
-.save-status.saved {
-  color: #059669;
-}
-
-.save-status .ph-spinner {
-  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
