@@ -2,8 +2,6 @@
   <div class="app">
     <Toolbar
       :project-name="config?.name || 'Pen'"
-      :is-saving="isSaving"
-      :last-saved="lastSaved"
       @settings="showSettings = true"
     />
     <PaneManager

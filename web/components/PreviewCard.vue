@@ -38,66 +38,39 @@
         </button>
       </div>
     </header>
-    <div class="preview-body" :class="{ 'with-devtools': showDevtools }">
+    <div class="preview-body">
+      <Splitpanes v-if="showDevtools" horizontal class="default-theme preview-split">
+        <Pane min-size="20">
+          <iframe
+            ref="iframe"
+            :srcdoc="enhancedHtml"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+            class="preview-iframe"
+          ></iframe>
+        </Pane>
+        <Pane min-size="20">
+          <iframe
+            ref="devtoolsIframe"
+            :srcdoc="devtoolsSrcdoc"
+            class="devtools-iframe"
+          ></iframe>
+        </Pane>
+      </Splitpanes>
       <iframe
+        v-else
         ref="iframe"
         :srcdoc="enhancedHtml"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         class="preview-iframe"
       ></iframe>
-      <div v-if="showDevtools" class="devtools-panel">
-        <div class="devtools-header">
-          <button 
-            v-for="tab in devtoolsTabs" 
-            :key="tab.id"
-            class="devtools-tab"
-            :class="{ active: activeDevtoolsTab === tab.id }"
-            @click="activeDevtoolsTab = tab.id"
-          >
-            {{ tab.name }}
-          </button>
-        </div>
-        <div class="devtools-content">
-          <div v-if="activeDevtoolsTab === 'console'" class="console-output" ref="consoleOutputRef">
-            <div 
-              v-for="(log, idx) in consoleLogs" 
-              :key="idx" 
-              class="console-entry"
-              :class="log.type"
-            >
-              <span class="console-type">{{ log.type }}</span>
-              <span class="console-message">{{ log.message }}</span>
-            </div>
-            <div v-if="consoleLogs.length === 0" class="console-empty">
-              Console is empty
-            </div>
-          </div>
-          <div v-else-if="activeDevtoolsTab === 'errors'" class="errors-output">
-            <div 
-              v-for="(error, idx) in errors" 
-              :key="idx" 
-              class="error-entry"
-            >
-              <span class="error-message">{{ error.message }}</span>
-              <span class="error-source" v-if="error.source">{{ error.source }}</span>
-            </div>
-            <div v-if="errors.length === 0" class="errors-empty">
-              No errors
-            </div>
-          </div>
-        </div>
-        <div class="devtools-actions">
-          <button class="devtools-btn" @click="clearConsole" title="Clear console">
-            <i class="ph-duotone ph-trash"></i>
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { Splitpanes, Pane } from 'splitpanes'
+import 'splitpanes/dist/splitpanes.css'
 
 const props = defineProps({
   html: {
@@ -113,92 +86,106 @@ const props = defineProps({
 defineEmits(['refresh', 'toggle-auto-run'])
 
 const iframe = ref(null)
+const devtoolsIframe = ref(null)
 const showDevtools = ref(false)
-const activeDevtoolsTab = ref('console')
-const consoleLogs = ref([])
-const errors = ref([])
-const consoleOutputRef = ref(null)
-
-const devtoolsTabs = [
-  { id: 'console', name: 'Console' },
-  { id: 'errors', name: 'Errors' }
-]
 
 const devtoolsScript = `
-<script>
-(function() {
-  const originalConsole = {
-    log: console.log,
-    warn: console.warn,
-    error: console.error,
-    info: console.info,
-    debug: console.debug
-  };
+<script src="https://cdn.jsdelivr.net/npm/chobitsu"><\/script>
+<script type="module">
+  (function() {
+    if (window._chobitsu_initialized) return;
+    window._chobitsu_initialized = true;
 
-  function formatArgs(args) {
-    return Array.from(args).map(arg => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg, null, 2);
-        } catch(e) {
-          return String(arg);
+    chobitsu.setOnMessage((data) => {
+      if (data.includes('"id":"tmp')) return;
+      window.parent.postMessage({ event: 'CHOBITSU_EVENT', data }, '*');
+    });
+
+    window.addEventListener('message', (event) => {
+      const { type, event: eventType, data } = event.data || {};
+      if (eventType === 'DEV' && typeof data === 'string') {
+        chobitsu.sendRawMessage(data);
+      }
+    });
+
+    const sendToDevtools = (message) => {
+      window.parent.postMessage({ event: 'CHOBITSU_EVENT', data: JSON.stringify(message) }, '*');
+    };
+
+    let id = 0;
+    const sendToChobitsu = (message) => {
+      message.id = 'tmp' + ++id;
+      chobitsu.sendRawMessage(JSON.stringify(message));
+    };
+
+    const notifyNavigation = () => {
+      sendToDevtools({
+        method: 'Page.frameNavigated',
+        params: {
+          frame: {
+            id: '1',
+            loaderId: '1',
+            url: location.href,
+            securityOrigin: location.origin,
+            mimeType: 'text/html'
+          },
+          type: 'Navigation'
         }
-      }
-      return String(arg);
-    }).join(' ');
-  }
-
-  function sendToParent(type, args) {
-    window.parent.postMessage({
-      type: 'console',
-      data: { type, message: formatArgs(args) }
-    }, '*');
-  }
-
-  console.log = function() {
-    originalConsole.log.apply(console, arguments);
-    sendToParent('log', arguments);
-  };
-  console.warn = function() {
-    originalConsole.warn.apply(console, arguments);
-    sendToParent('warn', arguments);
-  };
-  console.error = function() {
-    originalConsole.error.apply(console, arguments);
-    sendToParent('error', arguments);
-  };
-  console.info = function() {
-    originalConsole.info.apply(console, arguments);
-    sendToParent('info', arguments);
-  };
-  console.debug = function() {
-    originalConsole.debug.apply(console, arguments);
-    sendToParent('debug', arguments);
-  };
-
-  window.onerror = function(message, source, lineno, colno, error) {
-    window.parent.postMessage({
-      type: 'error',
-      data: { 
-        message: message,
-        source: source ? source + ':' + lineno + ':' + colno : null
-      }
-    }, '*');
-    return false;
-  };
-
-  window.addEventListener('unhandledrejection', function(event) {
-    window.parent.postMessage({
-      type: 'error',
-      data: { 
-        message: 'Unhandled Promise Rejection: ' + (event.reason?.message || event.reason),
-        source: null
-      }
-    }, '*');
-  });
-})();
+      });
+      sendToChobitsu({ method: 'Network.enable' });
+      sendToDevtools({ method: 'Runtime.executionContextsCleared' });
+      sendToChobitsu({ method: 'Runtime.enable' });
+      sendToChobitsu({ method: 'Debugger.enable' });
+      sendToChobitsu({ method: 'DOMStorage.enable' });
+      sendToChobitsu({ method: 'DOM.enable' });
+      sendToChobitsu({ method: 'CSS.enable' });
+      sendToChobitsu({ method: 'Overlay.enable' });
+      sendToDevtools({ method: 'DOM.documentUpdated' });
+    };
+    
+    setTimeout(notifyNavigation, 200);
+  })();
 <\/script>
 `
+
+const devtoolsSrcdoc = computed(() => {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DevTools</title>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; height: 100vh; background: #242424; }
+    @media (prefers-color-scheme: light) {
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body class="undocked" id="-blink-dev-tools">
+  <script src="https://unpkg.com/@ungap/custom-elements/es.js"><\/script>
+  <script type="module">
+    window.addEventListener('message', (event) => {
+      const { event: eventType, data } = event.data || {};
+      if (eventType === 'DEV_COMMAND' && typeof data === 'string') {
+        window.postMessage(data, '*');
+      }
+    });
+
+    const originalPostMessage = window.postMessage;
+    window.postMessage = function(data, targetOrigin, transfer) {
+      // Only send back to parent if it's a CDP command (has "id")
+      // Events from the backend don't have "id" and shouldn't be sent back
+      if (typeof data === 'string' && data.includes('"id":')) {
+        window.parent.postMessage({ event: 'CHII_COMMAND', data }, '*');
+      }
+      return originalPostMessage.apply(this, arguments);
+    };
+  <\/script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/chii@1.12.3/public/front_end/entrypoints/chii_app/chii_app.js"><\/script>
+</body>
+</html>`
+})
 
 const enhancedHtml = computed(() => {
   if (!props.html) return ''
@@ -225,20 +212,19 @@ function toggleDevtools() {
 }
 
 function clearConsole() {
-  consoleLogs.value = []
-  errors.value = []
+  // Chobitsu doesn't have a direct clear command via this bridge easily,
+  // but reloading the iframe (which happens on change) clears it.
 }
 
 function handleMessage(event) {
-  if (event.data?.type === 'console') {
-    consoleLogs.value.push(event.data.data)
-    nextTick(() => {
-      if (consoleOutputRef.value) {
-        consoleOutputRef.value.scrollTop = consoleOutputRef.value.scrollHeight
-      }
-    })
-  } else if (event.data?.type === 'error') {
-    errors.value.push(event.data.data)
+  if (event.source === iframe.value?.contentWindow) {
+    if (event.data?.event === 'CHOBITSU_EVENT') {
+      devtoolsIframe.value?.contentWindow?.postMessage({ event: 'DEV_COMMAND', data: event.data.data }, '*');
+    }
+  } else if (event.source === devtoolsIframe.value?.contentWindow) {
+    if (event.data?.event === 'CHII_COMMAND') {
+      iframe.value?.contentWindow?.postMessage({ event: 'DEV', data: event.data.data }, '*');
+    }
   }
 }
 
@@ -251,8 +237,7 @@ onUnmounted(() => {
 })
 
 watch(() => props.html, () => {
-  consoleLogs.value = []
-  errors.value = []
+  // No longer needed to clear logs manually
 }, { immediate: false })
 </script>
 
@@ -373,9 +358,28 @@ watch(() => props.html, () => {
   flex-direction: column;
 }
 
-.preview-body.with-devtools {
-  display: grid;
-  grid-template-rows: 1fr 200px;
+.preview-split :deep(.splitpanes__splitter) {
+  background: var(--color-border);
+  height: 4px;
+  cursor: row-resize;
+  position: relative;
+  transition: background var(--transition-fast);
+}
+
+.preview-split :deep(.splitpanes__splitter:hover) {
+  background: var(--color-accent);
+}
+
+.preview-split :deep(.splitpanes__splitter::after) {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 
 .preview-iframe {
@@ -383,154 +387,20 @@ watch(() => props.html, () => {
   height: 100%;
   border: none;
   background: white;
+  display: block;
 }
 
-.devtools-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
+.devtools-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+  display: block;
 }
 
-.devtools-header {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  border-bottom: 1px solid var(--color-border-light);
-  padding: 0 8px;
-  flex-shrink: 0;
-}
-
-.devtools-tab {
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-text-muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: all var(--transition-fast);
-}
-
-.devtools-tab:hover {
-  color: var(--color-text);
-}
-
-.devtools-tab.active {
-  color: var(--color-accent);
-  border-bottom-color: var(--color-accent);
-}
-
-.devtools-content {
-  flex: 1;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.console-output,
-.errors-output {
-  padding: 8px 12px;
-}
-
-.console-entry,
-.error-entry {
-  display: flex;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--color-border-light);
-}
-
-.console-entry:last-child,
-.error-entry:last-child {
-  border-bottom: none;
-}
-
-.console-type {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.console-entry.log .console-type {
-  background: #e0e7ff;
-  color: #4338ca;
-}
-
-.console-entry.warn .console-type {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.console-entry.error .console-type {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.console-entry.info .console-type {
-  background: #dbeafe;
-  color: #2563eb;
-}
-
-.console-entry.debug .console-type {
-  background: #f3e8ff;
-  color: #9333ea;
-}
-
-.console-message,
-.error-message {
-  flex: 1;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-.error-entry {
-  flex-direction: column;
-  gap: 4px;
-}
-
-.error-message {
-  color: #dc2626;
-}
-
-.error-source {
-  font-size: 10px;
-  color: var(--color-text-muted);
-}
-
-.console-empty,
-.errors-empty {
-  color: var(--color-text-muted);
-  font-style: italic;
-  padding: 16px 0;
-  text-align: center;
-}
-
-.devtools-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--color-border-light);
-}
-
-.devtools-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  transition: all var(--transition-fast);
-}
-
-.devtools-btn:hover {
-  background: var(--color-border-light);
-  color: var(--color-text);
+@media (prefers-color-scheme: dark) {
+  .devtools-iframe {
+    background: #242424;
+  }
 }
 </style>
