@@ -1,35 +1,47 @@
 <template>
-  <div class="pane-manager" :class="{ 'row-layout': layoutMode === 'rows' }">
+  <div class="pane-manager" :class="[layoutMode, { 'is-any-dragging': isAnyDragging }]">
+    <div v-show="isAnyDragging" class="drag-overlay"></div>
+
     <Splitpanes 
-      class="default-theme" 
+      :key="`main-${layoutMode}`"
+      class="default-theme main-split" 
       :horizontal="layoutMode === 'rows'"
-      @resize="handleResize"
-      :push-other-panes="true"
+      @resize="handleMainResize"
+      @ready="onReady"
     >
-      <Pane 
-        v-for="(editor, idx) in editors" 
-        :key="editor.filename"
-        :size="paneSizes[idx] || defaultPaneSize"
-        :min-size="collapsedPanes[idx] ? minCollapsedSize : minPaneSize"
-      >
-        <EditorCard
-          :editor="editor"
-          :content="files[editor.filename] || ''"
-          @update="(content) => $emit('update', editor.filename, content)"
-          @rename="handleRename"
-          @settings-update="handleSettingsUpdate"
-        />
+      <Pane :size="100 - previewPaneSize">
+        <Splitpanes 
+          :key="`editors-${layoutMode}`"
+          class="editors-split"
+          :horizontal="layoutMode === 'columns'"
+          @resize="handleEditorsResize"
+        >
+          <Pane 
+            v-for="(editor, idx) in editors" 
+            :key="editor.filename"
+            :size="getEditorSize(idx)"
+            :min-size="minPaneSize"
+          >
+            <EditorCard
+              :editor="editor"
+              :content="files[editor.filename] || ''"
+              :is-collapsed="isPaneCollapsed(idx)"
+              @update="(content) => $emit('update', editor.filename, content)"
+              @rename="handleRename"
+              @settings-update="handleSettingsUpdate"
+              @toggle-collapse="togglePaneCollapse(idx)"
+            />
+          </Pane>
+        </Splitpanes>
       </Pane>
-      <Pane 
-        :size="previewPaneSize" 
-        :min-size="15"
-      >
+      <Pane :size="previewPaneSize" :min-size="15" class="preview-pane">
         <PreviewCard 
           :html="previewHtml" 
           :auto-run="autoRun"
           @refresh="$emit('render')" 
           @toggle-auto-run="$emit('toggle-auto-run')"
         />
+        <div v-if="isAnyDragging" class="iframe-blocker"></div>
       </Pane>
     </Splitpanes>
     
@@ -38,7 +50,7 @@
         class="layout-btn" 
         :class="{ active: layoutMode === 'columns' }"
         @click="$emit('set-layout', 'columns')"
-        title="Column layout"
+        title="2 Column, 3 Row layout"
       >
         <i class="ph-duotone ph-columns"></i>
       </button>
@@ -46,7 +58,7 @@
         class="layout-btn" 
         :class="{ active: layoutMode === 'rows' }"
         @click="$emit('set-layout', 'rows')"
-        title="Row layout"
+        title="2 Row, 3 Column layout"
       >
         <i class="ph-duotone ph-rows"></i>
       </button>
@@ -55,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import EditorCard from './EditorCard.vue'
@@ -86,27 +98,87 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run'])
 
-const paneSizes = ref([])
-const collapsedPanes = ref([])
-const minPaneSize = 10
-const minCollapsedSize = 3
+const columnsEditorSizes = ref([])
+const rowsEditorSizes = ref([])
 const previewPaneSize = ref(30)
+const minPaneSize = 3 // Minimal size for collapsed panes
+const collapseThreshold = 7 // Threshold percentage below which we hide the editor
+const isAnyDragging = ref(false)
+let activeSplitter = null
 
-const defaultPaneSize = computed(() => {
-  if (props.editors.length === 0) return 70
-  return 70 / props.editors.length
-})
+function getEditorSize(idx) {
+  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes.value : rowsEditorSizes.value
+  if (sizes[idx] !== undefined) return sizes[idx]
+  return 100 / props.editors.length
+}
+
+function isPaneCollapsed(idx) {
+  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes.value : rowsEditorSizes.value
+  return (sizes[idx] || 0) <= collapseThreshold
+}
+
+function togglePaneCollapse(idx) {
+  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
+  if (isPaneCollapsed(idx)) {
+    // Expand to even share
+    const remainingSpace = 100 - minPaneSize
+    const expandedSize = remainingSpace / props.editors.length
+    sizes.value[idx] = Math.max(expandedSize, 20)
+    // Redraw others to accommodate
+    const otherIdxs = props.editors.map((_, i) => i).filter(i => i !== idx)
+    const newShareForOthers = (100 - sizes.value[idx]) / otherIdxs.length
+    otherIdxs.forEach(i => { sizes.value[i] = newShareForOthers })
+  } else {
+    // Collapse to minimal
+    const oldSize = sizes.value[idx]
+    sizes.value[idx] = minPaneSize
+    const gainedSpace = oldSize - minPaneSize
+    const otherIdxs = props.editors.map((_, i) => i).filter(i => i !== idx)
+    const extraPerPane = gainedSpace / otherIdxs.length
+    otherIdxs.forEach(i => { sizes.value[i] += extraPerPane })
+  }
+}
+
+function onMouseDown(e) {
+  const splitter = e.target.closest('.splitpanes__splitter')
+  if (splitter) {
+    isAnyDragging.value = true
+    activeSplitter = splitter
+    activeSplitter.classList.add('is-active')
+    window.addEventListener('mouseup', onMouseUp, { once: true })
+  }
+}
+
+function onMouseUp() {
+  isAnyDragging.value = false
+  if (activeSplitter) {
+    activeSplitter.classList.remove('is-active')
+    activeSplitter = null
+  }
+}
+
+function onReady() {}
 
 watch(() => props.editors.length, () => {
-  paneSizes.value = props.editors.map(() => defaultPaneSize.value)
-  collapsedPanes.value = props.editors.map(() => false)
+  if (props.editors.length > 0) {
+    const defaultSize = 100 / props.editors.length
+    columnsEditorSizes.value = props.editors.map(() => defaultSize)
+    rowsEditorSizes.value = props.editors.map(() => defaultSize)
+  }
 }, { immediate: true })
 
-function handleResize(event) {
-  paneSizes.value = event.map(p => p.size)
-  event.forEach((pane, idx) => {
-    collapsedPanes.value[idx] = pane.size <= minCollapsedSize + 2
-  })
+function handleMainResize(event) {
+  if (event[1]) {
+    previewPaneSize.value = event[1].size
+  }
+}
+
+function handleEditorsResize(event) {
+  if (props.layoutMode === 'columns') {
+    columnsEditorSizes.value = event.map(p => p.size)
+  } else {
+    rowsEditorSizes.value = event.map(p => p.size)
+  }
 }
 
 function handleRename(oldFilename, newFilename, newType) {
@@ -116,6 +188,15 @@ function handleRename(oldFilename, newFilename, newType) {
 function handleSettingsUpdate(filename, settings) {
   emit('settings-update', filename, settings)
 }
+
+onMounted(() => {
+  window.addEventListener('mousedown', onMouseDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousedown', onMouseDown)
+  window.removeEventListener('mouseup', onMouseUp)
+})
 </script>
 
 <style scoped>
@@ -123,6 +204,31 @@ function handleSettingsUpdate(filename, settings) {
   flex: 1;
   overflow: hidden;
   position: relative;
+  height: 100%;
+}
+
+.drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  cursor: inherit;
+  pointer-events: none; /* Only exists to show cursor if needed, but iframe-blocker does the heavy lifting */
+}
+
+.preview-pane {
+  position: relative;
+}
+
+.iframe-blocker {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: transparent;
+}
+
+/* Fix for "jumping" panes: disable transitions while dragging */
+.pane-manager :deep(.splitpanes--dragging .splitpanes__pane) {
+  transition: none !important;
 }
 
 .pane-manager :deep(.splitpanes) {
@@ -132,16 +238,19 @@ function handleSettingsUpdate(filename, settings) {
 .pane-manager :deep(.splitpanes__pane) {
   display: flex;
   flex-direction: column;
-  transition: min-width 0.2s ease, min-height 0.2s ease;
-}
-
-.pane-manager.row-layout :deep(.splitpanes__pane) {
-  min-height: 40px;
+  background: var(--color-background);
+  transition: none; 
 }
 
 .pane-manager :deep(.splitpanes__splitter) {
   background: var(--color-border);
   transition: background var(--transition-fast);
+  position: relative;
+}
+
+/* SURGICAL HIGHLIGHT: Only highlight the specific splitter being dragged */
+.pane-manager :deep(.splitpanes__splitter.is-active) {
+  background: var(--color-accent);
 }
 
 .pane-manager :deep(.splitpanes__splitter:hover) {
@@ -150,14 +259,33 @@ function handleSettingsUpdate(filename, settings) {
 
 .pane-manager :deep(.splitpanes--vertical > .splitpanes__splitter) {
   width: 4px;
-  min-width: 4px;
   cursor: col-resize;
 }
 
 .pane-manager :deep(.splitpanes--horizontal > .splitpanes__splitter) {
   height: 4px;
-  min-height: 4px;
   cursor: row-resize;
+}
+
+/* Handle visual for the splitter */
+.pane-manager :deep(.splitpanes__splitter::after) {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.pane-manager :deep(.splitpanes--vertical > .splitpanes__splitter::after) {
+  width: 2px;
+  height: 20px;
+}
+
+.pane-manager :deep(.splitpanes--horizontal > .splitpanes__splitter::after) {
+  width: 20px;
+  height: 2px;
 }
 
 .layout-controls {
@@ -171,7 +299,7 @@ function handleSettingsUpdate(filename, settings) {
   border-radius: var(--radius-md);
   padding: 4px;
   box-shadow: var(--shadow-md);
-  z-index: 10;
+  z-index: 100;
 }
 
 .layout-btn {

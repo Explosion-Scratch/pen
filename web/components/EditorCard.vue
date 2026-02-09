@@ -1,10 +1,10 @@
 <template>
-  <div class="editor-card" :class="{ collapsed: collapsed }">
+  <div class="editor-card" :class="{ collapsed: isCollapsed }">
     <header class="editor-header">
       <div class="editor-info">
         <i :class="getEditorIcon(editor.type)"></i>
         <input
-          v-if="!collapsed"
+          v-if="!isCollapsed"
           type="text"
           class="editor-filename-input"
           :value="editor.filename"
@@ -14,24 +14,24 @@
         />
         <span v-else class="editor-filename-vertical">{{ editor.filename }}</span>
       </div>
-      <div class="editor-actions" v-if="!collapsed">
+      <div class="editor-actions" v-if="!isCollapsed">
         <button class="action-btn" @click="showSettings = true" title="Editor settings">
           <i class="ph-duotone ph-gear-six"></i>
         </button>
         <button class="action-btn" @click="formatCode" title="Format code">
           <i class="ph-duotone ph-magic-wand"></i>
         </button>
-        <button class="action-btn" @click="toggleCollapse" title="Collapse">
+        <button class="action-btn" @click="$emit('toggle-collapse')" title="Collapse">
           <i class="ph-duotone ph-caret-up"></i>
         </button>
       </div>
       <div class="editor-actions" v-else>
-        <button class="action-btn" @click="toggleCollapse" title="Expand">
+        <button class="action-btn" @click="$emit('toggle-collapse')" title="Expand">
           <i class="ph-duotone ph-caret-down"></i>
         </button>
       </div>
     </header>
-    <div class="editor-body" v-show="!collapsed" ref="editorContainer"></div>
+    <div class="editor-body" v-show="!isCollapsed" ref="editorContainer"></div>
     
     <Teleport to="body">
       <div v-if="showSettings" class="settings-overlay" @click.self="showSettings = false">
@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState, Compartment } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
@@ -68,103 +68,20 @@ const props = defineProps({
   content: {
     type: String,
     default: ''
+  },
+  isCollapsed: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update', 'rename', 'settings-update'])
+const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse'])
 
 const editorContainer = ref(null)
-const collapsed = ref(false)
 const showSettings = ref(false)
 let view = null
 let updateListener = null
 const languageCompartment = new Compartment()
-
-const editorIcons = {
-  html: 'ph-duotone ph-file-html',
-  pug: 'ph-duotone ph-code',
-  slim: 'ph-duotone ph-code',
-  css: 'ph-duotone ph-file-css',
-  sass: 'ph-duotone ph-file-css',
-  less: 'ph-duotone ph-file-css',
-  stylus: 'ph-duotone ph-file-css',
-  javascript: 'ph-duotone ph-file-js',
-  typescript: 'ph-duotone ph-file-ts'
-}
-
-const fileExtensions = {
-  html: '.html',
-  pug: '.pug',
-  slim: '.slim',
-  css: '.css',
-  sass: '.scss',
-  less: '.less',
-  stylus: '.styl',
-  javascript: '.js',
-  typescript: '.ts'
-}
-
-const extensionToType = {
-  '.html': 'html',
-  '.htm': 'html',
-  '.pug': 'pug',
-  '.jade': 'pug',
-  '.slim': 'slim',
-  '.css': 'css',
-  '.scss': 'sass',
-  '.sass': 'sass',
-  '.less': 'less',
-  '.styl': 'stylus',
-  '.stylus': 'stylus',
-  '.js': 'javascript',
-  '.mjs': 'javascript',
-  '.ts': 'typescript',
-  '.tsx': 'typescript'
-}
-
-function getEditorIcon(type) {
-  return editorIcons[type] || 'ph-duotone ph-file'
-}
-
-function getLanguageExtension(type) {
-  const type_ = type.toLowerCase()
-  if (type_ === 'html' || type_ === 'pug' || type_ === 'slim') {
-    return html()
-  }
-  if (type_ === 'css' || type_ === 'less' || type_ === 'stylus') {
-    return css()
-  }
-  if (type_ === 'sass') {
-    return sass()
-  }
-  if (type_ === 'javascript') {
-    return javascript()
-  }
-  if (type_ === 'typescript') {
-    return javascript({ typescript: true })
-  }
-  return javascript()
-}
-
-function isMarkupEditor(type) {
-  return ['html', 'pug', 'slim'].includes(type.toLowerCase())
-}
-
-function isStyleEditor(type) {
-  return ['css', 'sass', 'less', 'stylus'].includes(type.toLowerCase())
-}
-
-function getEmmetExtensions() {
-  const type_ = props.editor.type.toLowerCase()
-  if (isMarkupEditor(type_) || isStyleEditor(type_)) {
-    return [abbreviationTracker(), expandAbbreviation()]
-  }
-  return []
-}
-
-function toggleCollapse() {
-  collapsed.value = !collapsed.value
-}
 
 function formatCode() {
 }
@@ -224,8 +141,8 @@ onMounted(() => {
     penLightTheme,
     updateListener,
     EditorView.lineWrapping,
-    keymap.of([indentWithTab]),
-    ...getEmmetExtensions()
+    ...getEmmetExtensions(),
+    keymap.of([indentWithTab])
   ]
 
   const state = EditorState.create({
