@@ -102,7 +102,7 @@ const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-
 
 const columnsEditorSizes = ref([])
 const rowsEditorSizes = ref([])
-const previewPaneSize = ref(30)
+const previewPaneSize = ref(60)
 const minPaneSize = 3 // Minimal size for collapsed panes
 const collapseThreshold = 7 // Threshold percentage below which we hide the editor
 const isAnyDragging = ref(false)

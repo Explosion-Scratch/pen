@@ -51,7 +51,7 @@
         <Pane min-size="20">
           <iframe
             ref="devtoolsIframe"
-            :srcdoc="devtoolsSrcdoc"
+            :src="devtoolsUrl"
             class="devtools-iframe"
           ></iframe>
         </Pane>
@@ -98,18 +98,18 @@ const devtoolsScript = `
 
     chobitsu.setOnMessage((data) => {
       if (data.includes('"id":"tmp')) return;
-      window.parent.postMessage({ event: 'CHOBITSU_EVENT', data }, '*');
+      window.parent.postMessage(data, '*');
     });
 
     window.addEventListener('message', (event) => {
-      const { type, event: eventType, data } = event.data || {};
+      const { event: eventType, data } = event.data || {};
       if (eventType === 'DEV' && typeof data === 'string') {
         chobitsu.sendRawMessage(data);
       }
     });
 
     const sendToDevtools = (message) => {
-      window.parent.postMessage({ event: 'CHOBITSU_EVENT', data: JSON.stringify(message) }, '*');
+      window.parent.postMessage(JSON.stringify(message), '*');
     };
 
     let id = 0;
@@ -148,8 +148,15 @@ const devtoolsScript = `
 <\/script>
 `
 
-const devtoolsSrcdoc = computed(() => {
-  return `
+const devtoolsUrl = ref('')
+let devtoolsBlobUrl = null
+
+function updateDevtoolsUrl() {
+  if (devtoolsBlobUrl) {
+    URL.revokeObjectURL(devtoolsBlobUrl)
+  }
+  
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -164,27 +171,18 @@ const devtoolsSrcdoc = computed(() => {
 </head>
 <body class="undocked" id="-blink-dev-tools">
   <script src="https://unpkg.com/@ungap/custom-elements/es.js"><\/script>
-  <script type="module">
-    window.addEventListener('message', (event) => {
-      const { event: eventType, data } = event.data || {};
-      if (eventType === 'DEV_COMMAND' && typeof data === 'string') {
-        window.postMessage(data, '*');
-      }
-    });
-
-    const originalPostMessage = window.postMessage;
-    window.postMessage = function(data, targetOrigin, transfer) {
-      // Only send back to parent if it's a CDP command (has "id")
-      // Events from the backend don't have "id" and shouldn't be sent back
-      if (typeof data === 'string' && data.includes('"id":')) {
-        window.parent.postMessage({ event: 'CHII_COMMAND', data }, '*');
-      }
-      return originalPostMessage.apply(this, arguments);
-    };
-  <\/script>
   <script type="module" src="https://cdn.jsdelivr.net/npm/chii@1.12.3/public/front_end/entrypoints/chii_app/chii_app.js"><\/script>
 </body>
 </html>`
+
+  devtoolsBlobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  devtoolsUrl.value = `${devtoolsBlobUrl}#?embedded=${encodeURIComponent(window.location.origin)}`
+}
+
+watch(showDevtools, (val) => {
+  if (val && !devtoolsUrl.value) {
+    updateDevtoolsUrl()
+  }
 })
 
 const enhancedHtml = computed(() => {
@@ -218,12 +216,12 @@ function clearConsole() {
 
 function handleMessage(event) {
   if (event.source === iframe.value?.contentWindow) {
-    if (event.data?.event === 'CHOBITSU_EVENT') {
-      devtoolsIframe.value?.contentWindow?.postMessage({ event: 'DEV_COMMAND', data: event.data.data }, '*');
+    if (typeof event.data === 'string') {
+      devtoolsIframe.value?.contentWindow?.postMessage(event.data, '*');
     }
   } else if (event.source === devtoolsIframe.value?.contentWindow) {
-    if (event.data?.event === 'CHII_COMMAND') {
-      iframe.value?.contentWindow?.postMessage({ event: 'DEV', data: event.data.data }, '*');
+    if (typeof event.data === 'string') {
+      iframe.value?.contentWindow?.postMessage({ event: 'DEV', data: event.data }, '*');
     }
   }
 }
@@ -234,6 +232,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('message', handleMessage)
+  if (devtoolsBlobUrl) {
+    URL.revokeObjectURL(devtoolsBlobUrl)
+  }
 })
 
 watch(() => props.html, () => {
