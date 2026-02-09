@@ -1,0 +1,34 @@
+{
+  "name": "Example Project",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": {
+        "doctype": "html5",
+        "lang": "en"
+      }
+    },
+    {
+      "type": "sass",
+      "filename": "style.scss",
+      "settings": {
+        "normalize": true,
+        "indentedSyntax": false
+      }
+    },
+    {
+      "type": "javascript",
+      "filename": "script.js",
+      "settings": {
+        "moduleType": "module",
+        "strictMode": true
+      }
+    }
+  ],
+  "globalResources": {
+    "scripts": [],
+    "styles": []
+  }
+}

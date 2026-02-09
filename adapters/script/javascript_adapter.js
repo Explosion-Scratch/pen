@@ -1,0 +1,100 @@
+import { BaseAdapter } from '../base_adapter.js'
+import { loadAndRenderTemplate } from '../../core/template_engine.js'
+
+export class JavaScriptAdapter extends BaseAdapter {
+  static type = 'script'
+  static id = 'javascript'
+  static name = 'JavaScript'
+  static description = 'ECMAScript / JavaScript'
+  static extends = null
+  static fileExtension = '.js'
+  static mimeType = 'text/javascript'
+
+  static getCdnResources(settings = {}) {
+    return { scripts: [], styles: [] }
+  }
+
+  static getDefaultTemplate(variables = {}) {
+    const template = loadAndRenderTemplate('javascript', variables)
+    if (template) return template
+
+    return `/**
+ * ${variables.projectName || 'Pen'} Script
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('${variables.projectName || 'Pen'} is ready!')
+
+  const container = document.querySelector('.container')
+  if (container) {
+    container.addEventListener('click', () => {
+      console.log('Container clicked!')
+    })
+  }
+})`
+  }
+
+  static getDefaultSettings() {
+    return {
+      moduleType: 'module',
+      strictMode: true
+    }
+  }
+
+  initialize(codemirrorInstance, fullConfig) {
+    return {
+      syntax: 'javascript',
+      theme: 'pen-light',
+      extensions: [],
+      actions: {
+        beautify: (code) => this.beautify(code),
+        minify: (code) => this.minify(code),
+        compile: null,
+        destroy: null
+      }
+    }
+  }
+
+  beautify(code) {
+    return code
+  }
+
+  async minify(code) {
+    try {
+      const { minify } = await import('terser')
+      const result = await minify(code)
+      return result.code || code
+    } catch (err) {
+      console.error('Minification error:', err)
+      return code
+    }
+  }
+
+  async render(content, fileMap) {
+    let js = content
+    if (this.settings.strictMode && !js.includes("'use strict'") && !js.includes('"use strict"')) {
+    }
+    return {
+      ...fileMap,
+      js
+    }
+  }
+
+  getSchema() {
+    return {
+      moduleType: {
+        type: 'select',
+        name: 'Script Type',
+        description: 'JavaScript module type',
+        default: 'module',
+        options: ['module', 'classic']
+      },
+      strictMode: {
+        type: 'boolean',
+        name: 'Strict Mode',
+        description: 'Enable JavaScript strict mode',
+        default: true
+      }
+    }
+  }
+}

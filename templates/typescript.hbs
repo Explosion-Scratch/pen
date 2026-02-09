@@ -1,0 +1,24 @@
+/**
+ * {{projectName}} Script
+ */
+
+interface AppConfig {
+  name: string
+  version: string
+}
+
+const config: AppConfig = {
+  name: '{{projectName}}',
+  version: '1.0.0'
+}
+
+document.addEventListener('DOMContentLoaded', (): void => {
+  console.log(`${config.name} v${config.version} is ready!`)
+
+  const container = document.querySelector('.container')
+  if (container) {
+    container.addEventListener('click', (event: Event): void => {
+      console.log('Container clicked!', event)
+    })
+  }
+})
