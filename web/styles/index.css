@@ -261,22 +261,11 @@ input, textarea, select {
   transform: translateY(-8px);
 }
 
-.splitpanes--vertical > .splitpanes__pane {
-  min-width: 40px;
-}
-
-.splitpanes--horizontal > .splitpanes__pane {
-  min-height: 40px;
-}
-
-.splitpanes__pane--collapsed {
-  min-width: 40px !important;
-  max-width: 40px !important;
-}
-
-.splitpanes--horizontal .splitpanes__pane--collapsed {
-  min-height: 40px !important;
-  max-height: 40px !important;
+body.is-pen-dragging *,
+body.is-pen-dragging *::before,
+body.is-pen-dragging *::after {
+  transition: none !important;
+  user-select: none !important;
 }
 
 .writing-mode-vertical {

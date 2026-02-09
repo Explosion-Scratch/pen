@@ -61,7 +61,11 @@ function connectWebSocket() {
       if (message.type === 'init') {
         config.value = message.config
         files.value = message.files
-        editors.value = message.config.editors
+        // Add unique IDs for stable keying in PaneManager
+        editors.value = (message.config.editors || []).map((e, idx) => ({
+          ...e,
+          id: e.id || `editor-${idx}-${Date.now()}`
+        }))
         if (autoRun.value) {
           ws.send(JSON.stringify({ type: 'render' }))
         }

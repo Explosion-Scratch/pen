@@ -251,6 +251,14 @@ watch(() => props.content, (newContent) => {
   }
 })
 
+watch(() => props.editor.type, (newType) => {
+  if (view) {
+    view.dispatch({
+      effects: languageCompartment.reconfigure(getLanguageExtension(newType))
+    })
+  }
+})
+
 onUnmounted(() => {
   if (view) {
     view.destroy()
@@ -265,24 +273,13 @@ onUnmounted(() => {
   height: 100%;
   background: var(--color-surface);
   border-right: 1px solid var(--color-border-light);
-  min-width: 40px;
-  transition: min-width var(--transition-fast);
+  min-width: 0;
+  min-height: 0;
 }
 
 .editor-card.collapsed {
-  /* No fixed min/max width/height here as Splitpanes handles it, 
-     but we ensure it doesn't try to grow too much if splitpanes is buggy */
+  /* Let Splitpanes handle size, card just hides content */
   overflow: hidden;
-}
-
-.rows .editor-card.collapsed {
-  min-width: 40px;
-  max-width: 40px;
-}
-
-.columns .editor-card.collapsed {
-  min-height: 40px;
-  max-height: 40px;
 }
 
 .editor-header {

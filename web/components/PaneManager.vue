@@ -15,10 +15,11 @@
           class="editors-split"
           :horizontal="layoutMode === 'columns'"
           @resize="handleEditorsResize"
+          @ready="onEditorsReady"
         >
           <Pane 
             v-for="(editor, idx) in editors" 
-            :key="editor.filename"
+            :key="editor.id || editor.filename"
             :size="getEditorSize(idx)"
             :min-size="minPaneSize"
           >
@@ -102,9 +103,9 @@ const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-
 
 const columnsEditorSizes = ref([])
 const rowsEditorSizes = ref([])
-const previewPaneSize = ref(60)
-const minPaneSize = 3 // Minimal size for collapsed panes
-const collapseThreshold = 7 // Threshold percentage below which we hide the editor
+const previewPaneSize = ref(50)
+const minPaneSize = 5 // Increased to ensure header is always visible when "collapsed"
+const collapseThreshold = 7 
 const isAnyDragging = ref(false)
 let activeSplitter = null
 
@@ -141,8 +142,8 @@ function togglePaneCollapse(idx) {
 function onMouseDown(e) {
   const splitter = e.target.closest('.splitpanes__splitter')
   if (splitter) {
-    // We update this globally, but we use v-show for the blocker to avoid DOM thrash
     isAnyDragging.value = true
+    document.body.classList.add('is-pen-dragging')
     activeSplitter = splitter
     activeSplitter.classList.add('is-active')
     window.addEventListener('mouseup', onMouseUp, { once: true })
@@ -151,13 +152,31 @@ function onMouseDown(e) {
 
 function onMouseUp() {
   isAnyDragging.value = false
+  document.body.classList.remove('is-pen-dragging')
   if (activeSplitter) {
     activeSplitter.classList.remove('is-active')
     activeSplitter = null
   }
 }
 
-function onReady() {}
+function onReady(panes) {
+  // Capture initial sizes from Splitpanes if they are different from our defaults
+  if (panes && panes.length >= 2) {
+    if (Math.abs(previewPaneSize.value - panes[1].size) > 1) {
+      previewPaneSize.value = panes[1].size
+    }
+  }
+}
+
+function onEditorsReady(panes) {
+  if (panes && panes.length > 0) {
+    const newSizes = panes.map(p => p.size)
+    const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
+    if (sizes.value.length === 0 || Math.abs(sizes.value[0] - newSizes[0]) > 1) {
+      sizes.value = newSizes
+    }
+  }
+}
 
 function initializeSizes() {
   if (props.editors.length > 0) {
@@ -177,16 +196,24 @@ function initializeSizes() {
 watch(() => props.editors.length, initializeSizes, { immediate: true })
 
 function handleMainResize(event) {
-  if (event[1]) {
-    previewPaneSize.value = event[1].size
+  if (event.length >= 2) {
+    const newSize = event[1].size
+    if (Math.abs(previewPaneSize.value - newSize) > 0.01) {
+      previewPaneSize.value = newSize
+    }
   }
 }
 
 function handleEditorsResize(event) {
-  if (props.layoutMode === 'columns') {
-    columnsEditorSizes.value = event.map(p => p.size)
-  } else {
-    rowsEditorSizes.value = event.map(p => p.size)
+  const newSizes = event.map(p => p.size)
+  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
+  
+  // Only update if there's a meaningful change to prevent feedback loops
+  const hasChanged = sizes.value.length !== newSizes.length || 
+                     sizes.value.some((s, i) => Math.abs(s - newSizes[i]) > 0.01)
+  
+  if (hasChanged) {
+    sizes.value = newSizes
   }
 }
 
