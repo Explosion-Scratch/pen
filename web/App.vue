@@ -16,6 +16,7 @@
       @render="handleRender"
       @rename="handleRename"
       @settings-update="handleEditorSettingsUpdate"
+      @format="handleFormat"
       @set-layout="handleSetLayout"
       @toggle-auto-run="handleToggleAutoRun"
     />
@@ -169,6 +170,15 @@ function handleEditorSettingsUpdate(filename, settings) {
         settings
       }))
     }
+  }
+}
+
+function handleFormat(filename) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'format',
+      filename
+    }))
   }
 }
 

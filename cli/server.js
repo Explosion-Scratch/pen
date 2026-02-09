@@ -2,7 +2,7 @@ import { WebSocketServer } from 'ws'
 import express from 'express'
 import { createServer } from 'http'
 import { watch } from 'chokidar'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import open from 'open'
@@ -30,6 +30,13 @@ export async function launchEditorFlow(projectPath) {
     }
   }
 
+  const watchPatterns = config.editors.map(e => join(projectPath, e.filename))
+  const watcher = watch(watchPatterns, {
+    persistent: true,
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 100 }
+  })
+
   const wss = new WebSocketServer({ port: wsPort })
 
   wss.on('connection', (ws) => {
@@ -56,6 +63,84 @@ export async function launchEditorFlow(projectPath) {
 
           const html = await executeSequentialRender(fileMap, config)
           broadcast({ type: 'preview', html })
+        }
+
+        if (message.type === 'rename') {
+          const { oldFilename, newFilename, newType } = message
+          const oldPath = join(projectPath, oldFilename)
+          const newPath = join(projectPath, newFilename)
+
+          if (existsSync(oldPath)) {
+            const content = readFileSync(oldPath, 'utf-8')
+            writeFileSync(newPath, content)
+            if (existsSync(oldPath)) unlinkSync(oldPath)
+          }
+
+          // Update config
+          const editor = config.editors.find((e) => e.filename === oldFilename)
+          if (editor) {
+            editor.filename = newFilename
+            editor.type = newType
+            writeFileSync(configPath, JSON.stringify(config, null, 2))
+          }
+
+          // Update fileMap
+          fileMap[newFilename] = fileMap[oldFilename]
+          delete fileMap[oldFilename]
+
+          // Update watcher
+          watcher.unwatch(oldPath)
+          watcher.add(newPath)
+
+          console.log(`🏷️  Renamed: ${oldFilename} -> ${newFilename} (${newType})`)
+          
+          const html = await executeSequentialRender(fileMap, config)
+          broadcast({ type: 'preview', html })
+        }
+
+        if (message.type === 'editor-settings') {
+          const { filename, settings } = message
+          const editor = config.editors.find((e) => e.filename === filename)
+          if (editor) {
+            editor.settings = settings
+            writeFileSync(configPath, JSON.stringify(config, null, 2))
+            console.log(`⚙️  Updated settings for ${filename}`)
+            
+            const html = await executeSequentialRender(fileMap, config)
+            broadcast({ type: 'preview', html })
+          }
+        }
+
+        if (message.type === 'format') {
+          const { filename } = message
+          const content = fileMap[filename]
+          const editor = config.editors.find((e) => e.filename === filename)
+          if (editor && content) {
+            try {
+              const AdapterClass = getAdapter(editor.type)
+              const adapter = new AdapterClass()
+              adapter.setSettings(editor.settings || {})
+              const formatted = await adapter.beautify(content)
+
+              if (formatted !== content) {
+                fileMap[filename] = formatted
+                writeFileSync(join(projectPath, filename), formatted)
+                ignoreNextChange.add(filename)
+                setTimeout(() => ignoreNextChange.delete(filename), 200)
+
+                broadcast({
+                  type: 'external-update',
+                  filename,
+                  content: formatted
+                })
+
+                const html = await executeSequentialRender(fileMap, config)
+                broadcast({ type: 'preview', html })
+              }
+            } catch (err) {
+              console.error('Format error:', err)
+            }
+          }
         }
 
         if (message.type === 'save') {
@@ -88,12 +173,6 @@ export async function launchEditorFlow(projectPath) {
     }
   }
 
-  const watchPatterns = config.editors.map(e => join(projectPath, e.filename))
-  const watcher = watch(watchPatterns, {
-    persistent: true,
-    ignoreInitial: true,
-    awaitWriteFinish: { stabilityThreshold: 100 }
-  })
 
   watcher.on('change', async (filePath) => {
     const filename = filePath.split('/').pop()

@@ -122,4 +122,8 @@ body
       }
     }
   }
+
+  async beautify(code) {
+    return code
+  }
 }

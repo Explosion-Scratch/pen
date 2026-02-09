@@ -46,8 +46,8 @@ export class HTMLAdapter extends BaseAdapter {
     }
   }
 
-  beautify(code) {
-    return code
+  async beautify(code) {
+    return await super.beautify(code, 'html')
   }
 
   minify(code) {

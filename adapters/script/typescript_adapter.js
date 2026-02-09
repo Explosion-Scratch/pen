@@ -60,9 +60,13 @@ document.addEventListener('DOMContentLoaded', (): void => {
       syntax: 'typescript',
       actions: {
         ...parentInit.actions,
-        compile: (target) => target === 'javascript' ? this.compileToJs.bind(this) : null
+        compile: (target) => (target === 'javascript' ? this.compileToJs.bind(this) : null)
       }
     }
+  }
+
+  async beautify(code) {
+    return await super.beautify(code, 'typescript')
   }
 
   compileToJs(tsCode) {

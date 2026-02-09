@@ -30,6 +30,7 @@
               @rename="handleRename"
               @settings-update="handleSettingsUpdate"
               @toggle-collapse="togglePaneCollapse(idx)"
+              @format="(filename) => $emit('format', filename)"
             />
           </Pane>
         </Splitpanes>
@@ -96,7 +97,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run'])
+const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run', 'format'])
 
 const columnsEditorSizes = ref([])
 const rowsEditorSizes = ref([])

@@ -55,8 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  beautify(code) {
-    return code
+  async beautify(code) {
+    return await super.beautify(code, 'babel')
   }
 
   async minify(code) {

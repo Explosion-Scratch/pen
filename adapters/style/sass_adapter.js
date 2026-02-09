@@ -130,4 +130,8 @@ body {
       }
     }
   }
+
+  async beautify(code) {
+    return await super.beautify(code, 'scss')
+  }
 }

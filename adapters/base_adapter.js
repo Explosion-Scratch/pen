@@ -1,3 +1,5 @@
+import * as prettier from 'prettier'
+
 export class BaseAdapter {
   static type = 'unknown'
   static id = 'base'
@@ -29,11 +31,27 @@ export class BaseAdapter {
       theme: 'pen-light',
       extensions: [],
       actions: {
-        beautify: null,
+        beautify: async (code) => await this.beautify(code),
         minify: null,
         compile: null,
         destroy: null
       }
+    }
+  }
+
+  async beautify(code, parser = null) {
+    if (!parser) return code
+    try {
+      return await prettier.format(code, {
+        parser,
+        semi: true,
+        singleQuote: true,
+        printWidth: 100,
+        trailingComma: 'none'
+      })
+    } catch (err) {
+      console.error(`Prettier formatting error (${parser}):`, err)
+      return code
     }
   }
 
@@ -53,3 +71,4 @@ export class BaseAdapter {
     return {}
   }
 }
+

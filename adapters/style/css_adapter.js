@@ -84,12 +84,8 @@ p {
     }
   }
 
-  beautify(code) {
-    return code
-      .replace(/\{/g, ' {\n  ')
-      .replace(/;/g, ';\n  ')
-      .replace(/\n  \}/g, '\n}')
-      .replace(/\}\s*/g, '}\n\n')
+  async beautify(code) {
+    return await super.beautify(code, 'css')
   }
 
   minify(code) {

@@ -75,7 +75,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse'])
+const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format'])
 
 const editorContainer = ref(null)
 const showSettings = ref(false)
@@ -83,7 +83,84 @@ let view = null
 let updateListener = null
 const languageCompartment = new Compartment()
 
+const editorIcons = {
+  html: 'ph-duotone ph-file-html',
+  pug: 'ph-duotone ph-code',
+  slim: 'ph-duotone ph-code',
+  css: 'ph-duotone ph-file-css',
+  sass: 'ph-duotone ph-file-css',
+  less: 'ph-duotone ph-file-css',
+  stylus: 'ph-duotone ph-file-css',
+  javascript: 'ph-duotone ph-file-js',
+  typescript: 'ph-duotone ph-file-ts'
+}
+
+const extensionToType = {
+  '.html': 'html',
+  '.htm': 'html',
+  '.pug': 'pug',
+  '.jade': 'pug',
+  '.slim': 'slim',
+  '.css': 'css',
+  '.scss': 'sass',
+  '.sass': 'sass',
+  '.less': 'less',
+  '.styl': 'stylus',
+  '.stylus': 'stylus',
+  '.js': 'javascript',
+  '.mjs': 'javascript',
+  '.ts': 'typescript',
+  '.tsx': 'typescript'
+}
+
+function getEditorIcon(type) {
+  return editorIcons[type] || 'ph-duotone ph-file'
+}
+
+function getLanguageExtension(type) {
+  const type_ = type.toLowerCase()
+  if (type_ === 'html' || type_ === 'pug' || type_ === 'slim') {
+    return html()
+  }
+  if (type_ === 'css' || type_ === 'less' || type_ === 'stylus') {
+    return css()
+  }
+  if (type_ === 'sass') {
+    return sass()
+  }
+  if (type_ === 'javascript') {
+    return javascript()
+  }
+  if (type_ === 'typescript') {
+    return javascript({ typescript: true })
+  }
+  return javascript()
+}
+
+function isMarkupEditor(type) {
+  return ['html', 'pug', 'slim'].includes(type.toLowerCase())
+}
+
+function isStyleEditor(type) {
+  return ['css', 'sass', 'less', 'stylus'].includes(type.toLowerCase())
+}
+
+function getEmmetExtensions() {
+  const type_ = props.editor.type.toLowerCase()
+  if (isMarkupEditor(type_) || isStyleEditor(type_)) {
+    return [
+      abbreviationTracker(),
+      keymap.of([{
+        key: 'Tab',
+        run: expandAbbreviation
+      }])
+    ]
+  }
+  return []
+}
+
 function formatCode() {
+  emit('format', props.editor.filename)
 }
 
 function getAdapter() {
