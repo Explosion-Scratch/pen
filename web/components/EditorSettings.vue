@@ -7,11 +7,73 @@
       </button>
     </header>
     <div class="settings-body">
+      <div
+        v-if="Object.keys(schema).length > 0"
+        class="settings-section"
+      >
+        <h4>{{ adapter?.name || 'Editor' }} Settings</h4>
+        <div
+          v-for="(setting, key) in schema"
+          :key="key"
+          class="setting-field"
+        >
+          <div class="setting-info">
+            <label :for="key">{{ setting.name }}</label>
+            <p class="setting-description" v-if="setting.description">
+              {{ setting.description }}
+            </p>
+          </div>
+
+          <template v-if="setting.type === 'boolean'">
+            <label class="toggle">
+              <input
+                type="checkbox"
+                :id="key"
+                v-model="localSettings[key]"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </template>
+
+          <template v-else-if="setting.type === 'select'">
+            <select :id="key" v-model="localSettings[key]">
+              <option
+                v-for="option in setting.options"
+                :key="option"
+                :value="option"
+              >
+                {{ option }}
+              </option>
+            </select>
+          </template>
+
+          <template v-else-if="setting.type === 'number'">
+            <input
+              type="number"
+              :id="key"
+              v-model.number="localSettings[key]"
+              :min="setting.min"
+              :max="setting.max"
+            />
+          </template>
+
+          <template v-else>
+            <input
+              type="text"
+              :id="key"
+              v-model="localSettings[key]"
+            />
+          </template>
+        </div>
+      </div>
+
       <div class="settings-section">
         <h4>Editor Options</h4>
         
         <div class="setting-field">
-          <label for="tabSize">Tab Size</label>
+          <div class="setting-info">
+            <label for="tabSize">Tab Size</label>
+          </div>
           <select id="tabSize" v-model.number="localSettings.tabSize">
             <option :value="2">2 spaces</option>
             <option :value="4">4 spaces</option>
@@ -20,7 +82,9 @@
         </div>
 
         <div class="setting-field">
-          <label for="lineWrapping">Line Wrapping</label>
+          <div class="setting-info">
+            <label for="lineWrapping">Line Wrapping</label>
+          </div>
           <label class="toggle">
             <input
               type="checkbox"
@@ -32,7 +96,9 @@
         </div>
 
         <div class="setting-field">
-          <label for="lineNumbers">Line Numbers</label>
+          <div class="setting-info">
+            <label for="lineNumbers">Line Numbers</label>
+          </div>
           <label class="toggle">
             <input
               type="checkbox"
@@ -44,7 +110,10 @@
         </div>
 
         <div class="setting-field">
-          <label for="emmet">Emmet Abbreviations</label>
+          <div class="setting-info">
+            <label for="emmet">Emmet Abbreviations</label>
+            <p class="setting-description">Enable Emmet abbreviation expansion with Tab</p>
+          </div>
           <label class="toggle">
             <input
               type="checkbox"
@@ -53,60 +122,7 @@
             />
             <span class="toggle-slider"></span>
           </label>
-          <p class="setting-description">Enable Emmet abbreviation expansion with Tab</p>
         </div>
-      </div>
-
-      <div
-        v-for="(setting, key) in schema"
-        :key="key"
-        class="setting-field"
-      >
-        <label :for="key">{{ setting.name }}</label>
-        <p class="setting-description" v-if="setting.description">
-          {{ setting.description }}
-        </p>
-
-        <template v-if="setting.type === 'boolean'">
-          <label class="toggle">
-            <input
-              type="checkbox"
-              :id="key"
-              v-model="localSettings[key]"
-            />
-            <span class="toggle-slider"></span>
-          </label>
-        </template>
-
-        <template v-else-if="setting.type === 'select'">
-          <select :id="key" v-model="localSettings[key]">
-            <option
-              v-for="option in setting.options"
-              :key="option"
-              :value="option"
-            >
-              {{ option }}
-            </option>
-          </select>
-        </template>
-
-        <template v-else-if="setting.type === 'number'">
-          <input
-            type="number"
-            :id="key"
-            v-model.number="localSettings[key]"
-            :min="setting.min"
-            :max="setting.max"
-          />
-        </template>
-
-        <template v-else>
-          <input
-            type="text"
-            :id="key"
-            v-model="localSettings[key]"
-          />
-        </template>
       </div>
 
       <div v-if="Object.keys(schema).length === 0 && !hasEditorOptions" class="no-settings">
@@ -217,6 +233,12 @@ function save() {
   border-bottom: 1px solid var(--color-border-light);
 }
 
+.settings-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
 .settings-section h4 {
   font-size: 11px;
   font-weight: 600;
@@ -239,18 +261,23 @@ function save() {
   margin-bottom: 0;
 }
 
-.setting-field > label:first-child {
+.setting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-info label {
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text);
+  display: block;
 }
 
 .setting-description {
   font-size: 11px;
   color: var(--color-text-muted);
   line-height: 1.4;
-  width: 100%;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .setting-field input[type="text"],
