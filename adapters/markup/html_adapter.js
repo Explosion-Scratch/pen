@@ -1,3 +1,4 @@
+import { parseHTML } from 'linkedom'
 import { BaseAdapter } from '../base_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
 
@@ -55,6 +56,21 @@ export class HTMLAdapter extends BaseAdapter {
   }
 
   async render(content, fileMap) {
+    const isFullDocument = /<html/i.test(content) || /<!DOCTYPE/i.test(content)
+
+    if (isFullDocument) {
+      const { document } = parseHTML(content)
+      return {
+        ...fileMap,
+        bodyContent: document.body.innerHTML,
+        headContent: document.head.innerHTML,
+        htmlAttributes: Array.from(document.documentElement.attributes).reduce((acc, attr) => {
+          acc[attr.name] = attr.value
+          return acc
+        }, {})
+      }
+    }
+
     return {
       ...fileMap,
       bodyContent: content

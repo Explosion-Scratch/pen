@@ -14,7 +14,18 @@ export function selectAll(document, selector) {
 }
 
 export function serialize(document) {
+  if (!document || !document.documentElement) {
+    return '<!DOCTYPE html><html><head></head><body></body></html>'
+  }
   return `<!DOCTYPE html>\n${document.documentElement.outerHTML}`
+}
+
+export function mergeHead(targetDocument, headHtml) {
+  const { document: tempDoc } = parseHTML(`<html><head>${headHtml}</head></html>`)
+  const headNodes = Array.from(tempDoc.head.childNodes)
+  for (const node of headNodes) {
+    targetDocument.head.appendChild(targetDocument.importNode(node, true))
+  }
 }
 
 export function injectIntoHead(document, tagType, attributes = {}, content = null) {

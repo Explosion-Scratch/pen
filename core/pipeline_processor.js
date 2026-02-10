@@ -1,5 +1,6 @@
+import { parseHTML } from 'linkedom'
 import { getAdapter } from './adapter_registry.js'
-import { createBaseDocument, serialize, injectIntoHead, injectIntoBody, updateOrCreateElement } from './dom_utils.js'
+import { createBaseDocument, serialize, injectIntoHead, injectIntoBody, updateOrCreateElement, mergeHead } from './dom_utils.js'
 import { transformImportsToCdn } from './cdn_transformer.js'
 
 export async function executeSequentialRender(fileMap, config) {
@@ -20,8 +21,32 @@ export async function executeSequentialRender(fileMap, config) {
     const content = fileMap[editor.filename] || ''
     const rendered = await adapter.render(content, fileMap)
 
-    if (rendered.bodyContent) {
-      document.body.innerHTML = rendered.bodyContent
+    let bodyHtml = rendered.bodyContent || ''
+    let headHtml = rendered.headContent || ''
+    const htmlAttrs = rendered.htmlAttributes || {}
+
+    // Auto-detect full document in bodyContent (common when pasting into any markup editor)
+    if (bodyHtml && (/<html/i.test(bodyHtml) || /<!DOCTYPE/i.test(bodyHtml))) {
+      const { document: tempDoc } = parseHTML(bodyHtml)
+      bodyHtml = tempDoc.body.innerHTML
+      headHtml += tempDoc.head.innerHTML
+      for (const attr of tempDoc.documentElement.attributes) {
+        htmlAttrs[attr.name] = attr.value
+      }
+    }
+
+    if (bodyHtml) {
+      document.body.innerHTML = bodyHtml
+    }
+
+    if (headHtml) {
+      mergeHead(document, headHtml)
+    }
+
+    if (Object.keys(htmlAttrs).length > 0) {
+      for (const [key, value] of Object.entries(htmlAttrs)) {
+        document.documentElement.setAttribute(key, value)
+      }
     }
   }
 
