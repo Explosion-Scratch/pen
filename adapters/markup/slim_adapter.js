@@ -120,7 +120,7 @@ export class SlimAdapter extends BaseAdapter {
     }
   }
 
-  getSchema() {
+  static getSchema() {
     return {}
   }
 }

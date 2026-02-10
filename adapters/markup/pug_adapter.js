@@ -72,7 +72,7 @@ export class PugAdapter extends BaseAdapter {
     }
   }
 
-  getSchema() {
+  static getSchema() {
     return {
       pretty: {
         type: 'boolean',

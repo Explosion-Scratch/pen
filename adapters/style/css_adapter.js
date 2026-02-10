@@ -1,5 +1,6 @@
 import { BaseAdapter } from '../base_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
+import { transformCssImports } from '../../core/cdn_transformer.js'
 
 export class CSSAdapter extends BaseAdapter {
   static type = 'style'
@@ -66,7 +67,8 @@ p {
   static getDefaultSettings() {
     return {
       normalize: true,
-      autoprefixer: false
+      autoprefixer: false,
+      tailwind: false
     }
   }
 
@@ -98,13 +100,12 @@ p {
   }
 
   async render(content, fileMap) {
-    return {
-      ...fileMap,
-      css: content
-    }
+    const css = transformCssImports(content, this.settings.importOverrides || {})
+    const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
+    return { ...fileMap, css, styleType }
   }
 
-  getSchema() {
+  static getSchema() {
     return {
       normalize: {
         type: 'boolean',
@@ -116,6 +117,12 @@ p {
         type: 'boolean',
         name: 'Auto-prefix CSS',
         description: 'Automatically add vendor prefixes',
+        default: false
+      },
+      tailwind: {
+        type: 'boolean',
+        name: 'Tailwind CSS',
+        description: 'Enable Tailwind CDN processing (supports @layer, @apply, etc.)',
         default: false
       }
     }

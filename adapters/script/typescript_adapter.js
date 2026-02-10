@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
     }
   }
 
-  getSchema() {
+  static getSchema() {
     return {
       ...super.getSchema(),
       target: {

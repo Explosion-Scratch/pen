@@ -7,8 +7,30 @@
       </div>
     </div>
     <div class="toolbar-center">
+      <div class="layout-controls">
+        <button 
+          class="layout-btn" 
+          :class="{ active: settings.layoutMode === 'columns' }"
+          @click="$emit('update-settings', { layoutMode: 'columns' })"
+          title="2 Column, 3 Row layout"
+        >
+          <i class="ph-duotone ph-columns"></i>
+        </button>
+        <button 
+          class="layout-btn" 
+          :class="{ active: settings.layoutMode === 'rows' }"
+          @click="$emit('update-settings', { layoutMode: 'rows' })"
+          title="2 Row, 3 Column layout"
+        >
+          <i class="ph-duotone ph-rows"></i>
+        </button>
+      </div>
     </div>
     <div class="toolbar-right">
+      <button class="toolbar-btn" @click="$emit('new-project')" title="Start from template">
+        <i class="ph-duotone ph-sparkle"></i>
+        <span>New Project</span>
+      </button>
       <button class="toolbar-btn" @click="openPreviewTab" title="Open in new tab">
         <i class="ph-duotone ph-arrow-square-out"></i>
       </button>
@@ -24,10 +46,14 @@ defineProps({
   projectName: {
     type: String,
     default: 'Pen'
+  },
+  settings: {
+    type: Object,
+    required: true
   }
 })
 
-defineEmits(['settings'])
+defineEmits(['settings', 'new-project', 'update-settings'])
 
 function openPreviewTab() {
   window.open('http://localhost:3002', '_blank')
@@ -44,6 +70,7 @@ function openPreviewTab() {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+  z-index: 1000;
 }
 
 .toolbar-left,
@@ -84,6 +111,41 @@ function openPreviewTab() {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.layout-controls {
+  display: flex;
+  gap: 4px;
+  background: var(--color-background-alt);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.layout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.layout-btn:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+.layout-btn.active {
+  background: var(--color-accent);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.layout-btn i {
+  font-size: 16px;
 }
 
 @keyframes spin {

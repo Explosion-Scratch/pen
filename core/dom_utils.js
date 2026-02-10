@@ -96,7 +96,12 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
     element.setAttribute(key, value)
   }
   if (content !== null) {
-    element.innerHTML = content
+    if (tagType === 'script') {
+      element.textContent = content
+    } else {
+      element.innerHTML = content
+    }
+    console.log(`[DEBUG] Set content for ${tagType} (${selector}), length: ${content.length}`)
   }
   return element
 }

@@ -7,25 +7,37 @@
       class="default-theme main-split" 
       :horizontal="settings.layoutMode === 'rows'"
       @ready="onReady"
+      @resize="handleMainResize"
     >
-      <Pane>
+      <Pane 
+        :size="previewMaximized ? 2 : (100 - previewSize)" 
+        class="editors-container-pane"
+        :class="{ 'is-preview-maximized': previewMaximized }"
+      >
+        <div v-if="previewMaximized" class="editors-collapsed-rail" @click="previewMaximized = false">
+          <button class="expand-rail-btn" title="Restore Editors">
+            <i :class="settings.layoutMode === 'rows' ? 'ph-bold ph-caret-down' : 'ph-bold ph-caret-right'"></i>
+          </button>
+        </div>
         <Splitpanes 
-          :key="`editors-${settings.layoutMode}`"
+          v-else
+          :key="`editors-${settings.layoutMode}-${editors.length}`"
           class="editors-split"
           :horizontal="settings.layoutMode === 'columns'"
           @ready="() => onEditorsReady()"
           @resize="(panes) => updatePanes(panes)"
         >
           <Pane 
-            :size="panes[idx]?.size || 100 / editors.length"
+            :size="maximizedIdx !== null ? (idx === maximizedIdx ? 100 : 0) : (panes[idx]?.size || 100 / editors.length)"
             v-for="(editor, idx) in editors" 
             :key="editor.id || editor.filename"
-            :min-size="minPaneSize"
+            :min-size="maximizedIdx !== null ? 0 : minPaneSize"
           >
             <EditorCard
               :editor="editor"
+              :adapter="adapters[idx]"
               :content="files[editor.filename] || ''"
-              :is-collapsed="collapsedEditors[idx]"
+              :is-collapsed="maximizedIdx !== null ? idx !== maximizedIdx : collapsedEditors[idx]"
               :layout-mode="settings.layoutMode"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
@@ -33,45 +45,46 @@
               @toggle-collapse="togglePaneCollapse(idx)"
               @format="(filename) => $emit('format', filename)"
               @run="handleEditorRun"
+              @dblclick-header="toggleMaximize(idx)"
             />
           </Pane>
         </Splitpanes>
       </Pane>
-      <Pane :min-size="15" class="preview-pane">
+      <Pane :size="previewMaximized ? 98 : previewSize" :min-size="15" class="preview-pane">
         <PreviewCard 
           :html="previewHtml" 
           :settings="settings"
           :last-manual-render="lastManualRender"
+          :is-maximized="previewMaximized"
           @refresh="$emit('render', true)" 
           @settings="$emit('settings')"
+          @toggle-maximize="previewMaximized = !previewMaximized"
         />
-        <div v-show="isAnyDragging" class="iframe-blocker"></div>
+        <div v-show="isAnyDragging || altPressed" class="iframe-blocker"></div>
       </Pane>
     </Splitpanes>
-    
-    <div class="layout-controls">
-      <button 
-        class="layout-btn" 
-        :class="{ active: settings.layoutMode === 'columns' }"
-        @click="settings.layoutMode = 'columns'"
-        title="2 Column, 3 Row layout"
+
+    <!-- Alt-hover maximize overlay -->
+    <Teleport to="body">
+      <div 
+        v-if="altHoveredPane !== null"
+        class="maximize-overlay"
+        :style="overlayStyle"
+        @click="toggleMaximize(altHoveredPane)"
       >
-        <i class="ph-duotone ph-columns"></i>
-      </button>
-      <button 
-        class="layout-btn" 
-        :class="{ active: settings.layoutMode === 'rows' }"
-        @click="settings.layoutMode = 'rows'"
-        title="2 Row, 3 Column layout"
-      >
-        <i class="ph-duotone ph-rows"></i>
-      </button>
-    </div>
+        <div class="maximize-overlay-content">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>
+          </svg>
+          <span>{{ (altHoveredPane === 'preview' ? previewMaximized : maximizedIdx === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import EditorCard from './EditorCard.vue'
@@ -81,27 +94,23 @@ const collapseThreshold = 7
 const collapsedEditors = ref([])
 const panes = ref([])
 const previousSizes = ref([])
+const maximizedIdx = ref(null)
+
+const previewMaximized = ref(false)
+const previewSize = ref(60) // Default preview size
+
+const altHoveredPane = ref(null)
+const overlayStyle = ref({})
+const altPressed = ref(false)
+let altKeyDown = false
+
 const props = defineProps({
-  editors: {
-    type: Array,
-    default: () => []
-  },
-  files: {
-    type: Object,
-    default: () => ({})
-  },
-  previewHtml: {
-    type: String,
-    default: ''
-  },
-  settings: {
-    type: Object,
-    required: true
-  },
-  lastManualRender: {
-    type: Number,
-    default: 0
-  }
+  editors: { type: Array, default: () => [] },
+  files: { type: Object, default: () => ({}) },
+  adapters: { type: Array, default: () => [] },
+  previewHtml: { type: String, default: '' },
+  settings: { type: Object, required: true },
+  lastManualRender: { type: Number, default: 0 }
 })
 
 const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'settings'])
@@ -110,33 +119,40 @@ const minPaneSize = 5
 const isAnyDragging = ref(false)
 let activeSplitter = null
 
-function togglePaneCollapse(idx) {
-  console.log("Toggle collapse:", idx, panes.value, "Prev:", previousSizes.value);
-  console.log("Collapsed Editors", collapsedEditors.value);
-  if (collapsedEditors.value[idx]) {
-    // Expanding: Restore to previous size (or equal share if none)
-    const prevSize = previousSizes.value[idx] || (100 / props.editors.length);
-    panes.value[idx].size = prevSize;
-  } else {
-    console.log(JSON.parse(JSON.stringify(panes.value)))
-    // Collapsing: Save current size, then set to min
-    previousSizes.value[idx] = panes.value[idx].size;
-    panes.value[idx].size = minPaneSize;
-    console.log(JSON.parse(JSON.stringify(panes.value)))
+function handleMainResize(p) {
+  if (p[1] && !previewMaximized.value) {
+    previewSize.value = p[1].size
   }
-  
-  // Force update collapsed state (though @resize should trigger it, this ensures sync)
-  updateCollapsed();
 }
 
-function handleEditorRun() {
-  emit('render', true)
+function toggleMaximize(idx) {
+  if (idx === 'preview') {
+    previewMaximized.value = !previewMaximized.value
+    altHoveredPane.value = null
+    return
+  }
+  maximizedIdx.value = maximizedIdx.value === idx ? null : idx
+  altHoveredPane.value = null
 }
 
+function togglePaneCollapse(idx) {
+  if (maximizedIdx.value !== null) {
+    maximizedIdx.value = null
+    return
+  }
+  if (collapsedEditors.value[idx]) {
+    panes.value[idx].size = previousSizes.value[idx] || (100 / props.editors.length)
+  } else {
+    previousSizes.value[idx] = panes.value[idx].size
+    panes.value[idx].size = minPaneSize
+  }
+  updateCollapsed()
+}
 
-function updatePanes(p){
-  console.log("Update panes:" ,p);
-  panes.value = p;
+function handleEditorRun() { emit('render', true) }
+
+function updatePanes(p) {
+  panes.value = p
   updateCollapsed()
 }
 
@@ -146,17 +162,13 @@ function updateCollapsed() {
 
 function onReady() {}
 
-watch(props.editors, onEditorsReady);
+watch(props.editors, onEditorsReady)
 
 async function onEditorsReady() {
-  if (!props.editors.length){
-    return setTimeout(() => onEditorsReady(), 100);
-  }
-  console.log('Editors ready', props.editors)
-  const P = { size: 100 / props.editors.length, min: 5, max: 100 };
-  panes.value = new Array(props.editors.length).fill({...P}).map(i => JSON.parse(JSON.stringify(i)));
-  console.log('Editors ready:', panes.value)
-  previousSizes.value = new Array(props.editors.length).fill(100 / props.editors.length);
+  if (!props.editors.length) return setTimeout(onEditorsReady, 100)
+  const size = 100 / props.editors.length
+  panes.value = props.editors.map(() => ({ size, min: 5, max: 100 }))
+  previousSizes.value = props.editors.map(() => size)
   updateCollapsed()
 }
 
@@ -180,21 +192,79 @@ function onMouseUp() {
   }
 }
 
-function handleRename(oldFilename, newFilename, newType) {
-  emit('rename', oldFilename, newFilename, newType)
+function handleRename(oldFilename, newFilename, newType) { emit('rename', oldFilename, newFilename, newType) }
+function handleSettingsUpdate(filename, settings) { emit('settings-update', filename, settings) }
+
+function onKeyDown(e) {
+  if (e.key === 'Alt') {
+    altKeyDown = true
+    altPressed.value = true
+  }
 }
 
-function handleSettingsUpdate(filename, settings) {
-  emit('settings-update', filename, settings)
+function onKeyUp(e) {
+  if (e.key === 'Alt') {
+    altKeyDown = false
+    altPressed.value = false
+    altHoveredPane.value = null
+  }
+}
+
+function onMouseMove(e) {
+  if (!altKeyDown) {
+    if (altHoveredPane.value !== null) altHoveredPane.value = null
+    return
+  }
+
+  const editorCards = document.querySelectorAll('.editor-card')
+  const previewCard = document.querySelector('.preview-card')
+  let found = null
+  let rect = null
+
+  editorCards.forEach((card, idx) => {
+    const r = card.getBoundingClientRect()
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+      found = idx
+      rect = r
+    }
+  })
+
+  if (found === null && previewCard) {
+    const r = previewCard.getBoundingClientRect()
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+      found = 'preview'
+      rect = r
+    }
+  }
+
+  if (found !== null && rect) {
+    altHoveredPane.value = found
+    overlayStyle.value = {
+      position: 'fixed',
+      top: rect.top + 'px',
+      left: rect.left + 'px',
+      width: rect.width + 'px',
+      height: rect.height + 'px',
+      zIndex: 9998
+    }
+  } else {
+    altHoveredPane.value = null
+  }
 }
 
 onMounted(() => {
   window.addEventListener('mousedown', onMouseDown)
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)
+  window.addEventListener('mousemove', onMouseMove)
 })
 
 onUnmounted(() => {
   window.removeEventListener('mousedown', onMouseDown)
   window.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('keyup', onKeyUp)
+  window.removeEventListener('mousemove', onMouseMove)
 })
 </script>
 
@@ -210,12 +280,59 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  cursor: inherit;
-  pointer-events: none; /* Only exists to show cursor if needed, but iframe-blocker does the heavy lifting */
+  pointer-events: none;
 }
 
-.preview-pane {
-  position: relative;
+.preview-pane { position: relative; }
+
+.editors-container-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.editors-container-pane.is-preview-maximized {
+  background: var(--color-background-alt);
+  border-right: 1px solid var(--color-border);
+}
+
+.editors-collapsed-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  cursor: pointer;
+  background: var(--color-background-alt);
+  transition: all var(--transition-fast);
+}
+
+.editors-collapsed-rail:hover {
+  background: var(--color-border-light);
+}
+
+.expand-rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.pane-manager :deep(.main-split > .splitpanes__splitter) {
+  display: flex;
+}
+
+.pane-manager :deep(.main-split.splitpanes--dragging > .splitpanes__splitter) {
+  background: var(--color-accent);
+}
+
+.is-preview-maximized + :deep(.splitpanes__splitter) {
+  display: none !important;
 }
 
 .iframe-blocker {
@@ -225,15 +342,8 @@ onUnmounted(() => {
   background: transparent;
 }
 
-/* Fix for "jumping" panes: disable transitions while dragging */
-.pane-manager :deep(.splitpanes--dragging .splitpanes__pane) {
-  transition: none !important;
-}
-
-.pane-manager :deep(.splitpanes) {
-  height: 100%;
-}
-
+.pane-manager :deep(.splitpanes--dragging .splitpanes__pane) { transition: none !important; }
+.pane-manager :deep(.splitpanes) { height: 100%; }
 .pane-manager :deep(.splitpanes__pane) {
   display: flex;
   flex-direction: column;
@@ -247,26 +357,14 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* SURGICAL HIGHLIGHT: Only highlight the specific splitter being dragged */
-.pane-manager :deep(.splitpanes__splitter.is-active) {
-  background: var(--color-accent);
-}
-
+.pane-manager :deep(.splitpanes__splitter.is-active),
 .pane-manager :deep(.splitpanes__splitter:hover) {
   background: var(--color-accent);
 }
 
-.pane-manager :deep(.splitpanes--vertical > .splitpanes__splitter) {
-  width: 4px;
-  cursor: col-resize;
-}
+.pane-manager :deep(.splitpanes--vertical > .splitpanes__splitter) { width: 4px; cursor: col-resize; }
+.pane-manager :deep(.splitpanes--horizontal > .splitpanes__splitter) { height: 4px; cursor: row-resize; }
 
-.pane-manager :deep(.splitpanes--horizontal > .splitpanes__splitter) {
-  height: 4px;
-  cursor: row-resize;
-}
-
-/* Handle visual for the splitter */
 .pane-manager :deep(.splitpanes__splitter::after) {
   content: '';
   position: absolute;
@@ -277,52 +375,38 @@ onUnmounted(() => {
   border-radius: 2px;
 }
 
-.pane-manager :deep(.splitpanes--vertical > .splitpanes__splitter::after) {
-  width: 2px;
-  height: 20px;
-}
-
-.pane-manager :deep(.splitpanes--horizontal > .splitpanes__splitter::after) {
-  width: 20px;
-  height: 2px;
-}
+.pane-manager :deep(.splitpanes--vertical > .splitpanes__splitter::after) { width: 2px; height: 20px; }
+.pane-manager :deep(.splitpanes--horizontal > .splitpanes__splitter::after) { width: 20px; height: 2px; }
 
 .layout-controls {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  display: flex;
-  gap: 4px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 4px;
-  box-shadow: var(--shadow-md);
-  z-index: 100;
+  display: none;
 }
 
-.layout-btn {
+/* Maximize overlay */
+.maximize-overlay {
+  background: rgba(194, 65, 12, 0.08);
+  border: 2px solid rgba(194, 65, 12, 0.3);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  transition: all var(--transition-fast);
+  cursor: pointer;
+  animation: fadeIn 120ms ease;
+  pointer-events: auto;
 }
 
-.layout-btn:hover {
-  background: var(--color-background-alt);
-  color: var(--color-text);
+.maximize-overlay:hover {
+  background: rgba(194, 65, 12, 0.14);
+  border-color: rgba(194, 65, 12, 0.5);
 }
 
-.layout-btn.active {
-  background: var(--color-accent);
-  color: white;
-}
-
-.layout-btn i {
-  font-size: 16px;
+.maximize-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
 }
 </style>

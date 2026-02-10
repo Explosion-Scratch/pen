@@ -1,0 +1,13 @@
+@layer base {
+  h1 { @apply text-slate-900; }
+}
+
+@layer utilities {
+  .content-auto {
+    content-visibility: auto;
+  }
+}
+
+body {
+  @apply bg-slate-50 text-slate-700;
+}

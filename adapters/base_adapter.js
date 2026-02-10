@@ -68,7 +68,7 @@ export class BaseAdapter {
     this.settings = { ...this.settings, ...settingsObj }
   }
 
-  getSchema() {
+  static getSchema() {
     return {}
   }
 }

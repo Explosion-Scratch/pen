@@ -1,0 +1,32 @@
+{
+  "template": {
+    "title": "Vue 3",
+    "description": "Vue 3 with reactive components via CDN"
+  },
+  "name": "untitled",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "css",
+      "filename": "style.css",
+      "settings": { "normalize": true, "autoprefixer": false }
+    },
+    {
+      "type": "javascript",
+      "filename": "script.js",
+      "settings": { "moduleType": "module", "strictMode": true }
+    }
+  ],
+  "globalResources": {
+    "scripts": ["https://unpkg.com/vue@3"],
+    "styles": []
+  },
+  "importOverrides": {
+    "vue": "https://esm.run/vue@3"
+  }
+}

@@ -1,129 +1,120 @@
 import { parseHTML } from 'linkedom'
 import { getAdapter } from './adapter_registry.js'
-import { createBaseDocument, serialize, injectIntoHead, injectIntoBody, updateOrCreateElement, mergeHead } from './dom_utils.js'
+import { createBaseDocument, serialize, injectIntoHead, mergeHead, updateOrCreateElement } from './dom_utils.js'
 import { transformImportsToCdn } from './cdn_transformer.js'
 
+/**
+ * @param {Object} fileMap
+ * @param {Object} config
+ * @returns {Promise<string>}
+ */
 export async function executeSequentialRender(fileMap, config) {
   const document = createBaseDocument('en', config.name || 'Pen Preview')
-
   const orderedEditors = getEditorOrder(config)
+  const importOverrides = config.importOverrides || {}
 
-  const markupEditors = orderedEditors.filter(e => {
-    const adapter = getAdapter(e.type)
-    return adapter.type === 'markup'
-  })
-
-  for (const editor of markupEditors) {
+  for (const editor of orderedEditors) {
     const Adapter = getAdapter(editor.type)
     const adapter = new Adapter()
-    adapter.setSettings(editor.settings || {})
+    adapter.setSettings({ ...(editor.settings || {}), importOverrides })
 
     const content = fileMap[editor.filename] || ''
     const rendered = await adapter.render(content, fileMap)
 
-    let bodyHtml = rendered.bodyContent || ''
-    let headHtml = rendered.headContent || ''
-    const htmlAttrs = rendered.htmlAttributes || {}
-
-    // Auto-detect full document in bodyContent (common when pasting into any markup editor)
-    if (bodyHtml && (/<html/i.test(bodyHtml) || /<!DOCTYPE/i.test(bodyHtml))) {
-      const { document: tempDoc } = parseHTML(bodyHtml)
-      bodyHtml = tempDoc.body.innerHTML
-      headHtml += tempDoc.head.innerHTML
-      for (const attr of tempDoc.documentElement.attributes) {
-        htmlAttrs[attr.name] = attr.value
-      }
-    }
-
-    if (bodyHtml) {
-      document.body.innerHTML = bodyHtml
-    }
-
-    if (headHtml) {
-      mergeHead(document, headHtml)
-    }
-
-    if (Object.keys(htmlAttrs).length > 0) {
-      for (const [key, value] of Object.entries(htmlAttrs)) {
-        document.documentElement.setAttribute(key, value)
-      }
+    console.log(`[DEBUG] Filename: ${editor.filename}, Category: ${Adapter.type}, Content Length: ${content.length}`)
+    if (Adapter.type === 'markup') {
+      injectMarkup(document, rendered)
+    } else if (Adapter.type === 'style') {
+      injectStyle(document, editor, Adapter, rendered)
+    } else if (Adapter.type === 'script') {
+      console.log(`[DEBUG] Injecting script for ${editor.filename}... JS content length: ${rendered.js?.length || 0}`)
+      injectScript(document, editor, rendered, importOverrides)
     }
   }
 
-  const styleEditors = orderedEditors.filter(e => {
-    const adapter = getAdapter(e.type)
-    return adapter.type === 'style'
-  })
-
-  for (const editor of styleEditors) {
-    const Adapter = getAdapter(editor.type)
-    const adapter = new Adapter()
-    adapter.setSettings(editor.settings || {})
-
-    const content = fileMap[editor.filename] || ''
-    const rendered = await adapter.render(content, fileMap)
-
-    if (rendered.css) {
-      updateOrCreateElement(
-        document,
-        `#pen-style-${editor.type}`,
-        'style',
-        { id: `pen-style-${editor.type}` },
-        rendered.css,
-        'head'
-      )
-    }
-
-    const resources = Adapter.getCdnResources ? Adapter.getCdnResources(editor.settings) : { scripts: [], styles: [] }
-    for (const styleUrl of resources.styles || []) {
-      injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
-    }
-  }
-
-  const scriptEditors = orderedEditors.filter(e => {
-    const adapter = getAdapter(e.type)
-    return adapter.type === 'script'
-  })
-
-  for (const editor of scriptEditors) {
-    const Adapter = getAdapter(editor.type)
-    const adapter = new Adapter()
-    adapter.setSettings(editor.settings || {})
-
-    const content = fileMap[editor.filename] || ''
-    const rendered = await adapter.render(content, fileMap)
-
-    let js = rendered.js || ''
-    js = transformImportsToCdn(js)
-
-    updateOrCreateElement(
-      document,
-      `#pen-script-${editor.type}`,
-      'script',
-      { id: `pen-script-${editor.type}`, type: 'module' },
-      js,
-      'body'
-    )
-  }
-
-  if (config.globalResources) {
-    for (const scriptUrl of config.globalResources.scripts || []) {
-      injectIntoHead(document, 'script', { src: scriptUrl })
-    }
-    for (const styleUrl of config.globalResources.styles || []) {
-      injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
-    }
-  }
-
-  return serialize(document)
+  injectGlobalResources(document, config)
+  const finalHtml = serialize(document)
+  console.log(`[DEBUG] Final HTML Length: ${finalHtml.length}, Head has script: ${finalHtml.includes('pen-script')}`)
+  return finalHtml
 }
 
+function injectMarkup(document, rendered) {
+  let bodyHtml = rendered.bodyContent || ''
+  let headHtml = rendered.headContent || ''
+  const htmlAttrs = rendered.htmlAttributes || {}
+
+  if (bodyHtml && (/\<html/i.test(bodyHtml) || /<!DOCTYPE/i.test(bodyHtml))) {
+    const { document: tempDoc } = parseHTML(bodyHtml)
+    bodyHtml = tempDoc.body.innerHTML
+    headHtml += tempDoc.head.innerHTML
+    for (const attr of tempDoc.documentElement.attributes) {
+      htmlAttrs[attr.name] = attr.value
+    }
+  }
+
+  if (bodyHtml) document.body.innerHTML = bodyHtml
+  if (headHtml) mergeHead(document, headHtml)
+  for (const [key, value] of Object.entries(htmlAttrs)) {
+    document.documentElement.setAttribute(key, value)
+  }
+}
+
+function injectStyle(document, editor, Adapter, rendered) {
+  if (rendered.css) {
+    updateOrCreateElement(
+      document,
+      `#pen-style-${editor.type}`,
+      'style',
+      { id: `pen-style-${editor.type}`, type: rendered.styleType || 'text/css' },
+      rendered.css,
+      'head'
+    )
+  }
+  const resources = Adapter.getCdnResources?.(editor.settings) || { scripts: [], styles: [] }
+  for (const styleUrl of resources.styles || []) {
+    injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
+  }
+}
+
+function injectScript(document, editor, rendered, importOverrides) {
+  let js = rendered.js || ''
+  js = transformImportsToCdn(js, importOverrides)
+  
+  // Respect moduleType setting, default to 'module'
+  const scriptType = editor.settings?.moduleType === 'classic' ? 'text/javascript' : 'module'
+  
+  updateOrCreateElement(
+    document,
+    `#pen-script-${editor.type}`,
+    'script',
+    { id: `pen-script-${editor.type}`, type: scriptType },
+    js,
+    'head'
+  )
+}
+
+function injectGlobalResources(document, config) {
+  if (!config.globalResources) return
+  for (const scriptUrl of config.globalResources.scripts || []) {
+    injectIntoHead(document, 'script', { src: scriptUrl })
+  }
+  for (const styleUrl of config.globalResources.styles || []) {
+    injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
+  }
+}
+
+/**
+ * @param {Object} config
+ * @returns {Object[]}
+ */
 export function getEditorOrder(config) {
   const typeOrder = { markup: 0, style: 1, script: 2 }
-
   return [...config.editors].sort((a, b) => {
     const adapterA = getAdapter(a.type)
     const adapterB = getAdapter(b.type)
-    return (typeOrder[adapterA.type] || 3) - (typeOrder[adapterB.type] || 3)
+    const valA = typeOrder[adapterA.type] ?? 3
+    const valB = typeOrder[adapterB.type] ?? 3
+    console.log(`[SORT] Comparing ${a.filename} (${adapterA.type}: ${valA}) with ${b.filename} (${adapterB.type}: ${valB}) result: ${valA - valB}`)
+    return valA - valB
   })
 }

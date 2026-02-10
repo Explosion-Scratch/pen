@@ -1,6 +1,6 @@
 <template>
   <div class="preview-card">
-    <header class="preview-header">
+    <header class="preview-header" @click="e => e.altKey && $emit('toggle-maximize')">
       <div class="preview-info">
         <div class="url-input-container" :class="{ 'is-loading': isLoading }">
           <div class="loading-bar"></div>
@@ -37,9 +37,6 @@
           title="Toggle DevTools"
         >
           <i class="ph-duotone ph-terminal-window"></i>
-        </button>
-        <button class="action-btn" @click="$emit('settings')" title="Settings">
-          <i class="ph-duotone ph-gear"></i>
         </button>
       </div>
     </header>
@@ -91,10 +88,14 @@ const props = defineProps({
   lastManualRender: {
     type: Number,
     default: 0
+  },
+  isMaximized: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['refresh', 'settings'])
+defineEmits(['refresh', 'settings', 'toggle-maximize'])
 
 const iframe = ref(null)
 const devtoolsIframe = ref(null)

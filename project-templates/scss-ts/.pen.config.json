@@ -1,0 +1,26 @@
+{
+  "template": {
+    "title": "SCSS + TypeScript",
+    "description": "HTML with SCSS preprocessor and TypeScript"
+  },
+  "name": "untitled",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "sass",
+      "filename": "style.scss",
+      "settings": { "normalize": true, "indentedSyntax": false, "sourceMaps": false }
+    },
+    {
+      "type": "typescript",
+      "filename": "script.ts",
+      "settings": { "moduleType": "module", "strictMode": true, "target": "ES2022", "strict": true }
+    }
+  ],
+  "globalResources": { "scripts": [], "styles": [] }
+}

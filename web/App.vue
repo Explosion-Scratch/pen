@@ -1,8 +1,16 @@
 <template>
   <div class="app">
+    <Toolbar
+      :project-name="config?.name"
+      :settings="appSettings"
+      @settings="showSettings = true"
+      @new-project="showTemplatePicker = true"
+      @update-settings="handleAppSettingsUpdate"
+    />
     <PaneManager
       :editors="editors"
       :files="files"
+      :adapters="adapters"
       :preview-html="previewHtml"
       :settings="appSettings"
       @update="handleFileUpdate"
@@ -25,13 +33,24 @@
       @remove="removeToast"
       @jump="handleJump"
     />
+    
+    <Teleport to="body">
+      <div v-if="showTemplatePicker" class="modal-overlay" @click.self="showTemplatePicker = false">
+        <TemplatePickerModal
+          @close="showTemplatePicker = false"
+          @select="handleTemplateSelect"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import PaneManager from './components/PaneManager.vue'
 import SettingsModal from './components/SettingsModal.vue'
+import TemplatePickerModal from './components/TemplatePickerModal.vue'
+import Toolbar from './components/Toolbar.vue'
 import Toast from './components/Toast.vue'
 import { editorStateManager } from './state_management.js'
 
@@ -44,8 +63,10 @@ const appSettings = reactive({
 const config = ref(null)
 const files = ref({})
 const editors = ref([])
+const adapters = ref([])
 const previewHtml = ref('')
 const showSettings = ref(false)
+const showTemplatePicker = ref(false)
 const lastActivity = ref({})
 const toasts = ref([])
 const lastManualRender = ref(0)
@@ -69,13 +90,12 @@ function connectWebSocket() {
       if (message.type === 'init') {
         config.value = message.config
         files.value = message.files
-        // Add unique IDs for stable keying in PaneManager
+        adapters.value = message.adapters || []
         editors.value = (message.config.editors || []).map((e, idx) => ({
           ...e,
           id: e.id || `editor-${idx}-${Date.now()}`
         }))
 
-        // Sync settings from config if they exist
         if (message.config.autoRun !== undefined) appSettings.autoRun = message.config.autoRun
         if (message.config.previewUrl) appSettings.previewUrl = message.config.previewUrl
         if (message.config.layoutMode) appSettings.layoutMode = message.config.layoutMode
@@ -89,18 +109,16 @@ function connectWebSocket() {
         previewHtml.value = message.html
       }
 
+      if (message.type === 'reload') {
+        window.location.reload()
+      }
+
       if (message.type === 'external-update') {
         const now = Date.now()
         const lastEdit = lastActivity.value[message.filename] || 0
         if (now - lastEdit > IDLE_THRESHOLD) {
           files.value[message.filename] = message.content
-        } else {
-          console.log(`⏳ Squashing external update for ${message.filename} because user is active`)
         }
-      }
-
-      if (message.type === 'update-ack') {
-        // acknowledged
       }
 
       if (message.type === 'toast-error') {
@@ -125,57 +143,36 @@ function connectWebSocket() {
     setTimeout(connectWebSocket, 2000)
   }
 
-  ws.onerror = (err) => {
-    console.error('WebSocket error:', err)
-  }
+  ws.onerror = (err) => console.error('WebSocket error:', err)
 }
 
 function handleFileUpdate(filename, content) {
   files.value[filename] = content
   lastActivity.value[filename] = Date.now()
   
-  if (saveDebounceTimer) {
-    clearTimeout(saveDebounceTimer)
-  }
-  saveDebounceTimer = setTimeout(() => {
-    saveFile(filename, content)
-  }, 200)
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
+  saveDebounceTimer = setTimeout(() => saveFile(filename, content), 200)
 
   if (appSettings.autoRun) {
-    if (renderDebounceTimer) {
-      clearTimeout(renderDebounceTimer)
-    }
-    renderDebounceTimer = setTimeout(() => {
-      handleRender(false)
-    }, 300)
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer)
+    renderDebounceTimer = setTimeout(() => handleRender(false), 300)
   }
 }
 
 function saveFile(filename, content) {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    // Send only the updated file content via a specific update message
-    // instead of sending all files via 'save' message.
-    ws.send(JSON.stringify({
-      type: 'update',
-      filename,
-      content
-    }))
+    ws.send(JSON.stringify({ type: 'update', filename, content }))
   }
 }
 
 function saveFiles() {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'save',
-      files: files.value
-    }))
+    ws.send(JSON.stringify({ type: 'save', files: files.value }))
   }
 }
 
 function handleRender(isManual = false) {
-  if (isManual) {
-    lastManualRender.value = Date.now()
-  }
+  if (isManual) lastManualRender.value = Date.now()
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'render' }))
   }
@@ -189,18 +186,19 @@ function handleRename(oldFilename, newFilename, newType) {
 
     const editorIdx = editors.value.findIndex(e => e.filename === oldFilename)
     if (editorIdx !== -1) {
-      editors.value[editorIdx] = {
-        ...editors.value[editorIdx],
-        filename: newFilename,
-        type: newType
-      }
+      editors.value[editorIdx] = { ...editors.value[editorIdx], filename: newFilename, type: newType }
     }
 
+    ws.send(JSON.stringify({ type: 'rename', oldFilename, newFilename, newType }))
+  }
+}
+
+function handleAppSettingsUpdate(newSettings) {
+  Object.assign(appSettings, newSettings)
+  if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
-      type: 'rename',
-      oldFilename,
-      newFilename,
-      newType
+      type: 'save-config',
+      config: { ...config.value, ...appSettings }
     }))
   }
 }
@@ -210,33 +208,22 @@ function handleEditorSettingsUpdate(filename, settings) {
   if (editor) {
     editor.settings = settings
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'editor-settings',
-        filename,
-        settings
-      }))
+      ws.send(JSON.stringify({ type: 'editor-settings', filename, settings }))
     }
   }
 }
 
 function handleFormat(filename) {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'format',
-      filename
-    }))
+    ws.send(JSON.stringify({ type: 'format', filename }))
   }
 }
 
-const handleSettingsSave = (newConfig, newSettings) => {
+function handleSettingsSave(newConfig, newSettings) {
   config.value = newConfig
-  if (newSettings) {
-    Object.assign(appSettings, newSettings)
-  }
+  if (newSettings) Object.assign(appSettings, newSettings)
   showSettings.value = false
   if (ws && ws.readyState === WebSocket.OPEN) {
-    // Also include appSettings in the config sync if needed, 
-    // but the server mostly cares about autoRun for the render logic
     const finalConfig = { 
       ...newConfig, 
       autoRun: appSettings.autoRun,
@@ -247,20 +234,17 @@ const handleSettingsSave = (newConfig, newSettings) => {
   }
 }
 
-// Methods for layout and auto-run are now handled via direct mutation of appSettings in components or emitted events
-
+function handleTemplateSelect(templateId) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'start-template', templateId }))
+  }
+  showTemplatePicker.value = false
+}
 
 function addToast(toast) {
   const id = Date.now()
-  toasts.value.push({
-    id,
-    ...toast
-  })
-
-  // Auto remove after 5 seconds
-  setTimeout(() => {
-    removeToast(id)
-  }, 5000)
+  toasts.value.push({ id, ...toast })
+  setTimeout(() => removeToast(id), 5000)
 }
 
 function removeToast(id) {
@@ -276,7 +260,6 @@ function handleKeydown(event) {
     event.preventDefault()
     saveFiles()
   }
-  
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault()
     handleRender(true)
@@ -289,15 +272,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (ws) {
-    ws.close()
-  }
-  if (saveDebounceTimer) {
-    clearTimeout(saveDebounceTimer)
-  }
-  if (renderDebounceTimer) {
-    clearTimeout(renderDebounceTimer)
-  }
+  if (ws) ws.close()
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
+  if (renderDebounceTimer) clearTimeout(renderDebounceTimer)
   window.removeEventListener('keydown', handleKeydown)
 })
 </script>
@@ -308,5 +285,21 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100vh;
   background: var(--color-background);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 200ms ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

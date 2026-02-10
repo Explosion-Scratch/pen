@@ -1,0 +1,29 @@
+{
+  "template": {
+    "title": "Canvas / p5.js",
+    "description": "Creative coding with p5.js canvas"
+  },
+  "name": "untitled",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "css",
+      "filename": "style.css",
+      "settings": { "normalize": false, "autoprefixer": false }
+    },
+    {
+      "type": "javascript",
+      "filename": "sketch.js",
+      "settings": { "moduleType": "classic", "strictMode": false }
+    }
+  ],
+  "globalResources": {
+    "scripts": ["https://cdn.jsdelivr.net/npm/p5@1/lib/p5.min.js"],
+    "styles": []
+  }
+}

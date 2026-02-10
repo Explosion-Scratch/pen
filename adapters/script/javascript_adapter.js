@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  getSchema() {
+  static getSchema() {
     return {
       moduleType: {
         type: 'select',

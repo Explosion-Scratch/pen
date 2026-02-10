@@ -1,6 +1,6 @@
 <template>
   <div class="editor-card" :class="{ collapsed: isCollapsed }">
-    <header class="editor-header">
+    <header class="editor-header" @dblclick.stop="$emit('dblclick-header')">
       <div class="editor-info">
         <i :class="getEditorIcon(editor.type)"></i>
         <input
@@ -10,6 +10,7 @@
           :value="editor.filename"
           @change="handleFilenameChange"
           @keydown.enter="handleFilenameChange"
+          @dblclick.stop
           spellcheck="false"
         />
         <span v-else :class="layoutMode === 'rows' ? 'editor-filename-vertical' : 'editor-filename-horizontal'">
@@ -17,28 +18,28 @@
         </span>
       </div>
       <div class="editor-actions" v-if="!isCollapsed">
-        <button class="action-btn" @click="showSettings = true" title="Editor settings">
+        <button class="action-btn" @click.stop="showSettings = true" title="Editor settings">
           <i class="ph-duotone ph-gear-six"></i>
         </button>
-        <button class="action-btn" @click="formatCode" title="Format code">
+        <button class="action-btn" @click.stop="formatCode" title="Format code">
           <i class="ph-duotone ph-magic-wand"></i>
         </button>
-        <button class="action-btn" @click="$emit('toggle-collapse')" title="Collapse">
+        <button class="action-btn" @click.stop="$emit('toggle-collapse')" title="Collapse">
           <i class="ph-duotone ph-caret-up"></i>
         </button>
       </div>
       <div class="editor-actions" v-else>
-        <button class="action-btn" @click="$emit('toggle-collapse')" title="Expand">
+        <button class="action-btn" @click.stop="$emit('toggle-collapse')" title="Expand">
           <i class="ph-duotone ph-caret-down"></i>
         </button>
       </div>
     </header>
-    <div class="editor-body" v-show="!isCollapsed" ref="editorContainer"></div>
+    <div class="editor-body" v-show="!isCollapsed" ref="editorContainer" @click="e => e.altKey && $emit('dblclick-header')"></div>
     
     <Teleport to="body">
       <div v-if="showSettings" class="settings-overlay" @click.self="showSettings = false">
         <EditorSettings
-          :adapter="getAdapter()"
+          :adapter="adapter"
           :settings="editor.settings || {}"
           @close="showSettings = false"
           @save="handleSettingsSave"
@@ -68,6 +69,10 @@ const props = defineProps({
     type: Object,
     required: true
   },
+  adapter: {
+    type: Object,
+    default: null
+  },
   content: {
     type: String,
     default: ''
@@ -82,7 +87,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format', 'run'])
+const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format', 'run', 'dblclick-header'])
 
 const editorContainer = ref(null)
 const showSettings = ref(false)
@@ -170,12 +175,12 @@ function formatCode() {
   emit('format', props.editor.filename)
 }
 
-function getAdapter() {
-  return {
-    name: props.editor.type.charAt(0).toUpperCase() + props.editor.type.slice(1),
-    schema: {}
-  }
-}
+// function getAdapter() {
+//   return {
+//     name: props.editor.type.charAt(0).toUpperCase() + props.editor.type.slice(1),
+//     schema: {}
+//   }
+// }
 
 function handleSettingsSave(settings) {
   emit('settings-update', props.editor.filename, settings)

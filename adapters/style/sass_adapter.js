@@ -113,7 +113,7 @@ body {
     }
   }
 
-  getSchema() {
+  static getSchema() {
     return {
       ...super.getSchema(),
       indentedSyntax: {

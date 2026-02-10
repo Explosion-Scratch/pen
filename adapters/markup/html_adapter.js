@@ -77,7 +77,7 @@ export class HTMLAdapter extends BaseAdapter {
     }
   }
 
-  getSchema() {
+  static getSchema() {
     return {
       doctype: {
         type: 'select',
