@@ -6,27 +6,26 @@
       :key="`main-${layoutMode}`"
       class="default-theme main-split" 
       :horizontal="layoutMode === 'rows'"
-      @resize="handleMainResize"
       @ready="onReady"
     >
-      <Pane :size="100 - previewPaneSize">
+      <Pane>
         <Splitpanes 
           :key="`editors-${layoutMode}`"
           class="editors-split"
           :horizontal="layoutMode === 'columns'"
-          @resize="handleEditorsResize"
           @ready="onEditorsReady"
+          @resize="(panes) => updatePanes(panes)"
         >
           <Pane 
+          :size="panes[idx]?.size || 100 /editors.length"
             v-for="(editor, idx) in editors" 
             :key="editor.id || editor.filename"
-            :size="getEditorSize(idx)"
             :min-size="minPaneSize"
           >
             <EditorCard
               :editor="editor"
               :content="files[editor.filename] || ''"
-              :is-collapsed="isPaneCollapsed(idx)"
+              :is-collapsed="collapsedEditors[idx]"
               :layout-mode="layoutMode"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
@@ -37,7 +36,7 @@
           </Pane>
         </Splitpanes>
       </Pane>
-      <Pane :size="previewPaneSize" :min-size="15" class="preview-pane">
+      <Pane :min-size="15" class="preview-pane">
         <PreviewCard 
           :html="previewHtml" 
           :auto-run="autoRun"
@@ -70,12 +69,16 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import EditorCard from './EditorCard.vue'
 import PreviewCard from './PreviewCard.vue'
 
+const collapseThreshold = 7
+const collapsedEditors = ref([])
+const panes = ref([])
+const previousSizes = ref([])
 const props = defineProps({
   editors: {
     type: Array,
@@ -101,42 +104,45 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run', 'format'])
 
-const columnsEditorSizes = ref([])
-const rowsEditorSizes = ref([])
-const previewPaneSize = ref(50)
-const minPaneSize = 5 // Increased to ensure header is always visible when "collapsed"
-const collapseThreshold = 7 
+const minPaneSize = 5
 const isAnyDragging = ref(false)
 let activeSplitter = null
 
-function getEditorSize(idx) {
-  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes.value : rowsEditorSizes.value
-  if (sizes[idx] !== undefined) return sizes[idx]
-  return 100 / props.editors.length
-}
-
-function isPaneCollapsed(idx) {
-  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes.value : rowsEditorSizes.value
-  return (sizes[idx] || 0) <= collapseThreshold
-}
-
 function togglePaneCollapse(idx) {
-  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
-  if (isPaneCollapsed(idx)) {
-    const remainingSpace = 100 - minPaneSize
-    const expandedSize = remainingSpace / props.editors.length
-    sizes.value[idx] = Math.max(expandedSize, 20)
-    const otherIdxs = props.editors.map((_, i) => i).filter(i => i !== idx)
-    const newShareForOthers = (100 - sizes.value[idx]) / otherIdxs.length
-    otherIdxs.forEach(i => { sizes.value[i] = newShareForOthers })
+  console.log("Toggle collapse:", idx, panes.value);
+  
+  if (collapsedEditors.value[idx]) {
+    // Expanding: Restore to previous size (or equal share if none)
+    const prevSize = previousSizes.value[idx] || (100 / props.editors.length);
+    panes.value[idx].size = prevSize;
   } else {
-    const oldSize = sizes.value[idx]
-    sizes.value[idx] = minPaneSize
-    const gainedSpace = oldSize - minPaneSize
-    const otherIdxs = props.editors.map((_, i) => i).filter(i => i !== idx)
-    const extraPerPane = gainedSpace / otherIdxs.length
-    otherIdxs.forEach(i => { sizes.value[i] += extraPerPane })
+    // Collapsing: Save current size, then set to min
+    previousSizes.value[idx] = panes.value[idx].size;
+    panes.value[idx].size = minPaneSize;
   }
+  
+  // Force update collapsed state (though @resize should trigger it, this ensures sync)
+  updateCollapsed();
+}
+
+
+function updatePanes(p){
+  console.log("Update panes:" ,p);
+  panes.value = p;
+  updateCollapsed()
+}
+
+function updateCollapsed() {
+  collapsedEditors.value = panes.value.map(p => p.size <= collapseThreshold)
+}
+
+function onReady() {}
+
+function onEditorsReady(p) {
+  const P = { size: 100 / props.editors.length, min: 5, max: 100 };
+  panes.value = [P, P, P];
+  previousSizes.value = new Array(props.editors.length).fill(null);
+  updateCollapsed()
 }
 
 function onMouseDown(e) {
@@ -156,64 +162,6 @@ function onMouseUp() {
   if (activeSplitter) {
     activeSplitter.classList.remove('is-active')
     activeSplitter = null
-  }
-}
-
-function onReady(panes) {
-  // Capture initial sizes from Splitpanes if they are different from our defaults
-  if (panes && panes.length >= 2) {
-    if (Math.abs(previewPaneSize.value - panes[1].size) > 1) {
-      previewPaneSize.value = panes[1].size
-    }
-  }
-}
-
-function onEditorsReady(panes) {
-  if (panes && panes.length > 0) {
-    const newSizes = panes.map(p => p.size)
-    const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
-    if (sizes.value.length === 0 || Math.abs(sizes.value[0] - newSizes[0]) > 1) {
-      sizes.value = newSizes
-    }
-  }
-}
-
-function initializeSizes() {
-  if (props.editors.length > 0) {
-    const count = props.editors.length
-    const defaultSize = 100 / count
-    const sizes = new Array(count).fill(defaultSize)
-    // Ensure perfect 100% sum
-    const sum = sizes.reduce((a, b) => a + b, 0)
-    if (sum !== 100) {
-      sizes[count - 1] += (100 - sum)
-    }
-    columnsEditorSizes.value = [...sizes]
-    rowsEditorSizes.value = [...sizes]
-  }
-}
-
-watch(() => props.editors.length, initializeSizes, { immediate: true })
-
-function handleMainResize(event) {
-  if (event.length >= 2) {
-    const newSize = event[1].size
-    if (Math.abs(previewPaneSize.value - newSize) > 0.01) {
-      previewPaneSize.value = newSize
-    }
-  }
-}
-
-function handleEditorsResize(event) {
-  const newSizes = event.map(p => p.size)
-  const sizes = props.layoutMode === 'columns' ? columnsEditorSizes : rowsEditorSizes
-  
-  // Only update if there's a meaningful change to prevent feedback loops
-  const hasChanged = sizes.value.length !== newSizes.length || 
-                     sizes.value.some((s, i) => Math.abs(s - newSizes[i]) > 0.01)
-  
-  if (hasChanged) {
-    sizes.value = newSizes
   }
 }
 
