@@ -13,11 +13,11 @@
           :key="`editors-${layoutMode}`"
           class="editors-split"
           :horizontal="layoutMode === 'columns'"
-          @ready="onEditorsReady"
+          @ready="() => onEditorsReady()"
           @resize="(panes) => updatePanes(panes)"
         >
           <Pane 
-          :size="panes[idx]?.size || 100 /editors.length"
+            :size="panes[idx]?.size || 100 / editors.length"
             v-for="(editor, idx) in editors" 
             :key="editor.id || editor.filename"
             :min-size="minPaneSize"
@@ -42,6 +42,7 @@
           :auto-run="autoRun"
           @refresh="$emit('render')" 
           @toggle-auto-run="$emit('toggle-auto-run')"
+          @settings="$emit('settings')"
         />
         <div v-show="isAnyDragging" class="iframe-blocker"></div>
       </Pane>
@@ -69,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import EditorCard from './EditorCard.vue'
@@ -102,23 +103,25 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run', 'format'])
+const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run', 'format', 'settings'])
 
 const minPaneSize = 5
 const isAnyDragging = ref(false)
 let activeSplitter = null
 
 function togglePaneCollapse(idx) {
-  console.log("Toggle collapse:", idx, panes.value);
-  
+  console.log("Toggle collapse:", idx, panes.value, "Prev:", previousSizes.value);
+  console.log("Collapsed Editors", collapsedEditors.value);
   if (collapsedEditors.value[idx]) {
     // Expanding: Restore to previous size (or equal share if none)
     const prevSize = previousSizes.value[idx] || (100 / props.editors.length);
     panes.value[idx].size = prevSize;
   } else {
+    console.log(JSON.parse(JSON.stringify(panes.value)))
     // Collapsing: Save current size, then set to min
     previousSizes.value[idx] = panes.value[idx].size;
     panes.value[idx].size = minPaneSize;
+    console.log(JSON.parse(JSON.stringify(panes.value)))
   }
   
   // Force update collapsed state (though @resize should trigger it, this ensures sync)
@@ -138,10 +141,17 @@ function updateCollapsed() {
 
 function onReady() {}
 
-function onEditorsReady(p) {
+watch(props.editors, onEditorsReady);
+
+async function onEditorsReady() {
+  if (!props.editors.length){
+    return setTimeout(() => onEditorsReady(), 100);
+  }
+  console.log('Editors ready', props.editors)
   const P = { size: 100 / props.editors.length, min: 5, max: 100 };
-  panes.value = [P, P, P];
-  previousSizes.value = new Array(props.editors.length).fill(null);
+  panes.value = new Array(props.editors.length).fill({...P}).map(i => JSON.parse(JSON.stringify(i)));
+  console.log('Editors ready:', panes.value)
+  previousSizes.value = new Array(props.editors.length).fill(100 / props.editors.length);
   updateCollapsed()
 }
 

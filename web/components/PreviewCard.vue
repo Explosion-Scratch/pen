@@ -2,8 +2,7 @@
   <div class="preview-card">
     <header class="preview-header">
       <div class="preview-info">
-        <i class="ph-duotone ph-monitor-play"></i>
-        <span class="preview-title">Preview</span>
+        <a :href="previewUrl" target="_blank" rel="noopener" class="preview-url">{{ previewUrl }}</a>
       </div>
       <div class="preview-actions">
         <button 
@@ -35,6 +34,9 @@
           title="Toggle DevTools"
         >
           <i class="ph-duotone ph-terminal-window"></i>
+        </button>
+        <button class="action-btn" @click="$emit('settings')" title="Settings">
+          <i class="ph-duotone ph-gear"></i>
         </button>
       </div>
     </header>
@@ -83,7 +85,9 @@ const props = defineProps({
   }
 })
 
-defineEmits(['refresh', 'toggle-auto-run'])
+defineEmits(['refresh', 'toggle-auto-run', 'settings'])
+
+const previewUrl = 'http://localhost:3002'
 
 const iframe = ref(null)
 const devtoolsIframe = ref(null)
@@ -202,7 +206,7 @@ const enhancedHtml = computed(() => {
 })
 
 function openInNewTab() {
-  window.open('http://localhost:3002', '_blank')
+  window.open(previewUrl, '_blank')
 }
 
 function toggleDevtools() {
@@ -267,18 +271,17 @@ watch(() => props.html, () => {
   gap: 8px;
 }
 
-.preview-info i {
-  font-size: 16px;
+.preview-url {
+  font-family: var(--font-mono);
+  font-size: 12px;
   color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
 }
 
-.preview-title {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.preview-url:hover {
+  color: var(--color-accent-hover, var(--color-accent));
+  text-decoration: underline;
 }
 
 .preview-actions {

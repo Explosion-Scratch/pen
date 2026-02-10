@@ -1,9 +1,5 @@
 <template>
   <div class="app">
-    <Toolbar
-      :project-name="config?.name || 'Pen'"
-      @settings="showSettings = true"
-    />
     <PaneManager
       :editors="editors"
       :files="files"
@@ -17,6 +13,7 @@
       @format="handleFormat"
       @set-layout="handleSetLayout"
       @toggle-auto-run="handleToggleAutoRun"
+      @settings="showSettings = true"
     />
     <SettingsModal
       v-if="showSettings"
@@ -29,7 +26,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import Toolbar from './components/Toolbar.vue'
 import PaneManager from './components/PaneManager.vue'
 import SettingsModal from './components/SettingsModal.vue'
 
