@@ -1,6 +1,6 @@
 import { parseHTML } from 'linkedom'
 import { getAdapter } from './adapter_registry.js'
-import { createBaseDocument, serialize, injectIntoHead, mergeHead, updateOrCreateElement } from './dom_utils.js'
+import { createBaseDocument, serialize, injectIntoHead, injectAfterBody, mergeHead, updateOrCreateElement } from './dom_utils.js'
 import { transformImportsToCdn } from './cdn_transformer.js'
 
 /**
@@ -89,14 +89,14 @@ function injectScript(document, editor, rendered, importOverrides) {
     'script',
     { id: `pen-script-${editor.type}`, type: scriptType },
     js,
-    'head'
+    'after-body'
   )
 }
 
 function injectGlobalResources(document, config) {
   if (!config.globalResources) return
   for (const scriptUrl of config.globalResources.scripts || []) {
-    injectIntoHead(document, 'script', { src: scriptUrl })
+    injectAfterBody(document, 'script', { src: scriptUrl })
   }
   for (const styleUrl of config.globalResources.styles || []) {
     injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })

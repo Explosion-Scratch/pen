@@ -52,6 +52,18 @@ export function injectIntoBody(document, tagType, attributes = {}, content = nul
   return element
 }
 
+export function injectAfterBody(document, tagType, attributes = {}, content = null) {
+  const element = document.createElement(tagType)
+  for (const [key, value] of Object.entries(attributes)) {
+    element.setAttribute(key, value)
+  }
+  if (content) {
+    element.innerHTML = content
+  }
+  document.documentElement.appendChild(element)
+  return element
+}
+
 export function createBaseDocument(lang = 'en', title = 'Pen Preview') {
   const html = `<!DOCTYPE html>
 <html lang="${lang}">
@@ -88,8 +100,10 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
     element = document.createElement(tagType)
     if (parent === 'head') {
       document.head.appendChild(element)
-    } else {
+    } else if (parent === 'body') {
       document.body.appendChild(element)
+    } else if (parent === 'after-body') {
+      document.documentElement.appendChild(element)
     }
   }
   for (const [key, value] of Object.entries(attributes)) {

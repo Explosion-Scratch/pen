@@ -4,17 +4,8 @@ const CSS_IMPORT_REGEX = /@import\s+(?:url\(\s*)?['"]([^'"]+)['"](?:\s*\))?[^;]*
 const IMPORT_OVERRIDES = {
   'tailwindcss': 'https://cdn.tailwindcss.com',
   'tailwindcss/preflight': 'https://cdn.jsdelivr.net/npm/tailwindcss@3/src/css/preflight.css',
-  'vue': 'https://esm.run/vue@3',
-  'react': 'https://esm.run/react',
-  'react-dom': 'https://esm.run/react-dom',
-  'preact': 'https://esm.run/preact',
-  'alpinejs': 'https://esm.run/alpinejs',
-  'three': 'https://esm.run/three',
-  'gsap': 'https://esm.run/gsap',
-  'lodash-es': 'https://esm.run/lodash-es',
-  'axios': 'https://esm.run/axios',
-  'dayjs': 'https://esm.run/dayjs',
-  'd3': 'https://esm.run/d3',
+  'vue': 'https://unpkg.com/vue@3',
+  'three': 'https://unpkg.com/three@latest/build/three.module.js',
 }
 
 /**
