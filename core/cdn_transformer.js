@@ -18,9 +18,9 @@ export function transformImportsToCdn(jsCode) {
 export function getCdnUrl(packageName, version = null) {
   const cleanName = packageName.split('/').slice(0, 2).join('/')
   if (version) {
-    return `https://cdn.skypack.dev/${cleanName}@${version}`
+    return `https://esm.run/${cleanName}@${version}`
   }
-  return `https://cdn.skypack.dev/${cleanName}`
+  return `https://esm.run/${cleanName}`
 }
 
 export function extractImports(jsCode) {

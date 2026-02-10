@@ -168,6 +168,17 @@ export async function launchEditorFlow(projectPath) {
           const html = await executeSequentialRender(fileMap, config)
           ws.send(JSON.stringify({ type: 'preview', html }))
         }
+
+        if (message.type === 'save-config') {
+          const newConfig = message.config
+          if (newConfig && typeof newConfig === 'object') {
+            Object.assign(config, newConfig)
+            writeFileSync(configPath, JSON.stringify(config, null, 2))
+            console.log('⚙️  Config saved')
+            const html = await executeSequentialRender(fileMap, config)
+            broadcast({ type: 'preview', html })
+          }
+        }
       } catch (err) {
         console.error('WebSocket error:', err)
       }

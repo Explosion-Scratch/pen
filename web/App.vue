@@ -197,6 +197,9 @@ function handleFormat(filename) {
 function handleSettingsSave(newConfig) {
   config.value = newConfig
   showSettings.value = false
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'save-config', config: newConfig }))
+  }
 }
 
 function handleSetLayout(mode) {

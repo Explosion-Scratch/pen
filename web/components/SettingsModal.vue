@@ -9,31 +9,6 @@
       </header>
       <div class="modal-body">
         <div class="settings-section">
-          <h3>Project</h3>
-          <div class="setting-row">
-            <label>Name</label>
-            <input type="text" v-model="localConfig.name" />
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h3>Editors</h3>
-          <div class="editors-list">
-            <div
-              v-for="(editor, index) in localConfig.editors"
-              :key="index"
-              class="editor-item"
-            >
-              <div class="editor-item-info">
-                <i :class="getEditorIcon(editor.type)"></i>
-                <span>{{ editor.filename }}</span>
-              </div>
-              <span class="editor-type">{{ editor.type }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
           <h3>Global Resources</h3>
           <div class="resource-group">
             <h4>Scripts</h4>
@@ -47,10 +22,35 @@
                 <i class="ph-duotone ph-trash"></i>
               </button>
             </div>
-            <button class="add-btn" @click="addScript">
-              <i class="ph-duotone ph-plus"></i>
-              Add Script
-            </button>
+            <div class="resource-add">
+              <input
+                type="text"
+                v-model="scriptInput"
+                placeholder="Search CDNJS or paste script URL"
+                @input="onScriptInput"
+                @focus="scriptFocused = true"
+                @blur="scriptBlur"
+              />
+              <button
+                v-if="isUrl(scriptInput)"
+                class="add-url-btn"
+                @mousedown.prevent="addScriptFromUrl(scriptInput)"
+              >
+                Add script
+              </button>
+            </div>
+            <div v-if="scriptSuggestions.length && !isUrl(scriptInput)" class="suggestions">
+              <button
+                v-for="hit in scriptSuggestions"
+                :key="hit.objectID + hit.version"
+                class="suggestion-item"
+                @mousedown.prevent="addScriptFromHit(hit)"
+              >
+                <span class="suggestion-name">{{ hit.name }}</span>
+                <span class="suggestion-desc">{{ (hit.description || '').slice(0, 50) }}{{ (hit.description || '').length > 50 ? '…' : '' }}</span>
+                <span class="suggestion-url">{{ cdnjsUrl(hit) }}</span>
+              </button>
+            </div>
           </div>
           <div class="resource-group">
             <h4>Styles</h4>
@@ -64,10 +64,20 @@
                 <i class="ph-duotone ph-trash"></i>
               </button>
             </div>
-            <button class="add-btn" @click="addStyle">
-              <i class="ph-duotone ph-plus"></i>
-              Add Style
-            </button>
+            <div class="resource-add">
+              <input
+                type="text"
+                v-model="styleInput"
+                placeholder="Paste style URL"
+              />
+              <button
+                v-if="isUrl(styleInput)"
+                class="add-url-btn"
+                @mousedown.prevent="addStyleFromUrl(styleInput)"
+              >
+                Add style
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -82,6 +92,9 @@
 <script setup>
 import { ref, watch } from 'vue'
 
+const CDNJS_ALGOLIA_APP = '2QWLVLXZB6'
+const CDNJS_ALGOLIA_KEY = '2663c73014d2e4d6d1778cc8ad9fd010'
+
 const props = defineProps({
   config: {
     type: Object,
@@ -92,33 +105,91 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save'])
 
 const localConfig = ref(JSON.parse(JSON.stringify(props.config)))
+const scriptInput = ref('')
+const styleInput = ref('')
+const scriptSuggestions = ref([])
+const scriptFocused = ref(false)
+let scriptSearchTimer = null
+let scriptBlurTimer = null
 
-const editorIcons = {
-  html: 'ph-duotone ph-file-html',
-  pug: 'ph-duotone ph-code',
-  slim: 'ph-duotone ph-code',
-  css: 'ph-duotone ph-file-css',
-  sass: 'ph-duotone ph-file-css',
-  less: 'ph-duotone ph-file-css',
-  stylus: 'ph-duotone ph-file-css',
-  javascript: 'ph-duotone ph-file-js',
-  typescript: 'ph-duotone ph-file-ts'
+function isUrl(s) {
+  if (!s || typeof s !== 'string') return false
+  const t = s.trim()
+  return t.startsWith('http://') || t.startsWith('https://')
 }
 
-function getEditorIcon(type) {
-  return editorIcons[type] || 'ph-duotone ph-file'
+function cdnjsUrl(hit) {
+  return `https://cdnjs.cloudflare.com/ajax/libs/${hit.objectID}/${hit.version}/${hit.filename}`
 }
 
-function addScript() {
-  localConfig.value.globalResources.scripts.push('')
+async function searchCdnjs(query) {
+  if (!query.trim()) return []
+  const res = await fetch(
+    'https://2qwlvlxzb6-2.algolianet.com/1/indexes/*/queries',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Algolia-Application-Id': CDNJS_ALGOLIA_APP,
+        'X-Algolia-API-Key': CDNJS_ALGOLIA_KEY
+      },
+      body: JSON.stringify({
+        requests: [{ indexName: 'libraries', params: `query=${encodeURIComponent(query.trim())}` }]
+      })
+    }
+  )
+  const data = await res.json()
+  const hits = data?.results?.[0]?.hits ?? []
+  return hits.slice(0, 8)
+}
+
+function onScriptInput() {
+  scriptFocused.value = true
+  const q = scriptInput.value
+  if (isUrl(q)) {
+    scriptSuggestions.value = []
+    return
+  }
+  clearTimeout(scriptSearchTimer)
+  if (!q.trim()) {
+    scriptSuggestions.value = []
+    return
+  }
+  scriptSearchTimer = setTimeout(async () => {
+    scriptSuggestions.value = await searchCdnjs(q)
+  }, 280)
+}
+
+function scriptBlur() {
+  scriptBlurTimer = setTimeout(() => {
+    scriptFocused.value = false
+    scriptSuggestions.value = []
+  }, 180)
+}
+
+function addScriptFromUrl(url) {
+  const u = (url || '').trim()
+  if (!u) return
+  localConfig.value.globalResources.scripts.push(u)
+  scriptInput.value = ''
+  scriptSuggestions.value = []
+}
+
+function addScriptFromHit(hit) {
+  localConfig.value.globalResources.scripts.push(cdnjsUrl(hit))
+  scriptInput.value = ''
+  scriptSuggestions.value = []
+}
+
+function addStyleFromUrl(url) {
+  const u = (url || '').trim()
+  if (!u) return
+  localConfig.value.globalResources.styles.push(u)
+  styleInput.value = ''
 }
 
 function removeScript(index) {
   localConfig.value.globalResources.scripts.splice(index, 1)
-}
-
-function addStyle() {
-  localConfig.value.globalResources.styles.push('')
 }
 
 function removeStyle(index) {
@@ -214,70 +285,6 @@ watch(() => props.config, (newConfig) => {
   margin-bottom: 12px;
 }
 
-.setting-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.setting-row label {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-.setting-row input {
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  transition: all var(--transition-fast);
-}
-
-.setting-row input:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.1);
-}
-
-.editors-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.editor-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: var(--color-background-alt);
-  border-radius: var(--radius-md);
-}
-
-.editor-item-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.editor-item-info i {
-  font-size: 16px;
-  color: var(--color-accent);
-}
-
-.editor-item-info span {
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
-.editor-type {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
 .resource-group {
   margin-bottom: 16px;
 }
@@ -313,6 +320,97 @@ watch(() => props.config, (newConfig) => {
   border-color: var(--color-accent);
 }
 
+.resource-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.resource-add input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.resource-add input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.add-url-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-accent);
+  color: white;
+  transition: all var(--transition-fast);
+}
+
+.add-url-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.suggestions {
+  margin-top: -4px;
+  margin-bottom: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border-light);
+  transition: background var(--transition-fast);
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: var(--color-background-alt);
+}
+
+.suggestion-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.suggestion-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.suggestion-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .remove-btn {
   display: flex;
   align-items: center;
@@ -327,26 +425,6 @@ watch(() => props.config, (newConfig) => {
 .remove-btn:hover {
   background: #FEE2E2;
   color: #DC2626;
-}
-
-.add-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--color-text-muted);
-  width: 100%;
-  justify-content: center;
-  transition: all var(--transition-fast);
-}
-
-.add-btn:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: rgba(194, 65, 12, 0.04);
 }
 
 .modal-footer {
