@@ -32,27 +32,28 @@ export const fileSystemMirror = {
 }
 
 export const editorStateManager = {
-  registerEditor(id, instance, adapter) {
-    editorInstances[id] = { instance, adapter }
+  // We'll store by filename for easier access
+  editors: {},
+
+  registerEditor(filename, instance, methods) {
+    this.editors[filename] = { instance, ...methods }
   },
 
-  getEditor(id) {
-    return editorInstances[id] || null
+  getEditor(filename) {
+    return this.editors[filename] || null
   },
 
-  unregisterEditor(id) {
-    delete editorInstances[id]
+  unregisterEditor(filename) {
+    delete this.editors[filename]
   },
 
-  triggerAction(id, actionName) {
-    const editor = editorInstances[id]
-    if (!editor || !editor.adapter) return null
-
-    const actions = editor.adapter.initialize().actions
-    if (actions[actionName]) {
-      return actions[actionName]
+  jumpToLocation(filename, line, column) {
+    const editor = this.editors[filename]
+    if (editor && editor.jumpToLine) {
+      editor.jumpToLine(line, column)
+      return true
     }
-    return null
+    return false
   }
 }
 

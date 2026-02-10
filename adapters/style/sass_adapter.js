@@ -131,7 +131,7 @@ body {
     }
   }
 
-  async beautify(code) {
-    return await super.beautify(code, 'scss')
+  async beautify(code, filename = null) {
+    return await super.beautify(code, 'scss', filename)
   }
 }

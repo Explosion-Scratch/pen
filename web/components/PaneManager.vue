@@ -1,18 +1,18 @@
 <template>
-  <div class="pane-manager" :class="[layoutMode, { 'is-any-dragging': isAnyDragging }]">
+  <div class="pane-manager" :class="[settings.layoutMode, { 'is-any-dragging': isAnyDragging }]">
     <div v-show="isAnyDragging" class="drag-overlay"></div>
 
     <Splitpanes 
-      :key="`main-${layoutMode}`"
+      :key="`main-${settings.layoutMode}`"
       class="default-theme main-split" 
-      :horizontal="layoutMode === 'rows'"
+      :horizontal="settings.layoutMode === 'rows'"
       @ready="onReady"
     >
       <Pane>
         <Splitpanes 
-          :key="`editors-${layoutMode}`"
+          :key="`editors-${settings.layoutMode}`"
           class="editors-split"
-          :horizontal="layoutMode === 'columns'"
+          :horizontal="settings.layoutMode === 'columns'"
           @ready="() => onEditorsReady()"
           @resize="(panes) => updatePanes(panes)"
         >
@@ -26,12 +26,13 @@
               :editor="editor"
               :content="files[editor.filename] || ''"
               :is-collapsed="collapsedEditors[idx]"
-              :layout-mode="layoutMode"
+              :layout-mode="settings.layoutMode"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
               @settings-update="handleSettingsUpdate"
               @toggle-collapse="togglePaneCollapse(idx)"
               @format="(filename) => $emit('format', filename)"
+              @run="handleEditorRun"
             />
           </Pane>
         </Splitpanes>
@@ -39,9 +40,9 @@
       <Pane :min-size="15" class="preview-pane">
         <PreviewCard 
           :html="previewHtml" 
-          :auto-run="autoRun"
-          @refresh="$emit('render')" 
-          @toggle-auto-run="$emit('toggle-auto-run')"
+          :settings="settings"
+          :last-manual-render="lastManualRender"
+          @refresh="$emit('render', true)" 
           @settings="$emit('settings')"
         />
         <div v-show="isAnyDragging" class="iframe-blocker"></div>
@@ -51,16 +52,16 @@
     <div class="layout-controls">
       <button 
         class="layout-btn" 
-        :class="{ active: layoutMode === 'columns' }"
-        @click="$emit('set-layout', 'columns')"
+        :class="{ active: settings.layoutMode === 'columns' }"
+        @click="settings.layoutMode = 'columns'"
         title="2 Column, 3 Row layout"
       >
         <i class="ph-duotone ph-columns"></i>
       </button>
       <button 
         class="layout-btn" 
-        :class="{ active: layoutMode === 'rows' }"
-        @click="$emit('set-layout', 'rows')"
+        :class="{ active: settings.layoutMode === 'rows' }"
+        @click="settings.layoutMode = 'rows'"
         title="2 Row, 3 Column layout"
       >
         <i class="ph-duotone ph-rows"></i>
@@ -93,17 +94,17 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  layoutMode: {
-    type: String,
-    default: 'columns'
+  settings: {
+    type: Object,
+    required: true
   },
-  autoRun: {
-    type: Boolean,
-    default: true
+  lastManualRender: {
+    type: Number,
+    default: 0
   }
 })
 
-const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'set-layout', 'toggle-auto-run', 'format', 'settings'])
+const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'settings'])
 
 const minPaneSize = 5
 const isAnyDragging = ref(false)
@@ -126,6 +127,10 @@ function togglePaneCollapse(idx) {
   
   // Force update collapsed state (though @resize should trigger it, this ensures sync)
   updateCollapsed();
+}
+
+function handleEditorRun() {
+  emit('render', true)
 }
 
 

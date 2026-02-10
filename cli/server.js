@@ -65,9 +65,11 @@ export async function launchEditorFlow(projectPath) {
           }).catch(err => console.error(`Failed to write ${message.filename}:`, err))
 
           // Render can also happen in background or we can await it if we want the preview to be immediate
-          executeSequentialRender(fileMap, config).then(html => {
-            broadcast({ type: 'preview', html })
-          })
+          if (config.autoRun !== false) {
+            executeSequentialRender(fileMap, config).then(html => {
+              broadcast({ type: 'preview', html })
+            })
+          }
           
           // Ack immediately to the client
           ws.send(JSON.stringify({ type: 'update-ack', filename: message.filename }))
@@ -102,8 +104,10 @@ export async function launchEditorFlow(projectPath) {
 
           console.log(`🏷️  Renamed: ${oldFilename} -> ${newFilename} (${newType})`)
           
-          const html = await executeSequentialRender(fileMap, config)
-          broadcast({ type: 'preview', html })
+          if (config.autoRun !== false) {
+            const html = await executeSequentialRender(fileMap, config)
+            broadcast({ type: 'preview', html })
+          }
         }
 
         if (message.type === 'editor-settings') {
@@ -114,8 +118,10 @@ export async function launchEditorFlow(projectPath) {
             writeFileSync(configPath, JSON.stringify(config, null, 2))
             console.log(`⚙️  Updated settings for ${filename}`)
             
-            const html = await executeSequentialRender(fileMap, config)
-            broadcast({ type: 'preview', html })
+            if (config.autoRun !== false) {
+              const html = await executeSequentialRender(fileMap, config)
+              broadcast({ type: 'preview', html })
+            }
           }
         }
 
@@ -128,7 +134,7 @@ export async function launchEditorFlow(projectPath) {
               const AdapterClass = getAdapter(editor.type)
               const adapter = new AdapterClass()
               adapter.setSettings(editor.settings || {})
-              const formatted = await adapter.beautify(content)
+              const formatted = await adapter.beautify(content, null, filename)
 
               if (formatted !== content) {
                 fileMap[filename] = formatted
@@ -142,11 +148,30 @@ export async function launchEditorFlow(projectPath) {
                   content: formatted
                 })
 
-                const html = await executeSequentialRender(fileMap, config)
-                broadcast({ type: 'preview', html })
+                if (config.autoRun !== false) {
+                  const html = await executeSequentialRender(fileMap, config)
+                  broadcast({ type: 'preview', html })
+                }
               }
             } catch (err) {
               console.error('Format error:', err)
+              
+              // Extract line and column if available (common in Prettier/Babel errors)
+              let line = 0
+              let column = 0
+              if (err.loc) {
+                line = err.loc.start ? err.loc.start.line : err.loc.line
+                column = err.loc.start ? err.loc.start.column : err.loc.column
+              }
+
+              broadcast({
+                type: 'toast-error',
+                filename,
+                name: err.name || 'Formatting Error',
+                message: err.message.split('\n')[0], // Just the first line of the message
+                line,
+                column
+              })
             }
           }
         }
@@ -159,8 +184,10 @@ export async function launchEditorFlow(projectPath) {
             writePromises.push(fs.writeFile(filePath, content))
           }
           Promise.all(writePromises).then(async () => {
-            const html = await executeSequentialRender(fileMap, config)
-            broadcast({ type: 'preview', html })
+            if (config.autoRun !== false) {
+              const html = await executeSequentialRender(fileMap, config)
+              broadcast({ type: 'preview', html })
+            }
           }).catch(err => console.error('Bulk save error:', err))
         }
 
@@ -214,8 +241,10 @@ export async function launchEditorFlow(projectPath) {
       content
     })
 
-    const html = await executeSequentialRender(fileMap, config)
-    broadcast({ type: 'preview', html })
+    if (config.autoRun !== false) {
+      const html = await executeSequentialRender(fileMap, config)
+      broadcast({ type: 'preview', html })
+    }
   })
 
   const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -279,8 +308,81 @@ export async function launchEditorFlow(projectPath) {
 
   const previewApp = express()
 
-  previewApp.get('/', async (req, res) => {
-    const html = await executeSequentialRender(fileMap, config)
+  const devtoolsScript = `
+<script src="https://cdn.jsdelivr.net/npm/chobitsu"><\/script>
+<script type="module">
+  (function() {
+    if (window._chobitsu_initialized) return;
+    window._chobitsu_initialized = true;
+
+    chobitsu.setOnMessage((data) => {
+      if (data.includes('"id":"tmp')) return;
+      window.parent.postMessage(data, '*');
+    });
+
+    window.addEventListener('message', (event) => {
+      const { event: eventType, data } = event.data || {};
+      if (eventType === 'DEV' && typeof data === 'string') {
+        chobitsu.sendRawMessage(data);
+      }
+    });
+
+    const sendToDevtools = (message) => {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    };
+
+    let id = 0;
+    const sendToChobitsu = (message) => {
+      message.id = 'tmp' + ++id;
+      chobitsu.sendRawMessage(JSON.stringify(message));
+    };
+
+    const notifyNavigation = () => {
+      sendToDevtools({
+        method: 'Page.frameNavigated',
+        params: {
+          frame: {
+            id: '1',
+            loaderId: '1',
+            url: location.href,
+            securityOrigin: location.origin,
+            mimeType: 'text/html'
+          },
+          type: 'Navigation'
+        }
+      });
+      sendToChobitsu({ method: 'Network.enable' });
+      sendToDevtools({ method: 'Runtime.executionContextsCleared' });
+      sendToChobitsu({ method: 'Runtime.enable' });
+      sendToChobitsu({ method: 'Debugger.enable' });
+      sendToChobitsu({ method: 'DOMStorage.enable' });
+      sendToChobitsu({ method: 'DOM.enable' });
+      sendToChobitsu({ method: 'CSS.enable' });
+      sendToChobitsu({ method: 'Overlay.enable' });
+      sendToDevtools({ method: 'DOM.documentUpdated' });
+    };
+    
+    setTimeout(notifyNavigation, 200);
+  })();
+<\/script>
+`
+
+  previewApp.get('*', async (req, res) => {
+    let html = await executeSequentialRender(fileMap, config)
+    
+    // Inject bridge
+    const headClose = html.indexOf('</head>')
+    if (headClose !== -1) {
+      html = html.slice(0, headClose) + devtoolsScript + html.slice(headClose)
+    } else {
+      const bodyStart = html.indexOf('<body')
+      if (bodyStart !== -1) {
+        html = html.slice(0, bodyStart) + devtoolsScript + html.slice(bodyStart)
+      } else {
+        html = devtoolsScript + html
+      }
+    }
+    
     res.send(html)
   })
 

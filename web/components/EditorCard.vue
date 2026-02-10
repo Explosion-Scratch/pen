@@ -61,6 +61,7 @@ import { indentWithTab } from '@codemirror/commands'
 import { abbreviationTracker, expandAbbreviation } from '@emmetio/codemirror6-plugin'
 import { penLightTheme } from '../codemirror/theme.js'
 import EditorSettings from './EditorSettings.vue'
+import { editorStateManager } from '../state_management.js'
 
 const props = defineProps({
   editor: {
@@ -81,7 +82,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format'])
+const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format', 'run'])
 
 const editorContainer = ref(null)
 const showSettings = ref(false)
@@ -181,6 +182,27 @@ function handleSettingsSave(settings) {
   showSettings.value = false
 }
 
+function jumpToLine(line, col = 0) {
+  if (!view) return
+  
+  // Convert 1-indexed line to 0-indexed if needed, but CM6 uses 1-indexed for some things
+  // Actually line(n) is 1-indexed in CM6 doc
+  try {
+    const lineObj = view.state.doc.line(Math.max(1, Math.min(line, view.state.doc.lines)))
+    const pos = Math.min(lineObj.from + Math.max(0, col), lineObj.to)
+    
+    view.dispatch({
+      selection: { head: pos, anchor: pos },
+      scrollIntoView: true
+    })
+    
+    // Pulse effect
+    view.focus()
+  } catch (e) {
+    console.warn('Failed to jump to line:', e)
+  }
+}
+
 function handleFilenameChange(event) {
   const newFilename = event.target.value.trim()
   if (!newFilename || newFilename === props.editor.filename) {
@@ -219,6 +241,16 @@ onMounted(() => {
   })
 
   const extensions = [
+    keymap.of([
+      {
+        key: 'Mod-Enter',
+        run: () => {
+          console.log("Mod enter pressed");
+          emit('run')
+          return true
+        }
+      }
+    ]),
     basicSetup,
     languageCompartment.of(getLanguageExtension(props.editor.type)),
     penLightTheme,
@@ -237,6 +269,8 @@ onMounted(() => {
     state,
     parent: editorContainer.value
   })
+
+  editorStateManager.registerEditor(props.editor.filename, view, { jumpToLine })
 })
 
 watch(() => props.content, (newContent) => {
@@ -260,6 +294,7 @@ watch(() => props.editor.type, (newType) => {
 })
 
 onUnmounted(() => {
+  editorStateManager.unregisterEditor(props.editor.filename)
   if (view) {
     view.destroy()
   }

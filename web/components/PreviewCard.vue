@@ -2,30 +2,33 @@
   <div class="preview-card">
     <header class="preview-header">
       <div class="preview-info">
-        <a :href="previewUrl" target="_blank" rel="noopener" class="preview-url">{{ previewUrl }}</a>
+        <div class="url-input-container" :class="{ 'is-loading': isLoading }">
+          <div class="loading-bar"></div>
+          <div class="url-highlight-overlay" aria-hidden="true" v-if="!isFocused">
+            <span class="url-protocol">{{ urlParts.protocol }}</span><span class="url-host">{{ urlParts.host }}</span><span class="url-path">{{ urlParts.path }}</span>
+          </div>
+          <input
+            ref="urlInput"
+            type="text"
+            class="url-input"
+            v-model="tempUrl"
+            @focus="isFocused = true"
+            @blur="isFocused = false"
+            @keydown.enter="handleUrlEnter"
+            @keydown.esc="handleUrlEsc"
+            placeholder="http://localhost:3002"
+            spellcheck="false"
+          />
+        </div>
       </div>
       <div class="preview-actions">
         <button 
-          v-if="!autoRun"
+          v-if="!settings.autoRun"
           class="action-btn play-btn" 
           @click="$emit('refresh')" 
           title="Run (Cmd+Enter)"
         >
           <i class="ph-duotone ph-play"></i>
-        </button>
-        <label class="auto-run-toggle" :title="autoRun ? 'Auto-run enabled' : 'Auto-run disabled'">
-          <input 
-            type="checkbox" 
-            :checked="autoRun" 
-            @change="$emit('toggle-auto-run')"
-          />
-          <span class="toggle-track">
-            <i v-if="autoRun" class="ph-duotone ph-lightning"></i>
-            <i v-else class="ph-duotone ph-pause"></i>
-          </span>
-        </label>
-        <button class="action-btn" @click="openInNewTab" title="Open in new tab">
-          <i class="ph-duotone ph-arrow-square-out"></i>
         </button>
         <button 
           class="action-btn" 
@@ -45,9 +48,10 @@
         <Pane min-size="20">
           <iframe
             ref="iframe"
-            :srcdoc="enhancedHtml"
+            :src="currentPreviewUrl"
             sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
             class="preview-iframe"
+            @load="onIframeLoad"
           ></iframe>
         </Pane>
         <Pane min-size="20">
@@ -61,9 +65,10 @@
       <iframe
         v-else
         ref="iframe"
-        :srcdoc="enhancedHtml"
+        :src="currentPreviewUrl"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         class="preview-iframe"
+        @load="onIframeLoad"
       ></iframe>
     </div>
   </div>
@@ -79,81 +84,97 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  autoRun: {
-    type: Boolean,
-    default: true
+  settings: {
+    type: Object,
+    required: true
+  },
+  lastManualRender: {
+    type: Number,
+    default: 0
   }
 })
 
-defineEmits(['refresh', 'toggle-auto-run', 'settings'])
-
-const previewUrl = 'http://localhost:3002'
+defineEmits(['refresh', 'settings'])
 
 const iframe = ref(null)
 const devtoolsIframe = ref(null)
+const urlInput = ref(null)
 const showDevtools = ref(false)
+const tempUrl = ref(props.settings.previewUrl)
+const isFocused = ref(false)
+const currentPreviewUrl = ref(props.settings.previewUrl)
 
-const devtoolsScript = `
-<script src="https://cdn.jsdelivr.net/npm/chobitsu"><\/script>
-<script type="module">
-  (function() {
-    if (window._chobitsu_initialized) return;
-    window._chobitsu_initialized = true;
+watch(() => props.settings.previewUrl, (newVal) => {
+  tempUrl.value = newVal
+  currentPreviewUrl.value = newVal
+})
 
-    chobitsu.setOnMessage((data) => {
-      if (data.includes('"id":"tmp')) return;
-      window.parent.postMessage(data, '*');
-    });
+function triggerFlash() {
+  isLoading.value = true
+  if (loadingTimer) clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => {
+    isLoading.value = false
+  }, 500)
+}
 
-    window.addEventListener('message', (event) => {
-      const { event: eventType, data } = event.data || {};
-      if (eventType === 'DEV' && typeof data === 'string') {
-        chobitsu.sendRawMessage(data);
-      }
-    });
+function handleUrlEnter() {
+  props.settings.previewUrl = tempUrl.value
+  urlInput.value?.blur()
+  
+  // New URL navigation
+  currentPreviewUrl.value = tempUrl.value
+  triggerFlash()
+}
 
-    const sendToDevtools = (message) => {
-      window.parent.postMessage(JSON.stringify(message), '*');
-    };
+function handleUrlEsc() {
+  tempUrl.value = props.settings.previewUrl
+  urlInput.value?.blur()
+}
 
-    let id = 0;
-    const sendToChobitsu = (message) => {
-      message.id = 'tmp' + ++id;
-      chobitsu.sendRawMessage(JSON.stringify(message));
-    };
-
-    const notifyNavigation = () => {
-      sendToDevtools({
-        method: 'Page.frameNavigated',
-        params: {
-          frame: {
-            id: '1',
-            loaderId: '1',
-            url: location.href,
-            securityOrigin: location.origin,
-            mimeType: 'text/html'
-          },
-          type: 'Navigation'
-        }
-      });
-      sendToChobitsu({ method: 'Network.enable' });
-      sendToDevtools({ method: 'Runtime.executionContextsCleared' });
-      sendToChobitsu({ method: 'Runtime.enable' });
-      sendToChobitsu({ method: 'Debugger.enable' });
-      sendToChobitsu({ method: 'DOMStorage.enable' });
-      sendToChobitsu({ method: 'DOM.enable' });
-      sendToChobitsu({ method: 'CSS.enable' });
-      sendToChobitsu({ method: 'Overlay.enable' });
-      sendToDevtools({ method: 'DOM.documentUpdated' });
-    };
-    
-    setTimeout(notifyNavigation, 200);
-  })();
-<\/script>
-`
+function onIframeLoad() {
+  isLoading.value = false
+}
 
 const devtoolsUrl = ref('')
 let devtoolsBlobUrl = null
+const isLoading = ref(false)
+let loadingTimer = null
+
+watch(() => props.html, () => {
+  // Update the iframe URL to reload the content, but don't trigger the flash
+  try {
+    const url = new URL(props.settings.previewUrl)
+    url.searchParams.set('_pen_update', Date.now())
+    currentPreviewUrl.value = url.toString()
+  } catch (e) {
+    currentPreviewUrl.value = props.settings.previewUrl
+  }
+}, { immediate: false })
+
+watch(() => props.lastManualRender, () => {
+  if (props.lastManualRender > 0) {
+    triggerFlash()
+  }
+})
+
+const urlParts = computed(() => {
+  try {
+    const url = new URL(tempUrl.value)
+    return {
+      protocol: url.protocol + '//',
+      host: url.host,
+      path: url.pathname + url.search + url.hash
+    }
+  } catch (e) {
+    return {
+      protocol: '',
+      host: tempUrl.value,
+      path: ''
+    }
+  }
+})
+
+
 
 function updateDevtoolsUrl() {
   if (devtoolsBlobUrl) {
@@ -189,25 +210,9 @@ watch(showDevtools, (val) => {
   }
 })
 
-const enhancedHtml = computed(() => {
-  if (!props.html) return ''
-  
-  const headClose = props.html.indexOf('</head>')
-  if (headClose !== -1) {
-    return props.html.slice(0, headClose) + devtoolsScript + props.html.slice(headClose)
-  }
-  
-  const bodyStart = props.html.indexOf('<body')
-  if (bodyStart !== -1) {
-    return props.html.slice(0, bodyStart) + devtoolsScript + props.html.slice(bodyStart)
-  }
-  
-  return devtoolsScript + props.html
-})
 
-function openInNewTab() {
-  window.open(previewUrl, '_blank')
-}
+
+// No longer used in header
 
 function toggleDevtools() {
   showDevtools.value = !showDevtools.value
@@ -241,9 +246,7 @@ onUnmounted(() => {
   }
 })
 
-watch(() => props.html, () => {
-  // No longer needed to clear logs manually
-}, { immediate: false })
+
 </script>
 
 <style scoped>
@@ -259,7 +262,7 @@ watch(() => props.html, () => {
   align-items: center;
   justify-content: space-between;
   height: var(--pane-header-height);
-  padding: 0 12px;
+  padding: 0 8px;
   background: var(--color-background-alt);
   border-bottom: 1px solid var(--color-border-light);
   flex-shrink: 0;
@@ -271,18 +274,116 @@ watch(() => props.html, () => {
   gap: 8px;
 }
 
-.preview-url {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-accent);
-  text-decoration: none;
-  transition: color var(--transition-fast);
+.url-input:hover {
+  background: var(--color-background);
+  border-color: var(--color-border);
 }
 
-.preview-url:hover {
-  color: var(--color-accent-hover, var(--color-accent));
-  text-decoration: underline;
+.url-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 280px;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
+
+.url-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  color: transparent;
+  overflow: hidden;
+}
+
+.url-protocol { color: var(--color-text-muted); opacity: 0.5; }
+.url-host { color: var(--color-accent); font-weight: 500; }
+.url-path { color: var(--color-text-muted); }
+
+.url-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: transparent;
+  caret-color: var(--color-text);
+  transition: all var(--transition-fast);
+}
+
+.url-input:hover {
+  background: var(--color-background);
+  border-color: var(--color-border);
+}
+
+.url-input:focus {
+  outline: none;
+  background: var(--color-surface);
+  border-color: var(--color-accent);
+  color: var(--color-text) !important;
+}
+
+/* Keep input text transparent so only overlay (highlighted) is visible when NOT focused */
+.url-input {
+  color: transparent !important;
+  caret-color: var(--color-text);
+}
+
+.url-input:focus ~ .url-highlight-overlay {
+  display: none;
+}
+
+/* Loading bar styles */
+.loading-bar {
+  --loading-speed: 0.5s;
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: var(--color-accent);
+  opacity: 0.05;
+  pointer-events: none;
+  transition: width var(--transition-fast), opacity var(--transition-fast);
+  z-index: 1;
+}
+
+.is-loading .loading-bar {
+  width: 100%;
+  animation: loading-slide var(--loading-speed) ease-in-out forwards;
+}
+
+@keyframes loading-slide {
+  0% { left: -100%; width: 100%; opacity: 0; }
+  20% { opacity: 0.1; }
+  80% { opacity: 0.1; }
+  100% { left: 100%; width: 100%; opacity: 0; }
+}
+
+.url-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  color: transparent;
+  overflow: hidden;
+  z-index: 2;
+}
+
 
 .preview-actions {
   display: flex;
@@ -324,35 +425,8 @@ watch(() => props.html, () => {
   font-size: 14px;
 }
 
-.auto-run-toggle {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
+/* Auto-run toggle moved to settings */
 
-.auto-run-toggle input {
-  display: none;
-}
-
-.toggle-track {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--color-border);
-  transition: all var(--transition-fast);
-}
-
-.auto-run-toggle input:checked + .toggle-track {
-  background: var(--color-accent);
-}
-
-.toggle-track i {
-  font-size: 12px;
-  color: white;
-}
 
 .preview-body {
   flex: 1;

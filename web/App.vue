@@ -4,39 +4,51 @@
       :editors="editors"
       :files="files"
       :preview-html="previewHtml"
-      :layout-mode="layoutMode"
-      :auto-run="autoRun"
+      :settings="appSettings"
       @update="handleFileUpdate"
-      @render="handleRender"
+      @render="(isManual) => handleRender(isManual)"
+      :last-manual-render="lastManualRender"
       @rename="handleRename"
       @settings-update="handleEditorSettingsUpdate"
       @format="handleFormat"
-      @set-layout="handleSetLayout"
-      @toggle-auto-run="handleToggleAutoRun"
       @settings="showSettings = true"
     />
     <SettingsModal
       v-if="showSettings"
       :config="config"
+      :settings="appSettings"
       @close="showSettings = false"
       @save="handleSettingsSave"
+    />
+    <Toast
+      :toasts="toasts"
+      @remove="removeToast"
+      @jump="handleJump"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import PaneManager from './components/PaneManager.vue'
 import SettingsModal from './components/SettingsModal.vue'
+import Toast from './components/Toast.vue'
+import { editorStateManager } from './state_management.js'
+
+const appSettings = reactive({
+  autoRun: true,
+  previewUrl: 'http://localhost:3002',
+  layoutMode: 'columns'
+})
 
 const config = ref(null)
 const files = ref({})
 const editors = ref([])
 const previewHtml = ref('')
 const showSettings = ref(false)
-const layoutMode = ref('columns')
-const autoRun = ref(true)
 const lastActivity = ref({})
+const toasts = ref([])
+const lastManualRender = ref(0)
 const IDLE_THRESHOLD = 2000 // 2 seconds
 let ws = null
 let saveDebounceTimer = null
@@ -62,7 +74,13 @@ function connectWebSocket() {
           ...e,
           id: e.id || `editor-${idx}-${Date.now()}`
         }))
-        if (autoRun.value) {
+
+        // Sync settings from config if they exist
+        if (message.config.autoRun !== undefined) appSettings.autoRun = message.config.autoRun
+        if (message.config.previewUrl) appSettings.previewUrl = message.config.previewUrl
+        if (message.config.layoutMode) appSettings.layoutMode = message.config.layoutMode
+
+        if (appSettings.autoRun) {
           ws.send(JSON.stringify({ type: 'render' }))
         }
       }
@@ -83,6 +101,19 @@ function connectWebSocket() {
 
       if (message.type === 'update-ack') {
         // acknowledged
+      }
+
+      if (message.type === 'toast-error') {
+        addToast({
+          type: 'error',
+          title: message.name,
+          message: message.message,
+          details: {
+            filename: message.filename,
+            line: message.line,
+            column: message.column
+          }
+        })
       }
     } catch (err) {
       console.error('WebSocket message error:', err)
@@ -110,12 +141,12 @@ function handleFileUpdate(filename, content) {
     saveFile(filename, content)
   }, 200)
 
-  if (autoRun.value) {
+  if (appSettings.autoRun) {
     if (renderDebounceTimer) {
       clearTimeout(renderDebounceTimer)
     }
     renderDebounceTimer = setTimeout(() => {
-      handleRender()
+      handleRender(false)
     }, 300)
   }
 }
@@ -141,7 +172,10 @@ function saveFiles() {
   }
 }
 
-function handleRender() {
+function handleRender(isManual = false) {
+  if (isManual) {
+    lastManualRender.value = Date.now()
+  }
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'render' }))
   }
@@ -194,20 +228,47 @@ function handleFormat(filename) {
   }
 }
 
-function handleSettingsSave(newConfig) {
+const handleSettingsSave = (newConfig, newSettings) => {
   config.value = newConfig
+  if (newSettings) {
+    Object.assign(appSettings, newSettings)
+  }
   showSettings.value = false
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'save-config', config: newConfig }))
+    // Also include appSettings in the config sync if needed, 
+    // but the server mostly cares about autoRun for the render logic
+    const finalConfig = { 
+      ...newConfig, 
+      autoRun: appSettings.autoRun,
+      previewUrl: appSettings.previewUrl,
+      layoutMode: appSettings.layoutMode
+    }
+    ws.send(JSON.stringify({ type: 'save-config', config: finalConfig }))
   }
 }
 
-function handleSetLayout(mode) {
-  layoutMode.value = mode
+// Methods for layout and auto-run are now handled via direct mutation of appSettings in components or emitted events
+
+
+function addToast(toast) {
+  const id = Date.now()
+  toasts.value.push({
+    id,
+    ...toast
+  })
+
+  // Auto remove after 5 seconds
+  setTimeout(() => {
+    removeToast(id)
+  }, 5000)
 }
 
-function handleToggleAutoRun() {
-  autoRun.value = !autoRun.value
+function removeToast(id) {
+  toasts.value = toasts.value.filter(t => t.id !== id)
+}
+
+function handleJump(details) {
+  editorStateManager.jumpToLocation(details.filename, details.line, details.column)
 }
 
 function handleKeydown(event) {
@@ -218,7 +279,7 @@ function handleKeydown(event) {
   
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault()
-    handleRender()
+    handleRender(true)
   }
 }
 

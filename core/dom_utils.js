@@ -67,7 +67,12 @@ export function removeElement(document, selector) {
 }
 
 export function updateOrCreateElement(document, selector, tagType, attributes, content, parent = 'head') {
-  let element = document.querySelector(selector)
+  let element
+  try {
+    element = document.querySelector(selector)
+  } catch {
+    element = null
+  }
   if (!element) {
     element = document.createElement(tagType)
     if (parent === 'head') {

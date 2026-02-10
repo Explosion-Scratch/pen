@@ -84,8 +84,8 @@ p {
     }
   }
 
-  async beautify(code) {
-    return await super.beautify(code, 'css')
+  async beautify(code, filename = null) {
+    return await super.beautify(code, 'css', filename)
   }
 
   minify(code) {

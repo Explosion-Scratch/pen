@@ -9,6 +9,26 @@
       </header>
       <div class="modal-body">
         <div class="settings-section">
+          <h3>Preview</h3>
+          <div class="settings-row">
+            <span class="settings-label">Auto Preview</span>
+            <label class="switch-toggle">
+              <input 
+                type="checkbox" 
+                v-model="localSettings.autoRun" 
+              />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row url-row">
+            <span class="settings-label">App URL</span>
+            <a :href="settings.previewUrl" target="_blank" class="url-text-link" title="Open in new tab">
+              {{ settings.previewUrl }}
+              <i class="ph-duotone ph-arrow-square-out"></i>
+            </a>
+          </div>
+        </div>
+        <div class="settings-section">
           <h3>Global Resources</h3>
           <div class="resource-group">
             <h4>Scripts</h4>
@@ -90,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 const CDNJS_ALGOLIA_APP = '2QWLVLXZB6'
 const CDNJS_ALGOLIA_KEY = '2663c73014d2e4d6d1778cc8ad9fd010'
@@ -99,12 +119,17 @@ const props = defineProps({
   config: {
     type: Object,
     required: true
+  },
+  settings: {
+    type: Object,
+    required: true
   }
 })
 
 const emit = defineEmits(['close', 'save'])
 
 const localConfig = ref(JSON.parse(JSON.stringify(props.config)))
+const localSettings = ref(JSON.parse(JSON.stringify(props.settings)))
 const scriptInput = ref('')
 const styleInput = ref('')
 const scriptSuggestions = ref([])
@@ -112,6 +137,7 @@ const scriptFocused = ref(false)
 let scriptSearchTimer = null
 let scriptBlurTimer = null
 
+// No parts needed for simple link
 function isUrl(s) {
   if (!s || typeof s !== 'string') return false
   const t = s.trim()
@@ -197,11 +223,15 @@ function removeStyle(index) {
 }
 
 function save() {
-  emit('save', localConfig.value)
+  emit('save', localConfig.value, localSettings.value)
 }
 
 watch(() => props.config, (newConfig) => {
   localConfig.value = JSON.parse(JSON.stringify(newConfig))
+}, { deep: true })
+
+watch(() => props.settings, (newSettings) => {
+  localSettings.value = JSON.parse(JSON.stringify(newSettings))
 }, { deep: true })
 </script>
 
@@ -283,6 +313,97 @@ watch(() => props.config, (newConfig) => {
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: 12px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.url-row {
+  margin-top: 12px;
+}
+
+.url-text-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent);
+  text-decoration: none;
+  background: var(--color-background-alt);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.url-text-link:hover {
+  background: var(--color-accent);
+  color: white;
+}
+
+.url-text-link i {
+  font-size: 14px;
+}
+
+.switch-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+}
+
+.switch-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-border);
+  transition: .2s;
+  border-radius: 20px;
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .2s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+input:checked + .switch-slider {
+  background-color: var(--color-accent);
+}
+
+input:focus + .switch-slider {
+  box-shadow: 0 0 1px var(--color-accent);
+}
+
+input:checked + .switch-slider:before {
+  transform: translateX(20px);
 }
 
 .resource-group {

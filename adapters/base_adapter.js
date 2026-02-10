@@ -39,19 +39,20 @@ export class BaseAdapter {
     }
   }
 
-  async beautify(code, parser = null) {
+  async beautify(code, parser = null, filename = null) {
     if (!parser) return code
     try {
       return await prettier.format(code, {
         parser,
+        filepath: filename || undefined,
         semi: true,
         singleQuote: true,
         printWidth: 100,
         trailingComma: 'none'
       })
     } catch (err) {
-      console.error(`Prettier formatting error (${parser}):`, err)
-      return code
+      // Re-throw so the caller (server) can handle and report the error
+      throw err
     }
   }
 
