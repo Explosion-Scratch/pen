@@ -32,6 +32,13 @@
         </button>
         <button 
           class="action-btn" 
+          @click="$emit('refresh')" 
+          title="Refresh Preview"
+        >
+          <i class="ph-duotone ph-arrows-counter-clockwise"></i>
+        </button>
+        <button 
+          class="action-btn" 
           @click="toggleDevtools" 
           :class="{ active: showDevtools }"
           title="Toggle DevTools"
@@ -267,12 +274,14 @@ onUnmounted(() => {
   background: var(--color-background-alt);
   border-bottom: 1px solid var(--color-border-light);
   flex-shrink: 0;
+  gap: 20px;
 }
 
 .preview-info {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
 }
 
 .url-input:hover {
@@ -288,6 +297,7 @@ onUnmounted(() => {
   background: transparent;
   border-radius: var(--radius-sm);
   overflow: hidden;
+  flex: 1;
 }
 
 .url-highlight-overlay {
