@@ -39,6 +39,10 @@ const props = defineProps({
   settings: {
     type: Object,
     required: true
+  },
+  previewState: {
+    type: Object,
+    default: () => ({ displayURL: '', contentURL: '' })
   }
 })
 
@@ -65,7 +69,8 @@ function cancelEditing() {
 }
 
 function openPreviewTab() {
-  window.open('http://localhost:3002', '_blank')
+  const url = props.previewState?.contentURL || 'http://localhost:3002'
+  window.open(url, '_blank')
 }
 
 const menuItems = computed(() => [

@@ -5,40 +5,10 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync, promises as fs } f
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import open from 'open'
-import { executeSequentialRender } from '../core/pipeline_processor.js'
 import { getAdapter } from '../core/adapter_registry.js'
 import { loadAllProjectTemplates } from '../core/project_templates.js'
 
 const CONFIG_FILENAME = '.pen.config.json'
-
-const DEVTOOLS_BRIDGE = `
-<script src="https://cdn.jsdelivr.net/npm/chobitsu"><\/script>
-<script type="module">
-  (function() {
-    if (window._chobitsu_initialized) return;
-    window._chobitsu_initialized = true;
-    chobitsu.setOnMessage((data) => {
-      if (data.includes('"id":"tmp')) return;
-      window.parent.postMessage(data, '*');
-    });
-    window.addEventListener('message', (event) => {
-      const { event: eventType, data } = event.data || {};
-      if (eventType === 'DEV' && typeof data === 'string') chobitsu.sendRawMessage(data);
-    });
-    const sendToDevtools = (msg) => window.parent.postMessage(JSON.stringify(msg), '*');
-    let id = 0;
-    const sendToChobitsu = (msg) => { msg.id = 'tmp' + ++id; chobitsu.sendRawMessage(JSON.stringify(msg)); };
-    const notifyNavigation = () => {
-      sendToDevtools({ method: 'Page.frameNavigated', params: { frame: { id: '1', loaderId: '1', url: location.href, securityOrigin: location.origin, mimeType: 'text/html' }, type: 'Navigation' } });
-      sendToChobitsu({ method: 'Network.enable' });
-      sendToDevtools({ method: 'Runtime.executionContextsCleared' });
-      for (const m of ['Runtime.enable','Debugger.enable','DOMStorage.enable','DOM.enable','CSS.enable','Overlay.enable']) sendToChobitsu({ method: m });
-      sendToDevtools({ method: 'DOM.documentUpdated' });
-    };
-    setTimeout(notifyNavigation, 200);
-  })();
-<\/script>
-`
 
 export async function launchEditorFlow(projectPath, options = {}) {
   const configPath = join(projectPath, CONFIG_FILENAME)
@@ -58,15 +28,10 @@ export async function launchEditorFlow(projectPath, options = {}) {
     persistent: true, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 100 }
   })
 
+  // Broadcast to all connected clients
   const broadcast = (msg) => {
     const data = JSON.stringify(msg)
     for (const c of clients) if (c.readyState === 1) c.send(data)
-  }
-
-  const renderAndBroadcast = async () => {
-    if (config.autoRun === false) return
-    const html = await executeSequentialRender(fileMap, config)
-    broadcast({ type: 'preview', html })
   }
 
   const wss = new WebSocketServer({ port: wsPort })
@@ -74,6 +39,8 @@ export async function launchEditorFlow(projectPath, options = {}) {
   wss.on('connection', (ws) => {
     clients.add(ws)
     if (!options.headless) console.log('📡 Client connected')
+    
+    // Send initial state to client
     const getAdaptersInfo = () => config.editors.map(e => {
       const A = getAdapter(e.type)
       return {
@@ -88,7 +55,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
       }
     })
 
-      const displayPath = projectPath.replace(process.env.HOME, '~')
+    const displayPath = projectPath.replace(process.env.HOME, '~')
 
     ws.send(JSON.stringify({
       type: 'init',
@@ -115,7 +82,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
           fs.writeFile(join(projectPath, msg.filename), msg.content)
             .then(() => setTimeout(() => ignoreNextChange.delete(msg.filename), 1000))
             .catch(err => console.error(`Write failed ${msg.filename}:`, err))
-          await renderAndBroadcast()
+          
           ws.send(JSON.stringify({ type: 'update-ack', filename: msg.filename }))
           break
         }
@@ -159,8 +126,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
             editors: config.editors,
             adapters: adaptersInfo
           })
-          
-          await renderAndBroadcast()
           break
         }
 
@@ -170,62 +135,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
             editor.settings = msg.settings
             writeFileSync(configPath, JSON.stringify(config, null, 2))
             console.log(`⚙️  Settings: ${msg.filename}`)
-            await renderAndBroadcast()
-          }
-          break
-        }
-
-        case 'format':
-        case 'minify':
-        case 'compile': {
-          const content = fileMap[msg.filename]
-          const editor = config.editors.find(e => e.filename === msg.filename)
-          if (!editor || !content) break
-          try {
-            const adapter = new (getAdapter(editor.type))()
-            adapter.setSettings(editor.settings || {})
-            
-            let result
-            if (msg.type === 'format') {
-              result = await adapter.beautify(content, null, msg.filename)
-            } else if (msg.type === 'minify') {
-              if (adapter.minify) {
-                result = await adapter.minify(content)
-              } else {
-                console.warn(`Minify not supported for ${editor.type}`)
-                break
-              }
-            } else if (msg.type === 'compile') {
-              // Look for compileToX methods
-              const target = msg.target
-              const methodName = `compileTo${target.charAt(0).toUpperCase() + target.slice(1)}`
-              if (typeof adapter[methodName] === 'function') {
-                result = await adapter[methodName](content)
-              } else {
-                console.warn(`Compile to ${target} not supported for ${editor.type}`)
-                break
-              }
-            }
-
-            if (result !== undefined && result !== content) {
-              fileMap[msg.filename] = result
-              writeFileSync(join(projectPath, msg.filename), result)
-              ignoreNextChange.add(msg.filename)
-              setTimeout(() => ignoreNextChange.delete(msg.filename), 200)
-              broadcast({ type: 'external-update', filename: msg.filename, content: result })
-              await renderAndBroadcast()
-            }
-          } catch (err) {
-            console.error(`${msg.type} error:`, err)
-            const loc = err.loc
-            broadcast({
-              type: 'toast-error',
-              filename: msg.filename,
-              name: err.name || `${msg.type.charAt(0).toUpperCase() + msg.type.slice(1)} Error`,
-              message: err.message.split('\n')[0],
-              line: loc?.start?.line || loc?.line || 0,
-              column: loc?.start?.column || loc?.column || 0
-            })
           }
           break
         }
@@ -236,13 +145,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
             return fs.writeFile(join(projectPath, fn), c)
           })
           await Promise.all(writes).catch(err => console.error('Bulk save error:', err))
-          await renderAndBroadcast()
-          break
-        }
-
-        case 'render': {
-          const html = await executeSequentialRender(fileMap, config)
-          ws.send(JSON.stringify({ type: 'preview', html }))
           break
         }
 
@@ -273,8 +175,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
             Object.assign(config, msg.config)
             writeFileSync(configPath, JSON.stringify(config, null, 2))
             console.log('⚙️  Config saved')
-            const html = await executeSequentialRender(fileMap, config)
-            broadcast({ type: 'preview', html })
           }
           break
         }
@@ -290,7 +190,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
     console.log(`📝 External change: ${filename}`)
     fileMap[filename] = readFileSync(filePath, 'utf-8')
     broadcast({ type: 'external-update', filename, content: fileMap[filename] })
-    await renderAndBroadcast()
   })
 
   const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -301,8 +200,8 @@ export async function launchEditorFlow(projectPath, options = {}) {
 
   app.get('/api/config', (_, res) => res.json({ ...config, rootPath: projectPath.replace(process.env.HOME, '~') }))
   app.get('/api/files', (_, res) => res.json(fileMap))
-  app.get('/api/templates', (_, res) => {
-    const templates = loadAllProjectTemplates().map(({ id, title, description, icon, config: c }) => ({
+  app.get('/api/templates', async (_, res) => {
+    const templates = (await loadAllProjectTemplates()).map(({ id, title, description, icon, config: c }) => ({
       id, title, description, icon,
       editors: c.editors.map(e => e.type)
     }))
@@ -315,12 +214,12 @@ export async function launchEditorFlow(projectPath, options = {}) {
     }))
   })
 
-  if (!options.headless) {
-    if (existsSync(distPath)) {
-      app.use(express.static(distPath))
-    } else {
-      app.get('/', (_, res) => res.send(`<!DOCTYPE html><html><head><title>Pen Editor</title><script type="module" src="http://localhost:5173/@vite/client"></script><script type="module" src="http://localhost:5173/main.js"></script></head><body><div id="app"></div></body></html>`))
-    }
+  if (existsSync(distPath)) {
+    app.use(express.static(distPath))
+    // Fallback for SPA
+    app.get('*', (_, res) => res.sendFile(join(distPath, 'index.html')))
+  } else {
+    app.get('/', (_, res) => res.send(`<!DOCTYPE html><html><head><title>Pen Editor</title><script type="module" src="http://localhost:5173/@vite/client"></script><script type="module" src="http://localhost:5173/main.js"></script></head><body><div id="app"></div></body></html>`))
   }
 
   app.listen(httpPort, () => {
@@ -328,30 +227,26 @@ export async function launchEditorFlow(projectPath, options = {}) {
       console.log(`\n\x1b[1m✨ Pen Services (Headless)\x1b[0m\n`)
       console.log(`   📡 API:     http://localhost:${httpPort}`)
       console.log(`   📡 WS:      ws://localhost:${wsPort}`)
-      console.log(`   📄 Preview: http://localhost:${previewPort}\n`)
+      console.log(`   📄 Preview: http://localhost:${previewPort} (Hosted by Client/Static)\n`)
     } else {
       console.log(`\n\x1b[1m✨ Pen Editor\x1b[0m\n`)
       console.log(`   🌐 Editor:  http://localhost:${httpPort}`)
       console.log(`   📡 WS:      ws://localhost:${wsPort}`)
-      console.log(`   📄 Preview: http://localhost:${previewPort}`)
       console.log(`\n   Press Ctrl+C to stop.\n`)
     }
   })
 
+  // The client now handles preview generation. 
+  /*
   const previewApp = express()
   previewApp.get('*', async (_, res) => {
-    let html = await executeSequentialRender(fileMap, config)
-    const headClose = html.indexOf('</head>')
-    html = headClose !== -1
-      ? html.slice(0, headClose) + DEVTOOLS_BRIDGE + html.slice(headClose)
-      : DEVTOOLS_BRIDGE + html
-    res.send(html)
+     // Preview handled by client now
+     res.send('Preview is managed by the client application.')
   })
   previewApp.listen(previewPort)
-
+  */
+  
   if (!options.headless) {
-    open(`http://localhost:${httpPort}`)
+    // open(`http://localhost:${httpPort}`)
   }
 }
-
-

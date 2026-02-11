@@ -1,5 +1,7 @@
 import { CSSAdapter } from './css_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
+// Note: 'sass' package works in Node. For browser, we might need 'sass.js' or ensure Vite bundles it correctly.
+// Vite should handle the 'sass' import for valid ESM usage in browser if configured.
 import * as sass from 'sass'
 
 export class SASSAdapter extends CSSAdapter {
@@ -21,8 +23,8 @@ export class SASSAdapter extends CSSAdapter {
     }
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('sass', variables)
+  static async getDefaultTemplate(variables = {}) {
+    const template = await loadAndRenderTemplate('sass', variables)
     if (template) return template
 
     return `/* ${variables.projectName || 'Pen'} Styles */

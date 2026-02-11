@@ -54,7 +54,7 @@
       </Pane>
       <Pane :size="previewMaximized ? 98 : previewSize" :min-size="15" class="preview-pane">
         <PreviewCard 
-          :html="previewHtml" 
+          :preview-state="previewState" 
           :settings="settings"
           :last-manual-render="lastManualRender"
           :is-maximized="previewMaximized"
@@ -108,7 +108,7 @@ const props = defineProps({
   editors: { type: Array, default: () => [] },
   files: { type: Object, default: () => ({}) },
   adapters: { type: Array, default: () => [] },
-  previewHtml: { type: String, default: '' },
+  previewState: { type: Object, default: () => ({ displayURL: '', contentURL: '' }) },
   settings: { type: Object, required: true },
   lastManualRender: { type: Number, default: 0 }
 })

@@ -1,145 +1,59 @@
 import { CSSAdapter } from './css_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
-import stylus from 'stylus'
 
 export class StylusAdapter extends CSSAdapter {
   static type = 'style'
   static id = 'stylus'
   static name = 'Stylus'
-  static description = 'Expressive CSS preprocessor'
+  static description = 'Stylus (Disabled in Browser)'
   static extends = 'css'
   static fileExtension = '.styl'
   static mimeType = 'text/x-stylus'
   static compileTargets = ['css']
-  static canMinify = true
+  static canMinify = false
 
   static getCdnResources(settings = {}) {
-    const parentResources = CSSAdapter.getCdnResources(settings)
-    return {
-      scripts: [...parentResources.scripts],
-      styles: [...parentResources.styles]
-    }
+    return CSSAdapter.getCdnResources(settings)
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('stylus', variables)
-    if (template) return template
-
-    return `/* ${variables.projectName || 'Pen'} Styles */
-
-color-background = #FDFCFB
-color-text = #1A1A1A
-color-accent = #C2410C
-font-serif = 'Source Serif Pro', Georgia, serif
-font-mono = 'Maple Mono', 'Fira Code', monospace
-
-*
-  box-sizing border-box
-  margin 0
-  padding 0
-
-body
-  font-family font-serif
-  background color-background
-  color color-text
-  line-height 1.6
-  padding 2rem
-
-.container
-  max-width 800px
-  margin 0 auto
-
-  h1
-    font-size 2.5rem
-    margin-bottom 1rem
-    color color-accent
-
-  p
-    font-size 1.125rem
-    margin-bottom 1rem`
+  static async getDefaultTemplate(variables = {}) {
+    return '/* Stylus is currently disabled in the browser environment */'
   }
 
   static getDefaultSettings() {
-    return {
-      ...CSSAdapter.getDefaultSettings(),
-      compress: false
-    }
+    return CSSAdapter.getDefaultSettings()
   }
 
   initialize(codemirrorInstance, fullConfig) {
     const parentInit = super.initialize(codemirrorInstance, fullConfig)
     return {
       ...parentInit,
-      syntax: 'stylus',
+      syntax: 'css', // Fallback to CSS syntax highlighting
       actions: {
-        ...parentInit.actions,
-        compile: (target) => target === 'css' ? this.compileToCss.bind(this) : null
+        beautify: null,
+        minify: null,
+        compile: null,
+        destroy: null
       }
     }
   }
 
-  async compileToCss(stylusCode) {
-    return new Promise((resolve) => {
-      stylus(stylusCode)
-        .set('compress', this.settings.compress)
-        .render((err, css) => {
-          if (err) {
-            console.error('Stylus compilation error:', err)
-            resolve(`/* Stylus Error: ${err.message} */`)
-          } else {
-            resolve(css)
-          }
-        })
-    })
+  async compileToCss(code) {
+    return '/* Stylus compilation disabled */'
   }
 
   async minify(code) {
-    return new Promise((resolve, reject) => {
-      stylus(code)
-        .set('compress', true)
-        .render((err, css) => {
-          if (err) {
-            reject(err)
-          } else {
-            resolve(css)
-          }
-        })
-    })
+    return code
   }
 
   async render(content, fileMap) {
-    return new Promise((resolve) => {
-      stylus(content)
-        .set('compress', this.settings.compress)
-        .render((err, css) => {
-          if (err) {
-            resolve({
-              ...fileMap,
-              css: `/* Stylus Error: ${err.message} */`
-            })
-          } else {
-            resolve({
-              ...fileMap,
-              css
-            })
-          }
-        })
-    })
-  }
-
-  static getSchema() {
     return {
-      ...super.getSchema(),
-      compress: {
-        type: 'boolean',
-        name: 'Compress Output',
-        description: 'Output minified CSS',
-        default: false
-      }
+      ...fileMap,
+      cssContent: '/* Stylus rendering disabled */'
     }
   }
 
-  async beautify(code) {
-    return code
+  static getSchema() {
+    return CSSAdapter.getSchema()
   }
 }

@@ -20,8 +20,8 @@ export class CSSAdapter extends BaseAdapter {
     return resources
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('css', variables)
+  static async getDefaultTemplate(variables = {}) {
+    const template = await loadAndRenderTemplate('css', variables)
     if (template) return template
 
     return `/* ${variables.projectName || 'Pen'} Styles */

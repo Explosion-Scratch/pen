@@ -15,8 +15,8 @@ export class JavaScriptAdapter extends BaseAdapter {
     return { scripts: [], styles: [] }
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('javascript', variables)
+  static async getDefaultTemplate(variables = {}) {
+    const template = await loadAndRenderTemplate('javascript', variables)
     if (template) return template
 
     return `/**

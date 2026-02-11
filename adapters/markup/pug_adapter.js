@@ -17,8 +17,8 @@ export class PugAdapter extends BaseAdapter {
     }
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('pug', variables)
+  static async getDefaultTemplate(variables = {}) {
+    const template = await loadAndRenderTemplate('pug', variables)
     if (template) return template
 
     return `.container
@@ -47,6 +47,8 @@ export class PugAdapter extends BaseAdapter {
   }
 
   async compileToHtml(pugCode) {
+    return '<!-- Pug support currently disabled in browser -->'
+    /*
     try {
       const pug = await import('pug')
       return pug.render(pugCode, { pretty: this.settings.pretty })
@@ -54,9 +56,15 @@ export class PugAdapter extends BaseAdapter {
       console.error('Pug compilation error:', err)
       return `<!-- Pug Error: ${err.message} -->`
     }
+    */
   }
 
   async render(content, fileMap) {
+    return {
+        ...fileMap,
+        bodyContent: '<!-- Pug support currently disabled in browser -->'
+    }
+    /*
     try {
       const pug = await import('pug')
       const html = pug.render(content, { pretty: this.settings.pretty })
@@ -70,6 +78,7 @@ export class PugAdapter extends BaseAdapter {
         bodyContent: `<pre class="error">Pug Error: ${err.message}</pre>`
       }
     }
+    */
   }
 
   static getSchema() {

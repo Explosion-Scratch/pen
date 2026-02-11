@@ -143,7 +143,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(['close', 'save', 'toast'])
 
 const localConfig = ref(JSON.parse(JSON.stringify(props.config)))
 const localSettings = ref(JSON.parse(JSON.stringify(props.settings)))
@@ -157,9 +157,11 @@ let scriptBlurTimer = null
 function copyPath() {
   if (props.currentPath) {
     navigator.clipboard.writeText(props.currentPath)
-    // Could show a toast here if we had access to the toast system, 
-    // but a visual feedback on the button itself would be nice.
-    // For now simple copy.
+    emit('toast', {
+      type: 'info',
+      title: 'Path Copied',
+      message: 'Project path copied to clipboard'
+    })
   }
 }
 

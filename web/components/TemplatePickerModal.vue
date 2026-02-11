@@ -36,14 +36,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { loadAllProjectTemplates } from '../../core/project_templates.js'
 
 const emit = defineEmits(['close', 'select'])
 const templates = ref([])
 
 onMounted(async () => {
   try {
-    const res = await fetch('/api/templates')
-    templates.value = await res.json()
+    templates.value = await loadAllProjectTemplates()
   } catch (err) {
     console.error('Failed to load templates:', err)
   }

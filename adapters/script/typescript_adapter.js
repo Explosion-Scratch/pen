@@ -17,8 +17,8 @@ export class TypeScriptAdapter extends JavaScriptAdapter {
     return { scripts: [], styles: [] }
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('typescript', variables)
+  static async getDefaultTemplate(variables = {}) {
+    const template = await loadAndRenderTemplate('typescript', variables)
     if (template) return template
 
     return `/**

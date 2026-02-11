@@ -1,4 +1,7 @@
+// Basic DOM Utils for SSR/Node. Browser uses native DOM.
 import { parseHTML } from 'linkedom'
+const isBrowser = typeof window !== 'undefined'
+
 import { getAdapter } from './adapter_registry.js'
 import { createBaseDocument, serialize, injectIntoHead, injectAfterBody, mergeHead, updateOrCreateElement } from './dom_utils.js'
 import { transformImportsToCdn } from './cdn_transformer.js'
@@ -33,9 +36,45 @@ export async function executeSequentialRender(fileMap, config) {
   }
 
   injectGlobalResources(document, config)
+  injectDebugScript(document)
   const finalHtml = serialize(document)
   console.log(`[DEBUG] Final HTML Length: ${finalHtml.length}, Head has script: ${finalHtml.includes('pen-script')}`)
   return finalHtml
+}
+
+function injectDebugScript(document) {
+  const debugScript = `
+    import chobitsu from 'https://esm.sh/chobitsu';
+    window.chobitsu = chobitsu;
+    
+    // Connect Chobitsu to parent window (DevTools bridge)
+    chobitsu.setOnMessage((message) => {
+      window.parent.postMessage(message, '*');
+    });
+    
+    window.addEventListener('message', (event) => {
+      // Basic security check - in production you'd want to check origin
+      if (event.data && event.data.event === 'DEV') {
+        try {
+          chobitsu.sendRawMessage(event.data.data);
+        } catch (e) {
+          console.error('Failed to send message to Chobitsu:', e);
+        }
+      }
+    });
+
+    // Initialize
+    console.log('DevTools Bridge Initialized');
+  `
+  
+  updateOrCreateElement(
+    document,
+    'pen-debug-bridge',
+    'script',
+    { id: 'pen-debug-bridge', type: 'module' },
+    debugScript,
+    'head'
+  )
 }
 
 function injectMarkup(document, rendered) {

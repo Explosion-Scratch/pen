@@ -1,8 +1,15 @@
-import { parseHTML } from 'linkedom'
+import * as Linkedom from 'linkedom'
+
+const isBrowser = typeof window !== 'undefined'
 
 export function parseHtml(htmlString) {
-  const { document } = parseHTML(htmlString)
-  return document
+  if (isBrowser) {
+    const parser = new DOMParser()
+    return parser.parseFromString(htmlString, 'text/html')
+  } else {
+    const { document } = Linkedom.parseHTML(htmlString)
+    return document
+  }
 }
 
 export function select(document, selector) {
@@ -14,6 +21,9 @@ export function selectAll(document, selector) {
 }
 
 export function serialize(document) {
+  if (isBrowser) {
+    return `<!DOCTYPE html>\n${document.documentElement.outerHTML}`
+  }
   if (!document || !document.documentElement) {
     return '<!DOCTYPE html><html><head></head><body></body></html>'
   }
@@ -21,10 +31,18 @@ export function serialize(document) {
 }
 
 export function mergeHead(targetDocument, headHtml) {
-  const { document: tempDoc } = parseHTML(`<html><head>${headHtml}</head></html>`)
-  const headNodes = Array.from(tempDoc.head.childNodes)
-  for (const node of headNodes) {
-    targetDocument.head.appendChild(targetDocument.importNode(node, true))
+  if (isBrowser) {
+    const tempDoc = parseHtml(`<html><head>${headHtml}</head></html>`)
+    const headNodes = Array.from(tempDoc.head.childNodes)
+    for (const node of headNodes) {
+      targetDocument.head.appendChild(targetDocument.importNode(node, true))
+    }
+  } else {
+    const { document: tempDoc } = Linkedom.parseHTML(`<html><head>${headHtml}</head></html>`)
+    const headNodes = Array.from(tempDoc.head.childNodes)
+    for (const node of headNodes) {
+      targetDocument.head.appendChild(targetDocument.importNode(node, true))
+    }
   }
 }
 
@@ -61,6 +79,10 @@ export function injectAfterBody(document, tagType, attributes = {}, content = nu
     element.innerHTML = content
   }
   document.documentElement.appendChild(element)
+  // Ensure it's the last child
+  if (document.documentElement.lastChild !== element) {
+      document.documentElement.appendChild(element)
+  }
   return element
 }
 
@@ -96,6 +118,13 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
   } catch {
     element = null
   }
+  
+  // If we found an element but it's the wrong tag type, remove it and recreate
+  if (element && element.tagName.toLowerCase() !== tagType.toLowerCase()) {
+      element.remove()
+      element = null
+  }
+
   if (!element) {
     element = document.createElement(tagType)
     if (parent === 'head') {
@@ -106,16 +135,17 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
       document.documentElement.appendChild(element)
     }
   }
+  
   for (const [key, value] of Object.entries(attributes)) {
     element.setAttribute(key, value)
   }
+  
   if (content !== null) {
     if (tagType === 'script') {
       element.textContent = content
     } else {
       element.innerHTML = content
     }
-    console.log(`[DEBUG] Set content for ${tagType} (${selector}), length: ${content.length}`)
   }
   return element
 }

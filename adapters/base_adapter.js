@@ -1,4 +1,10 @@
 import * as prettier from 'prettier'
+import parserBabel from 'prettier/plugins/babel'
+import parserEstree from 'prettier/plugins/estree'
+import parserHtml from 'prettier/plugins/html'
+import parserCss from 'prettier/plugins/postcss'
+import parserMarkdown from 'prettier/plugins/markdown'
+import parserYaml from 'prettier/plugins/yaml'
 
 export class BaseAdapter {
   static type = 'unknown'
@@ -19,7 +25,7 @@ export class BaseAdapter {
     return { scripts: [], styles: [] }
   }
 
-  static getDefaultTemplate(variables = {}) {
+  static async getDefaultTemplate(variables = {}) {
     return ''
   }
 
@@ -44,18 +50,44 @@ export class BaseAdapter {
   async beautify(code, parser = null, filename = null) {
     if (!parser) return code
     try {
+      // In browser, prettier might be available differently or we might need a different strategy.
+      // For now, assuming prettier is available or bundled.
+      // If running in browser without node resolution, this might need adjustment.
       return await prettier.format(code, {
         parser,
         filepath: filename || undefined,
         semi: true,
         singleQuote: true,
         printWidth: 100,
-        trailingComma: 'none'
+        trailingComma: 'none',
+        plugins: [
+          parserBabel,
+          parserEstree,
+          parserHtml,
+          parserCss,
+          parserMarkdown,
+          parserYaml
+        ]
       })
     } catch (err) {
-      // Re-throw so the caller (server) can handle and report the error
+      // Re-throw so the caller (client/server) can handle and report the error
       throw err
     }
+  }
+
+  // Orchestration method: Adapters should use this to "save" files.
+  // The actual implementation of saving (disk write or WS message) is handled by the callback.
+  async saveFile(filename, content, context = {}) {
+    if (this.onSaveFile) {
+      await this.onSaveFile(filename, content, context)
+    } else {
+      console.warn('BaseAdapter: No onSaveFile callback registered.')
+    }
+  }
+
+  // Helper to register the callback
+  registerSaveFileCallback(callback) {
+    this.onSaveFile = callback
   }
 
   async render(content, fileMap) {

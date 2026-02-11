@@ -10,7 +10,7 @@ const CONFIG_FILENAME = '.pen.config.json'
 export async function initializeNewProjectFlow(projectPath) {
   console.log('\n\x1b[1m✨ Create a new Pen project\x1b[0m\n')
 
-  const templates = loadAllProjectTemplates()
+  const templates = await loadAllProjectTemplates()
   const choices = [
     ...templates.map(t => ({
       name: `${t.title} — ${t.description}`,
@@ -82,7 +82,7 @@ async function buildCustomConfig(projectName) {
   const files = {}
   for (const editor of config.editors) {
     const A = getAdapter(editor.type)
-    files[editor.filename] = A.getDefaultTemplate({ projectName })
+    files[editor.filename] = await A.getDefaultTemplate({ projectName })
   }
 
   return { config, files }
@@ -142,7 +142,7 @@ async function addEditor(config, projectPath) {
   const filename = await input({ message: 'Filename', default: `new${A.fileExtension}` })
 
   config.editors.push({ type: typeId, filename, settings: A.getDefaultSettings?.() || {} })
-  writeFileSync(join(projectPath, filename), A.getDefaultTemplate({ projectName: config.name }))
+  writeFileSync(join(projectPath, filename), await A.getDefaultTemplate({ projectName: config.name }))
 }
 
 async function removeEditor(config) {

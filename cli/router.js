@@ -13,6 +13,19 @@ const LOGO = `
   ╰──────────────────────────────────╯`
 
 export async function handleCliInput(args) {
+  const isHelp = args.includes('--help') || args.includes('-h')
+  const isVersion = args.includes('--version') || args.includes('-v')
+
+  if (isHelp) {
+    printHelp()
+    return
+  }
+
+  if (isVersion) {
+    console.log('pen v1.0.0')
+    return
+  }
+
   const flags = args.filter(a => a.startsWith('--'))
   const cleanArgs = args.filter(a => !a.startsWith('--'))
   
@@ -22,11 +35,8 @@ export async function handleCliInput(args) {
   const hasConfig = existsSync(configPath)
 
   const options = {
-    headless: flags.includes('--headless') || flags.includes('-h') && command !== 'help' // Basic check
+    headless: flags.includes('--headless')
   }
-
-  // Proper flag handling for common ones
-  if (args.includes('--headless')) options.headless = true
 
   switch (command) {
     case 'init':
@@ -44,6 +54,7 @@ export async function handleCliInput(args) {
       break
 
     case 'serve':
+    case 'preview':
     case 'build':
       if (!hasConfig) {
         printNoProject()
@@ -54,27 +65,7 @@ export async function handleCliInput(args) {
 
     case 'templates':
     case 'list-templates':
-      printTemplateList()
-      break
-
-    case 'help':
-    case '--help':
-    case '-h':
-      if (args[0] === 'help' || args[0] === '--help' || (args[0] === '-h' && !hasConfig)) {
-        printHelp()
-        break
-      }
-      // fall through if it might be -h for headless in a project
-      if (hasConfig) {
-        await launchEditorFlow(cwd, options)
-      } else {
-        printHelp()
-      }
-      break
-
-    case '--version':
-    case '-v':
-      console.log('pen v1.0.0')
+      await printTemplateList()
       break
 
     default:
@@ -91,8 +82,8 @@ function printNoProject() {
   console.log('   Run \x1b[1mpen init\x1b[0m to create one.\n')
 }
 
-function printTemplateList() {
-  const templates = loadAllProjectTemplates()
+async function printTemplateList() {
+  const templates = await loadAllProjectTemplates()
   console.log(LOGO)
   console.log('\n  \x1b[1mAvailable Templates\x1b[0m\n')
 

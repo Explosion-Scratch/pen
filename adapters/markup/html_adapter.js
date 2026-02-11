@@ -16,8 +16,8 @@ export class HTMLAdapter extends BaseAdapter {
     return { scripts: [], styles: [] }
   }
 
-  static getDefaultTemplate(variables = {}) {
-    const template = loadAndRenderTemplate('html', variables)
+  static async getDefaultTemplate(variables = {}) {
+    const template = await loadAndRenderTemplate('html', variables)
     if (template) return template
 
     return `<div class="container">

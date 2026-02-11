@@ -37,7 +37,7 @@
     "linkedom": "^0.18.9",
     "open": "^10.1.0",
     "postcss": "^8.5.3",
-    "prettier": "^3.5.1",
+    "prettier": "^3.8.1",
     "sass": "^1.85.0",
     "splitpanes": "^3.1.5",
     "stylus": "^0.64.0",
@@ -49,7 +49,8 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
     "concurrently": "^9.2.1",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vite-plugin-singlefile": "^2.3.0"
   },
   "keywords": [
     "codepen",

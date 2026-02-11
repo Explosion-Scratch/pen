@@ -84,9 +84,9 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 
 const props = defineProps({
-  html: {
-    type: String,
-    default: ''
+  previewState: {
+    type: Object,
+    default: () => ({ displayURL: '', contentURL: '' })
   },
   settings: {
     type: Object,
@@ -114,8 +114,17 @@ const currentPreviewUrl = ref(props.settings.previewUrl)
 
 watch(() => props.settings.previewUrl, (newVal) => {
   tempUrl.value = newVal
-  currentPreviewUrl.value = newVal
 })
+
+
+
+watch(() => props.previewState, (newState) => {
+  if (newState && newState.contentURL) {
+      currentPreviewUrl.value = newState.contentURL
+      tempUrl.value = newState.displayURL
+      triggerFlash()
+  }
+}, { immediate: true, deep: true })
 
 function triggerFlash() {
   isLoading.value = true
@@ -148,16 +157,7 @@ let devtoolsBlobUrl = null
 const isLoading = ref(false)
 let loadingTimer = null
 
-watch(() => props.html, () => {
-  // Update the iframe URL to reload the content, but don't trigger the flash
-  try {
-    const url = new URL(props.settings.previewUrl)
-    url.searchParams.set('_pen_update', Date.now())
-    currentPreviewUrl.value = url.toString()
-  } catch (e) {
-    currentPreviewUrl.value = props.settings.previewUrl
-  }
-}, { immediate: false })
+
 
 watch(() => props.lastManualRender, () => {
   if (props.lastManualRender > 0) {
