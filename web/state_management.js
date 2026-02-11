@@ -29,9 +29,9 @@ export const fileSystemMirror = {
     return { ...fileSystem.files }
   },
 
-  setAllFiles(files) {
+  setAllFiles(files, skipRender = false) {
     fileSystem.updateFiles(files)
-    triggerRender()
+    if (!skipRender) triggerRender()
   },
 
   receiveExternalUpdate(filename, content) {
@@ -44,9 +44,9 @@ export const fileSystemMirror = {
     triggerRender()
   },
   
-  setConfig(config) {
+  setConfig(config, skipRender = false) {
     fileSystem.updateConfig(config)
-    triggerRender()
+    if (!skipRender) triggerRender()
   },
 
   get config() {
@@ -65,19 +65,29 @@ watch(fileSystem.files, () => {
 }, { deep: true })
 
 
+let pendingRender = false
+
 // Orchestration Logic
 async function triggerRender() {
-  if (isRendering) return
+  if (isRendering) {
+    pendingRender = true
+    return
+  }
   isRendering = true
   try {
-    const html = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config }, { dev: true })
-    
-    // Abstracted "Write to Preview -> Get URL"
-    const previewUrl = await fileSystem.writePreview(html)
-    
-    // Broadcast preview URL update instead of HTML content
-    const previewEvent = new CustomEvent('pen-preview-update', { detail: previewUrl })
-    window.dispatchEvent(previewEvent)
+    do {
+      pendingRender = false
+      const files = { ...fileSystem.files }
+      const config = { ...fileSystem.config }
+      const html = await executeSequentialRender(files, config, { dev: true })
+      
+      // Abstracted "Write to Preview -> Get URL"
+      const previewUrl = await fileSystem.writePreview(html)
+      
+      // Broadcast preview URL update instead of HTML content
+      const previewEvent = new CustomEvent('pen-preview-update', { detail: previewUrl })
+      window.dispatchEvent(previewEvent)
+    } while (pendingRender)
   } catch (err) {
     console.error('Render error:', err)
   } finally {

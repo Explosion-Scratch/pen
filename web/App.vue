@@ -267,9 +267,8 @@ async function handleTemplateSelect(templateId) {
     if (!template) return
 
     const newConfig = { ...template.config, name: config.name || 'Untitled' }
-    setConfig(newConfig)
+    setConfig(newConfig, true)
     if (template.files) setAllFiles(template.files)
-    fileSystem.saveConfig(newConfig)
 
     const { getAdapter } = await import('../core/adapter_registry.js')
     adapters.value = (newConfig.editors || []).map(e => {

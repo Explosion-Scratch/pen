@@ -211,6 +211,16 @@ class VirtualFS extends BaseFileSystem {
     return Promise.resolve()
   }
 
+  updateFiles(newFiles) {
+    super.updateFiles(newFiles)
+    this.persist()
+  }
+
+  updateConfig(newConfig) {
+    super.updateConfig(newConfig)
+    Storage.setItem(this.configKey, JSON.stringify(this.config))
+  }
+
   writeFile(filename, content) {
     this.files[filename] = content
     this.hasUnsavedChanges.value = true
@@ -218,8 +228,7 @@ class VirtualFS extends BaseFileSystem {
   }
 
   saveConfig(newConfig) {
-    Object.assign(this.config, newConfig)
-    Storage.setItem(this.configKey, JSON.stringify(this.config))
+    this.updateConfig(newConfig)
   }
 
   renameFile(oldFilename, newFilename, newType) {
