@@ -104,6 +104,41 @@ export async function exportProject() {
   }
 }
 
+export async function exportEditor() {
+  try {
+    const response = await fetch(window.location.href)
+    let html = await response.text()
+    
+    const inject = `
+  <script>
+    window.__initial_file_map__ = ${JSON.stringify(fileSystem.files)};
+    window.__initial_config__ = ${JSON.stringify(fileSystem.config)};
+  </script>`
+    
+    if (html.includes('<head>')) {
+      html = html.replace('<head>', '<head>' + inject)
+    } else {
+      html = inject + html
+    }
+
+    const origin = window.location.origin
+    html = html.replace(/(src|href)="\/([^"]+)"/g, `$1="${origin}/$2"`)
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${fileSystem.config.name || 'pen-editor'}-portable.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Export Editor error:', err)
+    throw err
+  }
+}
+
 export const editorStateManager = {
   editors: {},
 
@@ -174,7 +209,8 @@ export function useFileSystem() {
     receiveExternalUpdate: fileSystemMirror.receiveExternalUpdate,
     setConfig: fileSystemMirror.setConfig,
     config: fileSystemMirror.config,
-    // Expose direct filesystem if needed
+    isVirtual: fileSystem.isVirtual,
+    hasUnsavedChanges: fileSystem.hasUnsavedChanges,
     fs: fileSystem
   }
 }

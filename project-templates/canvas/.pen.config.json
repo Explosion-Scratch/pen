@@ -1,7 +1,7 @@
 {
   "template": {
-    "title": "Canvas / p5.js",
-    "description": "Creative coding with p5.js canvas"
+    "title": "p5.js",
+    "description": "p5.js canvas graphics"
   },
   "name": "untitled",
   "version": "1.0.0",

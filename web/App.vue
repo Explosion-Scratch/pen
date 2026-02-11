@@ -4,11 +4,14 @@
       :project-name="config?.name"
       :settings="appSettings"
       :preview-state="previewState"
+      :is-virtual="isVirtual"
+      :has-unsaved-changes="hasUnsavedChanges"
       @settings="showSettings = true"
       @new-project="showTemplatePicker = true"
       @update-settings="handleAppSettingsUpdate"
       @update-project-name="handleProjectNameUpdate"
       @export="handleExport"
+      @export-editor="handleExportEditor"
     />
     <PaneManager
       :editors="editors"
@@ -59,10 +62,10 @@ import SettingsModal from './components/SettingsModal.vue'
 import TemplatePickerModal from './components/TemplatePickerModal.vue'
 import Toolbar from './components/Toolbar.vue'
 import Toast from './components/Toast.vue'
-import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject } from './state_management.js'
+import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject, exportEditor } from './state_management.js'
 import { fileSystem } from './filesystem.js'
 
-const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config } = useFileSystem()
+const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges } = useFileSystem()
 const { triggerAction } = useEditors()
 
 const editors = computed(() => config.editors || [])
@@ -88,6 +91,11 @@ const IDLE_THRESHOLD = 2000 // 2 seconds
 let saveDebounceTimer = null
 
 onMounted(async () => {
+  // Listen for preview updates from state manager (which gets them from FS writePreview)
+  window.addEventListener('pen-preview-update', (e) => {
+      previewState.value = e.detail
+  })
+
   // Connect to FS
   try {
      await fileSystem.connect()
@@ -96,11 +104,6 @@ onMounted(async () => {
   }
   
   window.addEventListener('keydown', handleKeydown)
-  
-  // Listen for preview updates from state manager (which gets them from FS writePreview)
-  window.addEventListener('pen-preview-update', (e) => {
-      previewState.value = e.detail
-  })
 })
 
 onUnmounted(() => {
@@ -235,6 +238,16 @@ function handleProjectNameUpdate(newName) {
 
 function handleExport() {
   exportProject().catch(err => {
+    addToast({
+      type: 'error',
+      title: 'Export Failed',
+      message: err.message
+    })
+  })
+}
+
+function handleExportEditor() {
+  exportEditor().catch(err => {
     addToast({
       type: 'error',
       title: 'Export Failed',
