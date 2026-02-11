@@ -140,17 +140,19 @@ export async function launchEditorFlow(projectPath, options = {}) {
         }
 
         case 'save': {
-          const writes = Object.entries(msg.files).map(([fn, c]) => {
-            fileMap[fn] = c
-            return fs.writeFile(join(projectPath, fn), c)
-          })
-          await Promise.all(writes).catch(err => console.error('Bulk save error:', err))
+          if (msg.files) {
+            const writes = Object.entries(msg.files).map(([fn, c]) => {
+              fileMap[fn] = c
+              return fs.writeFile(join(projectPath, fn), c)
+            })
+            await Promise.all(writes).catch(err => console.error('Bulk save error:', err))
+          }
           break
         }
 
         case 'start-template': {
           const { loadProjectTemplate } = await import('../core/project_templates.js')
-          const template = loadProjectTemplate(msg.templateId)
+          const template = await loadProjectTemplate(msg.templateId)
           if (!template) break
 
           const newConfig = { ...template.config, name: config.name }
@@ -158,9 +160,11 @@ export async function launchEditorFlow(projectPath, options = {}) {
           
           for (const fn of Object.keys(fileMap)) delete fileMap[fn]
           
-          for (const [fn, content] of Object.entries(template.files)) {
-            fileMap[fn] = content
-            writeFileSync(join(projectPath, fn), content)
+          if (template.files) {
+            for (const [fn, content] of Object.entries(template.files)) {
+              fileMap[fn] = content
+              writeFileSync(join(projectPath, fn), content)
+            }
           }
           
           writeFileSync(configPath, JSON.stringify(config, null, 2))

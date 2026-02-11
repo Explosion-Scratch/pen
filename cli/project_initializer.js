@@ -258,3 +258,23 @@ export async function productionPreviewFlow(projectPath) {
 
   console.log('  Press Ctrl+C to stop.\n')
 }
+
+export async function buildFlow(projectPath, outputFile) {
+  const { executeSequentialRender } = await import('../core/pipeline_processor.js')
+  const configPath = join(projectPath, CONFIG_FILENAME)
+  const config = JSON.parse(readFileSync(configPath, 'utf-8'))
+
+  const fileMap = {}
+  for (const editor of config.editors) {
+    const filePath = join(projectPath, editor.filename)
+    if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
+  }
+
+  const htmlBlob = await executeSequentialRender(fileMap, config)
+
+  if (outputFile) {
+    writeFileSync(join(projectPath, outputFile), htmlBlob)
+  } else {
+    process.stdout.write(htmlBlob)
+  }
+}

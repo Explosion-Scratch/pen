@@ -24,13 +24,13 @@ export async function executeSequentialRender(fileMap, config) {
     const content = fileMap[editor.filename] || ''
     const rendered = await adapter.render(content, fileMap)
 
-    console.log(`[DEBUG] Filename: ${editor.filename}, Category: ${Adapter.type}, Content Length: ${content.length}`)
+    console.error(`[DEBUG] Filename: ${editor.filename}, Category: ${Adapter.type}, Content Length: ${content.length}`)
     if (Adapter.type === 'markup') {
       injectMarkup(document, rendered)
     } else if (Adapter.type === 'style') {
       injectStyle(document, editor, Adapter, rendered)
     } else if (Adapter.type === 'script') {
-      console.log(`[DEBUG] Injecting script for ${editor.filename}... JS content length: ${rendered.js?.length || 0}`)
+      console.error(`[DEBUG] Injecting script for ${editor.filename}... JS content length: ${rendered.js?.length || 0}`)
       injectScript(document, editor, rendered, importOverrides)
     }
   }
@@ -38,7 +38,7 @@ export async function executeSequentialRender(fileMap, config) {
   injectGlobalResources(document, config)
   injectDebugScript(document)
   const finalHtml = serialize(document)
-  console.log(`[DEBUG] Final HTML Length: ${finalHtml.length}, Head has script: ${finalHtml.includes('pen-script')}`)
+  console.error(`[DEBUG] Final HTML Length: ${finalHtml.length}, Head has script: ${finalHtml.includes('pen-script')}`)
   return finalHtml
 }
 
@@ -153,7 +153,7 @@ export function getEditorOrder(config) {
     const adapterB = getAdapter(b.type)
     const valA = typeOrder[adapterA.type] ?? 3
     const valB = typeOrder[adapterB.type] ?? 3
-    console.log(`[SORT] Comparing ${a.filename} (${adapterA.type}: ${valA}) with ${b.filename} (${adapterB.type}: ${valB}) result: ${valA - valB}`)
+    console.error(`[SORT] Comparing ${a.filename} (${adapterA.type}: ${valA}) with ${b.filename} (${adapterB.type}: ${valB}) result: ${valA - valB}`)
     return valA - valB
   })
 }

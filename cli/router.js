@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { initializeNewProjectFlow, interactiveConfigurationFlow, productionPreviewFlow } from './project_initializer.js'
+import { initializeNewProjectFlow, interactiveConfigurationFlow, productionPreviewFlow, buildFlow } from './project_initializer.js'
 import { launchEditorFlow } from './server.js'
 import { loadAllProjectTemplates } from '../core/project_templates.js'
 
@@ -55,12 +55,20 @@ export async function handleCliInput(args) {
 
     case 'serve':
     case 'preview':
-    case 'build':
       if (!hasConfig) {
         printNoProject()
         process.exit(1)
       }
       await productionPreviewFlow(cwd)
+      break
+
+    case 'build':
+      if (!hasConfig) {
+        printNoProject()
+        process.exit(1)
+      }
+      const outputFile = cleanArgs[1]
+      await buildFlow(cwd, outputFile)
       break
 
     case 'templates':
