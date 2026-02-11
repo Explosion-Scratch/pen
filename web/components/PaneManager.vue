@@ -6,7 +6,6 @@
       :key="`main-${settings.layoutMode}`"
       class="default-theme main-split" 
       :horizontal="settings.layoutMode === 'rows'"
-      @ready="onReady"
       @resize="handleMainResize"
     >
       <Pane 
@@ -24,25 +23,25 @@
           :key="`editors-${settings.layoutMode}-${editors.length}`"
           class="editors-split"
           :horizontal="settings.layoutMode === 'columns'"
-          @ready="() => onEditorsReady()"
-          @resize="(panes) => updatePanes(panes)"
+          @ready="() => pm.init(editors.length)"
+          @resize="(p) => pm.updateFromSplitpanes(p)"
         >
           <Pane 
-            :size="maximizedIdx !== null ? (idx === maximizedIdx ? 100 : 0) : (panes[idx]?.size || 100 / editors.length)"
+            :size="pm.getSize(idx)"
             v-for="(editor, idx) in editors" 
             :key="editor.id || editor.filename"
-            :min-size="maximizedIdx !== null ? 0 : minPaneSize"
+            :min-size="pm.getMinSize(idx)"
           >
             <EditorCard
               :editor="editor"
               :adapter="adapters[idx]"
               :content="files[editor.filename] || ''"
-              :is-collapsed="maximizedIdx !== null ? idx !== maximizedIdx : collapsedEditors[idx]"
+              :is-collapsed="pm.isCollapsed(idx)"
               :layout-mode="settings.layoutMode"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
               @settings-update="handleSettingsUpdate"
-              @toggle-collapse="togglePaneCollapse(idx)"
+              @toggle-collapse="pm.setCollapsed(idx)"
               @format="(filename) => $emit('format', filename)"
               @minify="(filename) => $emit('minify', filename)"
               @compile="(filename, target) => $emit('compile', filename, target)"
@@ -75,8 +74,8 @@
         @click="toggleMaximize(altHoveredPane)"
       >
         <div class="maximize-overlay-content">
-          <i :class="['ph-light', (altHoveredPane === 'preview' ? previewMaximized : maximizedIdx === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
-          <span>{{ (altHoveredPane === 'preview' ? previewMaximized : maximizedIdx === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
+          <i :class="['ph-light', (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
+          <span>{{ (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
         </div>
       </div>
     </Teleport>
@@ -89,15 +88,12 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import EditorCard from './EditorCard.vue'
 import PreviewCard from './PreviewCard.vue'
+import { usePanesManager } from '../composables/usePanesManager.js'
 
-const collapseThreshold = 7
-const collapsedEditors = ref([])
-const panes = ref([])
-const previousSizes = ref([])
-const maximizedIdx = ref(null)
+const pm = usePanesManager()
 
 const previewMaximized = ref(false)
-const previewSize = ref(60) // Default preview size
+const previewSize = ref(60)
 
 const altHoveredPane = ref(null)
 const overlayStyle = ref({})
@@ -115,7 +111,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'minify', 'compile', 'settings'])
 
-const minPaneSize = 5
 const isAnyDragging = ref(false)
 let activeSplitter = null
 
@@ -131,46 +126,15 @@ function toggleMaximize(idx) {
     altHoveredPane.value = null
     return
   }
-  maximizedIdx.value = maximizedIdx.value === idx ? null : idx
+  pm.setMaximized(idx)
   altHoveredPane.value = null
-}
-
-function togglePaneCollapse(idx) {
-  if (maximizedIdx.value !== null) {
-    maximizedIdx.value = null
-    return
-  }
-  if (collapsedEditors.value[idx]) {
-    panes.value[idx].size = previousSizes.value[idx] || (100 / props.editors.length)
-  } else {
-    previousSizes.value[idx] = panes.value[idx].size
-    panes.value[idx].size = minPaneSize
-  }
-  updateCollapsed()
 }
 
 function handleEditorRun() { emit('render', true) }
 
-function updatePanes(p) {
-  panes.value = p
-  updateCollapsed()
-}
-
-function updateCollapsed() {
-  collapsedEditors.value = panes.value.map(p => p.size <= collapseThreshold)
-}
-
-function onReady() {}
-
-watch(props.editors, onEditorsReady)
-
-async function onEditorsReady() {
-  if (!props.editors.length) return setTimeout(onEditorsReady, 100)
-  const size = 100 / props.editors.length
-  panes.value = props.editors.map(() => ({ size, min: 5, max: 100 }))
-  previousSizes.value = props.editors.map(() => size)
-  updateCollapsed()
-}
+watch(() => props.editors.length, (len) => {
+  if (len > 0) pm.init(len)
+})
 
 function onMouseDown(e) {
   const splitter = e.target.closest('.splitpanes__splitter')
