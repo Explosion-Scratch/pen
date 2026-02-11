@@ -5,6 +5,7 @@ import { LESSAdapter } from '../adapters/style/less_adapter.js'
 import { StylusAdapter } from '../adapters/style/stylus_adapter.js'
 import { JavaScriptAdapter } from '../adapters/script/javascript_adapter.js'
 import { TypeScriptAdapter } from '../adapters/script/typescript_adapter.js'
+import { JSXAdapter } from '../adapters/script/jsx_adapter.js'
 
 const adapters = new Map([
   ['html', HTMLAdapter],
@@ -13,7 +14,8 @@ const adapters = new Map([
   ['less', LESSAdapter],
   ['stylus', StylusAdapter],
   ['javascript', JavaScriptAdapter],
-  ['typescript', TypeScriptAdapter]
+  ['typescript', TypeScriptAdapter],
+  ['jsx', JSXAdapter]
 ])
 
 export function getAdapter(adapterId) {

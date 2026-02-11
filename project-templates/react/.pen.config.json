@@ -1,0 +1,32 @@
+{
+  "template": {
+    "title": "React (JSX)",
+    "description": "React starter with JSX support (Babel)"
+  },
+  "name": "react-project",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "css",
+      "filename": "style.css",
+      "settings": { "normalize": true, "autoprefixer": false }
+    },
+    {
+      "type": "jsx",
+      "filename": "script.jsx",
+      "settings": { "jsxRuntime": "classic" }
+    }
+  ],
+  "globalResources": {
+    "scripts": [
+      "https://unpkg.com/react@18/umd/react.development.js",
+      "https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ],
+    "styles": []
+  }
+}

@@ -1,0 +1,86 @@
+:root {
+  --primary: #61dafb;
+  --bg: #282c34;
+  --text: white;
+  --card-bg: #333842;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.app-container {
+  text-align: center;
+  max-width: 500px;
+  width: 90%;
+  padding: 2rem;
+}
+
+.app-header h1 {
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+
+.counter-card {
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  margin: 2rem 0;
+}
+
+.display {
+  font-size: 4rem;
+  font-weight: bold;
+  margin: 1.5rem 0;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #444;
+  color: white;
+  transition: all 0.2s;
+}
+
+button:hover {
+  background: #555;
+  transform: translateY(-2px);
+}
+
+button.primary {
+  background: var(--primary);
+  color: #282c34;
+  font-weight: 600;
+}
+
+button.primary:hover {
+  background: #4fa8c7;
+}
+
+.info {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+code {
+  background: #444;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+}

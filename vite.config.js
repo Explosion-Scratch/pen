@@ -36,11 +36,12 @@ export default defineConfig({
     cssCodeSplit: false,
     assetsInlineLimit: 100000000,
     rollupOptions: {
-      external: ['terser'],
+      external: ['terser', '@babel/standalone'],
       output: {
         inlineDynamicImports: true,
         globals: {
-          'terser': 'Terser'
+          'terser': 'Terser',
+          '@babel/standalone': 'Babel'
         }
       }
     }
