@@ -1,8 +1,14 @@
 import { CSSAdapter } from './css_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
-// Note: 'sass' package works in Node. For browser, we might need 'sass.js' or ensure Vite bundles it correctly.
-// Vite should handle the 'sass' import for valid ESM usage in browser if configured.
-import * as sass from 'sass'
+import { importModule } from '../import_module.js'
+
+/**
+ * @returns {Promise<object>}
+ */
+async function getSass() {
+  return importModule('sass', { cdnUrl: 'https://jspm.dev/sass' })
+}
+
 
 export class SASSAdapter extends CSSAdapter {
   static type = 'style'
@@ -88,6 +94,7 @@ body {
 
   async compileToCss(scssCode) {
     try {
+      const sass = await getSass()
       const result = sass.compileString(scssCode, {
         style: 'expanded',
         sourceMap: this.settings.sourceMaps
@@ -101,6 +108,7 @@ body {
 
   async minify(code) {
     try {
+      const sass = await getSass()
       const result = sass.compileString(code, {
         style: 'compressed',
         sourceMap: this.settings.sourceMaps
@@ -113,17 +121,18 @@ body {
 
   async render(content, fileMap) {
     try {
-      const result = sass.compileString(content, {
-        style: 'expanded',
-        sourceMap: this.settings.sourceMaps
-      })
+      console.log('Pen: Rendering SASS...', { contentLen: content?.length })
+      const css = await this.compileToCss(content)
+      
+      console.log('Pen: SASS Rendered successfully')
       const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
       return {
         ...fileMap,
-        css: result.css,
+        css,
         styleType
       }
     } catch (err) {
+      console.error('Pen: SASS Error:', err)
       return {
         ...fileMap,
         css: `/* SASS Error: ${err.message} */`

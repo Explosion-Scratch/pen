@@ -16,7 +16,7 @@
             @blur="isFocused = false"
             @keydown.enter="handleUrlEnter"
             @keydown.esc="handleUrlEsc"
-            placeholder="http://localhost:3002"
+            placeholder="Preview URL"
             spellcheck="false"
           />
         </div>
@@ -108,20 +108,37 @@ const iframe = ref(null)
 const devtoolsIframe = ref(null)
 const urlInput = ref(null)
 const showDevtools = ref(false)
-const tempUrl = ref(props.settings.previewUrl)
+const tempUrl = ref(props.previewState?.displayURL || 'http://preview.pen/')
 const isFocused = ref(false)
-const currentPreviewUrl = ref(props.settings.previewUrl)
+const currentPreviewUrl = ref(props.previewState?.contentURL || 'about:blank')
+const isLoading = ref(false)
+let loadingTimer = null
 
-watch(() => props.settings.previewUrl, (newVal) => {
-  tempUrl.value = newVal
-})
+function extractUrlSuffix(displayUrl) {
+  try {
+    const url = new URL(displayUrl)
+    return { search: url.search, hash: url.hash }
+  } catch {
+    const searchMatch = displayUrl.match(/(\?[^#]*)/)
+    const hashMatch = displayUrl.match(/(#.*)$/)
+    return { search: searchMatch?.[1] || '', hash: hashMatch?.[1] || '' }
+  }
+}
 
-
+function buildIframeUrl(contentURL, displayUrl) {
+  if (!contentURL) return 'about:blank'
+  const { search, hash } = extractUrlSuffix(displayUrl)
+  if (!search && !hash) return contentURL
+  const payload = btoa(JSON.stringify({ s: search, h: hash }))
+  return contentURL + '#__pen=' + payload
+}
 
 watch(() => props.previewState, (newState) => {
   if (newState && newState.contentURL) {
-      currentPreviewUrl.value = newState.contentURL
-      tempUrl.value = newState.displayURL
+      const { search, hash } = extractUrlSuffix(tempUrl.value)
+      const baseDisplay = newState.displayURL || 'http://preview.pen/'
+      tempUrl.value = baseDisplay.replace(/[?#].*$/, '') + search + hash
+      currentPreviewUrl.value = buildIframeUrl(newState.contentURL, tempUrl.value)
       triggerFlash()
   }
 }, { immediate: true, deep: true })
@@ -135,16 +152,16 @@ function triggerFlash() {
 }
 
 function handleUrlEnter() {
-  props.settings.previewUrl = tempUrl.value
   urlInput.value?.blur()
-  
-  // New URL navigation
-  currentPreviewUrl.value = tempUrl.value
+  const contentURL = props.previewState?.contentURL
+  if (contentURL) {
+    currentPreviewUrl.value = buildIframeUrl(contentURL, tempUrl.value)
+  }
   triggerFlash()
 }
 
 function handleUrlEsc() {
-  tempUrl.value = props.settings.previewUrl
+  tempUrl.value = props.previewState?.displayURL || 'http://preview.pen/'
   urlInput.value?.blur()
 }
 
@@ -154,8 +171,6 @@ function onIframeLoad() {
 
 const devtoolsUrl = ref('')
 let devtoolsBlobUrl = null
-const isLoading = ref(false)
-let loadingTimer = null
 
 
 

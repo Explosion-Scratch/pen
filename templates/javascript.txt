@@ -1,0 +1,19 @@
+/**
+ * Pen Script
+ */
+
+const config = {
+  name: 'Pen',
+  version: '1.0.0'
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log(`${config.name} v${config.version} is ready!`)
+
+  const container = document.querySelector('.container')
+  if (container) {
+    container.addEventListener('click', (event) => {
+      console.log('Container clicked!', event)
+    })
+  }
+})

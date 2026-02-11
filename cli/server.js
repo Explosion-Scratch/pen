@@ -24,7 +24,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
     if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
   }
 
-  const watcher = watch(config.editors.map(e => join(projectPath, e.filename)), {
+  let watcher = watch(config.editors.map(e => join(projectPath, e.filename)), {
     persistent: true, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 100 }
   })
 
@@ -107,24 +107,11 @@ export async function launchEditorFlow(projectPath, options = {}) {
           watcher.add(newPath)
           console.log(`🏷️  Renamed: ${oldFilename} → ${newFilename} (${newType})`)
           
-          const adaptersInfo = config.editors.map(e => {
-            const A = getAdapter(e.type)
-            return {
-              id: A.id,
-              type: e.type,
-              name: A.name,
-              description: A.description,
-              fileExtension: A.fileExtension,
-              compileTargets: A.compileTargets || [],
-              canMinify: A.canMinify || false,
-              schema: A.getSchema?.() || {}
-            }
-          })
-          
           broadcast({ 
-            type: 'sync-editors', 
-            editors: config.editors,
-            adapters: adaptersInfo
+            type: 'reinit',
+            config,
+            files: fileMap,
+            adapters: getAdaptersInfo()
           })
           break
         }
@@ -155,10 +142,19 @@ export async function launchEditorFlow(projectPath, options = {}) {
           const template = await loadProjectTemplate(msg.templateId)
           if (!template) break
 
+          const oldFiles = Object.keys(fileMap)
           const newConfig = { ...template.config, name: config.name }
+          
+          for (const key of Object.keys(config)) delete config[key]
           Object.assign(config, newConfig)
           
-          for (const fn of Object.keys(fileMap)) delete fileMap[fn]
+          for (const fn of oldFiles) {
+            delete fileMap[fn]
+            const oldPath = join(projectPath, fn)
+            if (!template.files?.[fn] && existsSync(oldPath)) {
+              try { unlinkSync(oldPath) } catch (e) {}
+            }
+          }
           
           if (template.files) {
             for (const [fn, content] of Object.entries(template.files)) {
@@ -169,8 +165,26 @@ export async function launchEditorFlow(projectPath, options = {}) {
           
           writeFileSync(configPath, JSON.stringify(config, null, 2))
           console.log(`🚀 Project reset to template: ${msg.templateId}`)
+
+          watcher.close()
+          watcher = watch(config.editors.map(e => join(projectPath, e.filename)), {
+            persistent: true, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 100 }
+          })
+          watcher.on('change', async (filePath) => {
+            const filename = filePath.split('/').pop()
+            if (ignoreNextChange.has(filename)) return
+            console.log(`📝 External change: ${filename}`)
+            fileMap[filename] = readFileSync(filePath, 'utf-8')
+            broadcast({ type: 'external-update', filename, content: fileMap[filename] })
+          })
           
-          broadcast({ type: 'reload' })
+          broadcast({ 
+            type: 'reinit',
+            config,
+            rootPath: projectPath.replace(process.env.HOME, '~'),
+            files: fileMap,
+            adapters: getAdaptersInfo()
+          })
           break
         }
 

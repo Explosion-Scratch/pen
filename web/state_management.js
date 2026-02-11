@@ -16,8 +16,7 @@ export const fileSystemMirror = {
 
   updateFile(filename, content, skipRender = false) {
     fileSystem.writeFile(filename, content)
-    // Auto-save logic handled by FileSystem or App
-    if (!skipRender && fileSystem.config.autoRun) {
+    if (!skipRender && fileSystem.config.autoRun !== false) {
       triggerRender()
     }
   },
@@ -55,14 +54,14 @@ export const fileSystemMirror = {
   }
 }
 
-// Listen to changes from FileSystem if needed
-// fileSystem.on((msg) => {
-//   if (msg.type === 'external-update') triggerRender()
-//   if (msg.type === 'init') triggerRender()
-// })
-// Better: watch the reactive files?
+fileSystem.on((msg) => {
+  if (msg.type === 'init' || msg.type === 'reinit' || msg.type === 'external-update') {
+    triggerRender()
+  }
+})
+
 watch(fileSystem.files, () => {
-    if (fileSystem.config.autoRun) triggerRender()
+    if (fileSystem.config.autoRun !== false) triggerRender()
 }, { deep: true })
 
 
@@ -109,10 +108,16 @@ export async function exportEditor() {
     const response = await fetch(window.location.href)
     let html = await response.text()
     
+    html = html.replace(/<script>\s*window\.__initial_file_map__[\s\S]*?<\/script>/g, '')
+    html = html.replace(/<script>\s*window\.__initial_config__[\s\S]*?<\/script>/g, '')
+
+    const currentFiles = { ...fileSystem.files }
+    const currentConfig = { ...fileSystem.config }
+
     const inject = `
   <script>
-    window.__initial_file_map__ = ${JSON.stringify(fileSystem.files)};
-    window.__initial_config__ = ${JSON.stringify(fileSystem.config)};
+    window.__initial_file_map__ = ${JSON.stringify(currentFiles)};
+    window.__initial_config__ = ${JSON.stringify(currentConfig)};
   </script>`
     
     if (html.includes('<head>')) {

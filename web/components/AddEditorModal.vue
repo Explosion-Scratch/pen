@@ -65,8 +65,6 @@ const filename = ref('')
 
 const adapterIcons = {
   html: 'ph-duotone ph-file-html',
-  pug: 'ph-duotone ph-code',
-  slim: 'ph-duotone ph-code',
   css: 'ph-duotone ph-file-css',
   sass: 'ph-duotone ph-file-css',
   less: 'ph-duotone ph-file-css',
@@ -77,8 +75,6 @@ const adapterIcons = {
 
 const fileExtensions = {
   html: '.html',
-  pug: '.pug',
-  slim: '.slim',
   css: '.css',
   sass: '.scss',
   less: '.less',

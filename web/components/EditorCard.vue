@@ -141,8 +141,6 @@ const languageCompartment = new Compartment()
 
 const editorIcons = {
   html: 'ph-duotone ph-file-html',
-  pug: 'ph-duotone ph-code',
-  slim: 'ph-duotone ph-code',
   css: 'ph-duotone ph-file-css',
   sass: 'ph-duotone ph-file-css',
   less: 'ph-duotone ph-file-css',
@@ -154,9 +152,6 @@ const editorIcons = {
 const extensionToType = {
   '.html': 'html',
   '.htm': 'html',
-  '.pug': 'pug',
-  '.jade': 'pug',
-  '.slim': 'slim',
   '.css': 'css',
   '.scss': 'sass',
   '.sass': 'sass',
@@ -175,7 +170,7 @@ function getEditorIcon(type) {
 
 function getLanguageExtension(type) {
   const type_ = type.toLowerCase()
-  if (type_ === 'html' || type_ === 'pug' || type_ === 'slim') {
+  if (type_ === 'html') {
     return html()
   }
   if (type_ === 'css' || type_ === 'less' || type_ === 'stylus') {
@@ -194,7 +189,7 @@ function getLanguageExtension(type) {
 }
 
 function isMarkupEditor(type) {
-  return ['html', 'pug', 'slim'].includes(type.toLowerCase())
+  return ['html'].includes(type.toLowerCase())
 }
 
 function isStyleEditor(type) {
@@ -339,6 +334,13 @@ watch(() => props.editor.type, (newType) => {
     view.dispatch({
       effects: languageCompartment.reconfigure(getLanguageExtension(newType))
     })
+  }
+})
+
+watch(() => props.editor.filename, (newFilename, oldFilename) => {
+  if (newFilename !== oldFilename && view) {
+    editorStateManager.unregisterEditor(oldFilename)
+    editorStateManager.registerEditor(newFilename, view, { jumpToLine })
   }
 })
 

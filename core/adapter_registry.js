@@ -1,6 +1,4 @@
 import { HTMLAdapter } from '../adapters/markup/html_adapter.js'
-import { PugAdapter } from '../adapters/markup/pug_adapter.js'
-import { SlimAdapter } from '../adapters/markup/slim_adapter.js'
 import { CSSAdapter } from '../adapters/style/css_adapter.js'
 import { SASSAdapter } from '../adapters/style/sass_adapter.js'
 import { LESSAdapter } from '../adapters/style/less_adapter.js'
@@ -10,8 +8,6 @@ import { TypeScriptAdapter } from '../adapters/script/typescript_adapter.js'
 
 const adapters = new Map([
   ['html', HTMLAdapter],
-  ['pug', PugAdapter],
-  ['slim', SlimAdapter],
   ['css', CSSAdapter],
   ['sass', SASSAdapter],
   ['less', LESSAdapter],

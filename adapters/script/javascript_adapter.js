@@ -1,5 +1,21 @@
 import { BaseAdapter } from '../base_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
+const isBrowser = typeof window !== 'undefined'
+
+let terserModule = null
+async function getTerser() {
+  if (isBrowser) {
+    if (!window.Terser) {
+      throw new Error('Terser not found on window object. Ensure CDN script is loaded.')
+    }
+    return window.Terser
+  }
+
+  if (!terserModule) {
+    terserModule = await import('terser')
+  }
+  return terserModule
+}
 
 export class JavaScriptAdapter extends BaseAdapter {
   static type = 'script'
@@ -62,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async minify(code) {
     try {
-      const { minify } = await import('terser')
+      const { minify } = await getTerser()
       const result = await minify(code)
       return result.code || code
     } catch (err) {

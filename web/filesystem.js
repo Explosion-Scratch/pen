@@ -34,7 +34,7 @@ class BaseFileSystem {
 
   getPreviewURL() {
     return {
-      displayURL: this.isVirtual ? 'Virtual Storage' : 'http://localhost:3000',
+      displayURL: 'http://preview.pen/',
       contentURL: this.previewUrl.value
     }
   }
@@ -48,6 +48,14 @@ class BaseFileSystem {
     this.previewUrl.value = url
     
     return this.getPreviewURL()
+  }
+
+  renameFile(oldFilename, newFilename, newType) {
+    if (this.files[oldFilename] !== undefined) {
+      const content = this.files[oldFilename]
+      delete this.files[oldFilename]
+      this.files[newFilename] = content
+    }
   }
 }
 
@@ -94,6 +102,12 @@ class WebSocketFS extends BaseFileSystem {
     if (message.type === 'init') {
       this.updateConfig(message.config)
       this.updateFiles(message.files)
+    } else if (message.type === 'reinit') {
+      if (message.config) {
+        Object.keys(this.config).forEach(key => delete this.config[key])
+        this.updateConfig(message.config)
+      }
+      if (message.files) this.updateFiles(message.files)
     } else if (message.type === 'external-update') {
       this.files[message.filename] = message.content
     }
@@ -114,11 +128,7 @@ class WebSocketFS extends BaseFileSystem {
   }
 
   renameFile(oldFilename, newFilename, newType) {
-    if (this.files[oldFilename]) {
-      const content = this.files[oldFilename]
-      delete this.files[oldFilename]
-      this.files[newFilename] = content
-    }
+    super.renameFile(oldFilename, newFilename, newType)
     
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'rename', oldFilename, newFilename, newType }))
@@ -164,13 +174,9 @@ class VirtualFS extends BaseFileSystem {
   }
 
   renameFile(oldFilename, newFilename, newType) {
-    if (this.files[oldFilename]) {
-      const content = this.files[oldFilename]
-      delete this.files[oldFilename]
-      this.files[newFilename] = content
-      this.hasUnsavedChanges.value = true
-      this.persist()
-    }
+    super.renameFile(oldFilename, newFilename, newType)
+    this.hasUnsavedChanges.value = true
+    this.persist()
   }
 
   persist() {

@@ -50,11 +50,47 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   injectGlobalResources(document, config)
   
   if (injectDev) {
+    injectLocationShim(document)
     injectDebugScript(document)
   }
 
   const finalHtml = serialize(document)
   return finalHtml
+}
+
+function injectLocationShim(document) {
+  const shimScript = `(function(){
+  var h = window.location.hash || '';
+  var m = h.match(/^#__pen=(.+)$/);
+  if (!m) return;
+  try {
+    var d = JSON.parse(atob(m[1]));
+    var vs = d.s || '';
+    var vh = d.h || '';
+    var sp = new URLSearchParams(vs);
+    Object.defineProperties(window.location, {
+      search: { get: function() { return vs; }, configurable: true },
+      hash: { get: function() { return vh; }, configurable: true },
+      href: { get: function() { return 'http://preview.pen/' + vs + vh; }, configurable: true }
+    });
+    var origUrl = window.URL;
+    var _penUrl = new origUrl('http://preview.pen/' + vs + vh);
+    if (!window.location.searchParams) {
+      Object.defineProperty(window.location, 'searchParams', {
+        get: function() { return sp; }, configurable: true
+      });
+    }
+  } catch(e) {}
+  })();`
+
+  const script = document.createElement('script')
+  script.id = 'pen-location-shim'
+  script.textContent = shimScript
+  if (document.head.firstChild) {
+    document.head.insertBefore(script, document.head.firstChild)
+  } else {
+    document.head.appendChild(script)
+  }
 }
 
 function injectDebugScript(document) {

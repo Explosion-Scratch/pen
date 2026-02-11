@@ -72,7 +72,7 @@ const editors = computed(() => config.editors || [])
 
 const appSettings = reactive({
   autoRun: true,
-  previewUrl: 'http://localhost:3002', // This might be overridden by blob url
+  previewUrl: '',
   layoutMode: 'columns'
 })
 
@@ -111,18 +111,25 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-// Listen to FS events for things that aren't reactive file/config changes
+function applyInitMessage(message) {
+    adapters.value = message.adapters || []
+    if (message.rootPath) currentPath.value = message.rootPath
+    if (message.config?.autoRun !== undefined) appSettings.autoRun = message.config.autoRun
+    if (message.config?.layoutMode) appSettings.layoutMode = message.config.layoutMode
+}
+
 fileSystem.on((message) => {
     if (message.type === 'init') {
-        adapters.value = message.adapters || []
-        if (message.rootPath) currentPath.value = message.rootPath
-        
-        if (message.config.autoRun !== undefined) appSettings.autoRun = message.config.autoRun
-        // Preview URL might be managed by FS/State now, but appSettings.previewUrl is for external?
-        if (message.config.layoutMode) appSettings.layoutMode = message.config.layoutMode
+        applyInitMessage(message)
+    }
+
+    if (message.type === 'reinit') {
+        if (message.config) setConfig(message.config)
+        if (message.files) setAllFiles(message.files)
+        applyInitMessage(message)
     }
     
-     if (message.type === 'toast-error') {
+    if (message.type === 'toast-error') {
         addToast({
           type: 'error',
           title: message.name,
@@ -133,17 +140,7 @@ fileSystem.on((message) => {
             column: message.column
           }
         })
-      }
-
-      if (message.type === 'sync-editors') {
-        adapters.value = message.adapters || []
-      }
-      
-      if (message.type === 'reload') {
-          // Full reload requested?
-          // Or just re-init?
-          window.location.reload()
-      }
+    }
 })
 
 
@@ -193,6 +190,11 @@ function handleRender(isManual = false) {
 }
 
 function handleRename(oldFilename, newFilename, newType) {
+    const editor = config.editors?.find(e => e.filename === oldFilename)
+    if (editor) {
+      editor.filename = newFilename
+      editor.type = newType
+    }
     fileSystem.renameFile(oldFilename, newFilename, newType)
 }
 
@@ -256,11 +258,31 @@ function handleExportEditor() {
   })
 }
 
-function handleTemplateSelect(templateId) {
-  if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
+async function handleTemplateSelect(templateId) {
+  showTemplatePicker.value = false
+
+  if (fileSystem.isVirtual) {
+    const { loadProjectTemplate } = await import('../core/project_templates.js')
+    const template = await loadProjectTemplate(templateId)
+    if (!template) return
+
+    const newConfig = { ...template.config, name: config.name || 'Untitled' }
+    setConfig(newConfig)
+    if (template.files) setAllFiles(template.files)
+    fileSystem.saveConfig(newConfig)
+
+    const { getAdapter } = await import('../core/adapter_registry.js')
+    adapters.value = (newConfig.editors || []).map(e => {
+      const A = getAdapter(e.type)
+      return {
+        id: A.id, type: e.type, name: A.name, description: A.description,
+        fileExtension: A.fileExtension, compileTargets: A.compileTargets || [],
+        canMinify: A.canMinify || false, schema: A.getSchema?.() || {}
+      }
+    })
+  } else if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
     fileSystem.socket.send(JSON.stringify({ type: 'start-template', templateId }))
   }
-  showTemplatePicker.value = false
 }
 
 function addToast(toast) {

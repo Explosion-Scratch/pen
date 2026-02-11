@@ -1,4 +1,4 @@
-/* {{projectName}} Styles */
+/* Pen Styles */
 
 $color-background: #FDFCFB;
 $color-text: #1A1A1A;

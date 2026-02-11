@@ -1,4 +1,5 @@
-import Handlebars from 'handlebars'
+const isBrowser = typeof window !== 'undefined'
+// Handlebars removed as requested.
 
 export async function loadAdapterTemplate(adapterId) {
   // Check for Node environment
@@ -12,7 +13,7 @@ export async function loadAdapterTemplate(adapterId) {
       
       const __filename = fileURLToPath(import.meta.url)
       const __dirname = dirname(__filename)
-      const templatePath = join(__dirname, `../templates/${adapterId}.hbs`)
+      const templatePath = join(__dirname, `../templates/${adapterId}.txt`)
       
       if (existsSync(templatePath)) {
         return readFileSync(templatePath, 'utf-8')
@@ -26,15 +27,13 @@ export async function loadAdapterTemplate(adapterId) {
     try {
       let content
       switch (adapterId) {
-        case 'css': content = (await import('../templates/css.hbs?raw')).default; break;
-        case 'html': content = (await import('../templates/html.hbs?raw')).default; break;
-        case 'javascript': content = (await import('../templates/javascript.hbs?raw')).default; break;
-        case 'less': content = (await import('../templates/less.hbs?raw')).default; break;
-        case 'pug': content = (await import('../templates/pug.hbs?raw')).default; break;
-        case 'sass': content = (await import('../templates/sass.hbs?raw')).default; break;
-        case 'slim': content = (await import('../templates/slim.hbs?raw')).default; break;
-        case 'stylus': content = (await import('../templates/stylus.hbs?raw')).default; break;
-        case 'typescript': content = (await import('../templates/typescript.hbs?raw')).default; break;
+        case 'css': content = (await import('../templates/css.txt?raw')).default; break;
+        case 'html': content = (await import('../templates/html.txt?raw')).default; break;
+        case 'javascript': content = (await import('../templates/javascript.txt?raw')).default; break;
+        case 'less': content = (await import('../templates/less.txt?raw')).default; break;
+        case 'sass': content = (await import('../templates/sass.txt?raw')).default; break;
+        case 'stylus': content = (await import('../templates/stylus.txt?raw')).default; break;
+        case 'typescript': content = (await import('../templates/typescript.txt?raw')).default; break;
         default: return null
       }
       return content
@@ -45,36 +44,13 @@ export async function loadAdapterTemplate(adapterId) {
   }
 }
 
+/**
+ * Simplified to just return the template as Handlebars is removed.
+ */
 export async function loadAndRenderTemplate(adapterId, variables = {}) {
-  const template = await loadAdapterTemplate(adapterId)
-  if (!template) {
-    return ''
-  }
-  return renderTemplate(template, variables)
+  return await loadAdapterTemplate(adapterId) || ''
 }
 
 export function renderTemplate(templateString, variables = {}) {
-  const compiled = Handlebars.compile(templateString)
-  return compiled(variables)
+  return templateString
 }
-
-Handlebars.registerHelper('uppercase', (str) => {
-  if (typeof str === 'string') {
-    return str.toUpperCase()
-  }
-  return str
-})
-
-Handlebars.registerHelper('lowercase', (str) => {
-  if (typeof str === 'string') {
-    return str.toLowerCase()
-  }
-  return str
-})
-
-Handlebars.registerHelper('capitalize', (str) => {
-  if (typeof str === 'string') {
-    return str.charAt(0).toUpperCase() + str.slice(1)
-  }
-  return str
-})

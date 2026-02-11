@@ -36,8 +36,12 @@ export default defineConfig({
     cssCodeSplit: false,
     assetsInlineLimit: 100000000,
     rollupOptions: {
+      external: ['terser'],
       output: {
-        inlineDynamicImports: true
+        inlineDynamicImports: true,
+        globals: {
+          'terser': 'Terser'
+        }
       }
     }
   }

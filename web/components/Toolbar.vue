@@ -16,7 +16,7 @@
     <div class="toolbar-center">
       <div v-if="isVirtual" class="vfs-badge" :title="hasUnsavedChanges ? 'Virtual storage has unsaved changes' : 'Using virtual storage'">
         <i class="ph-bold ph-hard-drive"></i>
-        <span>Portable Mode</span>
+        <span>Portable</span>
         <span v-if="hasUnsavedChanges" class="unsaved-dot"></span>
       </div>
     </div>
@@ -229,29 +229,30 @@ const menuItems = computed(() => [
 .vfs-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--color-background-alt);
+  gap: 4px;
   color: var(--color-text-muted);
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border: 1px solid var(--color-border);
-  position: relative;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.6;
+  cursor: default;
+  transition: opacity var(--transition-fast);
+}
+
+.vfs-badge:hover {
+  opacity: 1;
 }
 
 .vfs-badge i {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .unsaved-dot {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   background: var(--color-accent);
   border-radius: 50%;
-  box-shadow: 0 0 5px var(--color-accent);
   margin-left: 2px;
 }
 </style>

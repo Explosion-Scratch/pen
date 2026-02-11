@@ -1,10 +1,55 @@
-import * as prettier from 'prettier'
-import parserBabel from 'prettier/plugins/babel'
-import parserEstree from 'prettier/plugins/estree'
-import parserHtml from 'prettier/plugins/html'
-import parserCss from 'prettier/plugins/postcss'
-import parserMarkdown from 'prettier/plugins/markdown'
-import parserYaml from 'prettier/plugins/yaml'
+import { importModule, isBrowser } from './import_module.js'
+
+let prettierBundle = null
+
+/**
+ * @returns {Promise<{prettier: object, plugins: object[]}>}
+ */
+async function getPrettier() {
+  if (isBrowser) {
+    if (!window.prettier) {
+      throw new Error('Prettier not found on window object. Ensure CDN script is loaded.')
+    }
+    return {
+      prettier: window.prettier,
+      plugins: [
+        window.prettierPlugins?.babel,
+        window.prettierPlugins?.estree,
+        window.prettierPlugins?.html,
+        window.prettierPlugins?.postcss,
+        window.prettierPlugins?.markdown,
+        window.prettierPlugins?.yaml
+      ].filter(Boolean)
+    }
+  }
+
+  if (!prettierBundle) {
+    const [
+      prettier,
+      parserBabel,
+      parserEstree,
+      parserHtml,
+      parserCss,
+      parserMarkdown,
+      parserYaml
+    ] = await Promise.all([
+      importModule('prettier'),
+      importModule('prettier/plugins/babel', { cacheKey: 'prettier-babel' }),
+      importModule('prettier/plugins/estree', { cacheKey: 'prettier-estree' }),
+      importModule('prettier/plugins/html', { cacheKey: 'prettier-html' }),
+      importModule('prettier/plugins/postcss', { cacheKey: 'prettier-postcss' }),
+      importModule('prettier/plugins/markdown', { cacheKey: 'prettier-markdown' }),
+      importModule('prettier/plugins/yaml', { cacheKey: 'prettier-yaml' })
+    ])
+
+    prettierBundle = {
+      prettier,
+      plugins: [parserBabel, parserEstree, parserHtml, parserCss, parserMarkdown, parserYaml]
+    }
+  }
+
+  return prettierBundle
+}
 
 export class BaseAdapter {
   static type = 'unknown'
@@ -50,9 +95,7 @@ export class BaseAdapter {
   async beautify(code, parser = null, filename = null) {
     if (!parser) return code
     try {
-      // In browser, prettier might be available differently or we might need a different strategy.
-      // For now, assuming prettier is available or bundled.
-      // If running in browser without node resolution, this might need adjustment.
+      const { prettier, plugins } = await getPrettier()
       return await prettier.format(code, {
         parser,
         filepath: filename || undefined,
@@ -60,14 +103,7 @@ export class BaseAdapter {
         singleQuote: true,
         printWidth: 100,
         trailingComma: 'none',
-        plugins: [
-          parserBabel,
-          parserEstree,
-          parserHtml,
-          parserCss,
-          parserMarkdown,
-          parserYaml
-        ]
+        plugins
       })
     } catch (err) {
       // Re-throw so the caller (client/server) can handle and report the error

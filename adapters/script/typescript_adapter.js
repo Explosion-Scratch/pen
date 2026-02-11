@@ -1,6 +1,14 @@
 import { JavaScriptAdapter } from './javascript_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
-import ts from 'typescript'
+import { importModule } from '../import_module.js'
+
+/**
+ * @returns {Promise<object>}
+ */
+async function getTs() {
+  return importModule('typescript', { windowGlobal: 'ts' })
+}
+
 
 export class TypeScriptAdapter extends JavaScriptAdapter {
   static type = 'script'
@@ -71,11 +79,12 @@ document.addEventListener('DOMContentLoaded', (): void => {
     return await super.beautify(code, 'typescript')
   }
 
-  compileToJs(tsCode) {
+  async compileToJs(tsCode) {
     try {
+      const ts = await getTs()
       const result = ts.transpileModule(tsCode, {
         compilerOptions: {
-          target: this.getTargetEnum(),
+          target: this.getTargetEnum(ts),
           module: ts.ModuleKind.ESNext,
           strict: this.settings.strict,
           esModuleInterop: true,
@@ -92,7 +101,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
     }
   }
 
-  getTargetEnum() {
+  getTargetEnum(ts) {
     const targetMap = {
       'ES2020': ts.ScriptTarget.ES2020,
       'ES2021': ts.ScriptTarget.ES2021,
@@ -104,9 +113,10 @@ document.addEventListener('DOMContentLoaded', (): void => {
 
   async render(content, fileMap) {
     try {
+      const ts = await getTs()
       const result = ts.transpileModule(content, {
         compilerOptions: {
-          target: this.getTargetEnum(),
+          target: this.getTargetEnum(ts),
           module: ts.ModuleKind.ESNext,
           strict: this.settings.strict,
           esModuleInterop: true,
