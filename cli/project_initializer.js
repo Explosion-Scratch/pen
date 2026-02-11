@@ -241,7 +241,7 @@ export async function productionPreviewFlow(projectPath) {
 
   console.log('\n\x1b[1m🔨 Building preview...\x1b[0m\n')
 
-  const htmlBlob = await executeSequentialRender(fileMap, config)
+  const htmlBlob = await executeSequentialRender(fileMap, config, { dev: false })
   writeFileSync(join(projectPath, '.pen-preview.html'), htmlBlob)
 
   const express = (await import('express')).default
@@ -270,7 +270,7 @@ export async function buildFlow(projectPath, outputFile) {
     if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
   }
 
-  const htmlBlob = await executeSequentialRender(fileMap, config)
+  const htmlBlob = await executeSequentialRender(fileMap, config, { dev: false })
 
   if (outputFile) {
     writeFileSync(join(projectPath, outputFile), htmlBlob)

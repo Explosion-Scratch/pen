@@ -111,7 +111,7 @@ export function removeElement(document, selector) {
   }
 }
 
-export function updateOrCreateElement(document, selector, tagType, attributes, content, parent = 'head') {
+export function updateOrCreateElement(document, selector, tagType, attributes, content, parent = 'head', prepend = false) {
   let element
   try {
     element = document.querySelector(selector)
@@ -119,7 +119,6 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
     element = null
   }
   
-  // If we found an element but it's the wrong tag type, remove it and recreate
   if (element && element.tagName.toLowerCase() !== tagType.toLowerCase()) {
       element.remove()
       element = null
@@ -127,12 +126,14 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
 
   if (!element) {
     element = document.createElement(tagType)
-    if (parent === 'head') {
-      document.head.appendChild(element)
-    } else if (parent === 'body') {
-      document.body.appendChild(element)
-    } else if (parent === 'after-body') {
-      document.documentElement.appendChild(element)
+    const parentNode = parent === 'head' ? document.head : 
+                       parent === 'body' ? document.body : 
+                       document.documentElement
+
+    if (prepend) {
+      parentNode.prepend(element)
+    } else {
+      parentNode.appendChild(element)
     }
   }
   

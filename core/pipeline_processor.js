@@ -9,12 +9,26 @@ import { transformImportsToCdn } from './cdn_transformer.js'
 /**
  * @param {Object} fileMap
  * @param {Object} config
+ * @param {Object} [options]
+ * @param {boolean} [options.dev=false]
  * @returns {Promise<string>}
  */
-export async function executeSequentialRender(fileMap, config) {
+export async function executeSequentialRender(fileMap, config, options = {}) {
   const document = createBaseDocument('en', config.name || 'Pen Preview')
   const orderedEditors = getEditorOrder(config)
   const importOverrides = config.importOverrides || {}
+
+  // Determine if we should inject devtools
+  // Default to the dev option, but allow config to override
+  let injectDev = options.dev
+  if (config.preview && config.preview.injectDevTools === false) {
+    injectDev = false
+  } else if (config.preview && config.preview.injectDevTools === true) {
+    // If explicitly true in config, maybe allow it in production too?
+    // But user said "only the editor should when building" in their e.g.
+    // So let's stick to: dev option is the primary driver, config can disable it.
+    injectDev = options.dev
+  }
 
   for (const editor of orderedEditors) {
     const Adapter = getAdapter(editor.type)
@@ -24,21 +38,22 @@ export async function executeSequentialRender(fileMap, config) {
     const content = fileMap[editor.filename] || ''
     const rendered = await adapter.render(content, fileMap)
 
-    console.error(`[DEBUG] Filename: ${editor.filename}, Category: ${Adapter.type}, Content Length: ${content.length}`)
     if (Adapter.type === 'markup') {
       injectMarkup(document, rendered)
     } else if (Adapter.type === 'style') {
       injectStyle(document, editor, Adapter, rendered)
     } else if (Adapter.type === 'script') {
-      console.error(`[DEBUG] Injecting script for ${editor.filename}... JS content length: ${rendered.js?.length || 0}`)
       injectScript(document, editor, rendered, importOverrides)
     }
   }
 
   injectGlobalResources(document, config)
-  injectDebugScript(document)
+  
+  if (injectDev) {
+    injectDebugScript(document)
+  }
+
   const finalHtml = serialize(document)
-  console.error(`[DEBUG] Final HTML Length: ${finalHtml.length}, Head has script: ${finalHtml.includes('pen-script')}`)
   return finalHtml
 }
 
@@ -73,7 +88,8 @@ function injectDebugScript(document) {
     'script',
     { id: 'pen-debug-bridge', type: 'module' },
     debugScript,
-    'head'
+    'head',
+    true
   )
 }
 
@@ -105,13 +121,16 @@ function injectStyle(document, editor, Adapter, rendered) {
       `#pen-style-${editor.type}`,
       'style',
       { id: `pen-style-${editor.type}`, type: rendered.styleType || 'text/css' },
-      rendered.css,
+      rendered.css + (editor.filename ? `\n\n/*# sourceURL=${editor.filename} */` : ''),
       'head'
     )
   }
   const resources = Adapter.getCdnResources?.(editor.settings) || { scripts: [], styles: [] }
   for (const styleUrl of resources.styles || []) {
     injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
+  }
+  for (const scriptUrl of resources.scripts || []) {
+    injectIntoHead(document, 'script', { src: scriptUrl })
   }
 }
 
@@ -134,8 +153,9 @@ function injectScript(document, editor, rendered, importOverrides) {
 
 function injectGlobalResources(document, config) {
   if (!config.globalResources) return
+  // Inject global scripts into HEAD for better library availability
   for (const scriptUrl of config.globalResources.scripts || []) {
-    injectAfterBody(document, 'script', { src: scriptUrl })
+    injectIntoHead(document, 'script', { src: scriptUrl })
   }
   for (const styleUrl of config.globalResources.styles || []) {
     injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
@@ -153,7 +173,6 @@ export function getEditorOrder(config) {
     const adapterB = getAdapter(b.type)
     const valA = typeOrder[adapterA.type] ?? 3
     const valB = typeOrder[adapterB.type] ?? 3
-    console.error(`[SORT] Comparing ${a.filename} (${adapterA.type}: ${valA}) with ${b.filename} (${adapterB.type}: ${valB}) result: ${valA - valB}`)
     return valA - valB
   })
 }

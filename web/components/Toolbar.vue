@@ -46,7 +46,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['settings', 'new-project', 'update-settings', 'update-project-name'])
+const emit = defineEmits(['settings', 'new-project', 'update-settings', 'update-project-name', 'export'])
 
 const localProjectName = ref(props.projectName)
 const titleInput = ref(null)
@@ -83,6 +83,11 @@ const menuItems = computed(() => [
     label: 'Open preview',
     icon: 'ph-duotone ph-arrow-square-out',
     action: () => openPreviewTab()
+  },
+  {
+    label: 'Export HTML',
+    icon: 'ph-duotone ph-download-simple',
+    action: () => emit('export')
   },
   {
     label: 'Switch orientations',

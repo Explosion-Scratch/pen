@@ -79,7 +79,10 @@ document.addEventListener('DOMContentLoaded', (): void => {
           module: ts.ModuleKind.ESNext,
           strict: this.settings.strict,
           esModuleInterop: true,
-          skipLibCheck: true
+          skipLibCheck: true,
+          sourceMap: true,
+          inlineSourceMap: true,
+          inlineSources: true
         }
       })
       return result.outputText
@@ -107,7 +110,10 @@ document.addEventListener('DOMContentLoaded', (): void => {
           module: ts.ModuleKind.ESNext,
           strict: this.settings.strict,
           esModuleInterop: true,
-          skipLibCheck: true
+          skipLibCheck: true,
+          sourceMap: true,
+          inlineSourceMap: true,
+          inlineSources: true
         }
       })
       return {

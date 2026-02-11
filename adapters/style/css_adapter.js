@@ -17,6 +17,9 @@ export class CSSAdapter extends BaseAdapter {
     if (settings.normalize) {
       resources.styles.push('https://cdn.skypack.dev/normalize.css')
     }
+    if (settings.tailwind) {
+      resources.scripts.push('https://cdn.tailwindcss.com')
+    }
     return resources
   }
 

@@ -33,6 +33,16 @@
               <span class="switch-slider"></span>
             </label>
           </div>
+          <div class="settings-row">
+            <span class="settings-label">Inject DevTools Bridge</span>
+            <label class="switch-toggle">
+              <input 
+                type="checkbox" 
+                v-model="previewInject"
+              />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
           <div class="settings-row url-row">
             <span class="settings-label">App URL</span>
             <a :href="settings.previewUrl" target="_blank" class="url-text-link" title="Open in new tab">
@@ -151,6 +161,17 @@ const scriptInput = ref('')
 const styleInput = ref('')
 const scriptSuggestions = ref([])
 const scriptFocused = ref(false)
+const previewInject = computed({
+  get: () => {
+    if (!localConfig.value.preview) return true // default to true
+    return localConfig.value.preview.injectDevTools !== false
+  },
+  set: (val) => {
+    if (!localConfig.value.preview) localConfig.value.preview = {}
+    localConfig.value.preview.injectDevTools = val
+  }
+})
+
 let scriptSearchTimer = null
 let scriptBlurTimer = null
 

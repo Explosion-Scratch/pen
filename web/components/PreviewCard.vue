@@ -201,6 +201,19 @@ function updateDevtoolsUrl() {
       body { background: #fff; }
     }
   </style>
+  <script>
+    // Monkey-patch Worker to support cross-origin worker scripts via Blob + importScripts
+    (function() {
+      const OriginalWorker = window.Worker;
+      window.Worker = function(scriptURL, options) {
+        if (typeof scriptURL === 'string' && (scriptURL.startsWith('http') || scriptURL.startsWith('//'))) {
+          const blob = new Blob(['importScripts("' + scriptURL + '");'], { type: 'application/javascript' });
+          return new OriginalWorker(URL.createObjectURL(blob), options);
+        }
+        return new OriginalWorker(scriptURL, options);
+      };
+    })();
+  <\/script>
 </head>
 <body class="undocked" id="-blink-dev-tools">
   <script src="https://unpkg.com/@ungap/custom-elements/es.js"><\/script>

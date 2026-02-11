@@ -8,6 +8,7 @@
       @new-project="showTemplatePicker = true"
       @update-settings="handleAppSettingsUpdate"
       @update-project-name="handleProjectNameUpdate"
+      @export="handleExport"
     />
     <PaneManager
       :editors="editors"
@@ -58,7 +59,7 @@ import SettingsModal from './components/SettingsModal.vue'
 import TemplatePickerModal from './components/TemplatePickerModal.vue'
 import Toolbar from './components/Toolbar.vue'
 import Toast from './components/Toast.vue'
-import { editorStateManager, fileSystemMirror, useEditors, useFileSystem } from './state_management.js'
+import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject } from './state_management.js'
 import { fileSystem } from './filesystem.js'
 
 const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config } = useFileSystem()
@@ -230,6 +231,16 @@ function handleProjectNameUpdate(newName) {
     const newConfig = { ...config, name: newName }
     setConfig(newConfig)
     fileSystem.saveConfig({ ...newConfig, ...appSettings })
+}
+
+function handleExport() {
+  exportProject().catch(err => {
+    addToast({
+      type: 'error',
+      title: 'Export Failed',
+      message: err.message
+    })
+  })
 }
 
 function handleTemplateSelect(templateId) {

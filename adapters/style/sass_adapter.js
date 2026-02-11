@@ -117,9 +117,11 @@ body {
         style: 'expanded',
         sourceMap: this.settings.sourceMaps
       })
+      const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
       return {
         ...fileMap,
-        css: result.css
+        css: result.css,
+        styleType
       }
     } catch (err) {
       return {

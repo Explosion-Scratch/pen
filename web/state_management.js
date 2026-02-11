@@ -71,7 +71,7 @@ async function triggerRender() {
   if (isRendering) return
   isRendering = true
   try {
-    const html = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config })
+    const html = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config }, { dev: true })
     
     // Abstracted "Write to Preview -> Get URL"
     const previewUrl = await fileSystem.writePreview(html)
@@ -83,6 +83,24 @@ async function triggerRender() {
     console.error('Render error:', err)
   } finally {
     isRendering = false
+  }
+}
+
+export async function exportProject() {
+  try {
+    const html = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config }, { dev: false })
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${fileSystem.config.name || 'pen-project'}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Export error:', err)
+    throw err
   }
 }
 
