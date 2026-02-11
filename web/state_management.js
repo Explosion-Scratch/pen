@@ -107,17 +107,17 @@ export async function exportEditor() {
   try {
     const response = await fetch(window.location.href)
     let html = await response.text()
-    
-    html = html.replace(/<script>\s*window\.__initial_file_map__[\s\S]*?<\/script>/g, '')
-    html = html.replace(/<script>\s*window\.__initial_config__[\s\S]*?<\/script>/g, '')
 
     const currentFiles = { ...fileSystem.files }
     const currentConfig = { ...fileSystem.config }
 
+    const enc = (a) => JSON.stringify(encodeURIComponent(JSON.stringify(a)));
+    const dec = (a) => `JSON.parse(decodeURIComponent(${a}))`;
+    
     const inject = `
   <script>
-    window.__initial_file_map__ = ${JSON.stringify(currentFiles)};
-    window.__initial_config__ = ${JSON.stringify(currentConfig)};
+    window.__initial_file_map__ = ${dec(enc(currentFiles))};
+    window.__initial_config__ = ${dec(enc(currentConfig))};
   </script>`
     
     if (html.includes('<head>')) {

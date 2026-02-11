@@ -52,6 +52,7 @@
         <Pane min-size="20">
           <iframe
             ref="iframe"
+            :key="iframeKey"
             :src="currentPreviewUrl"
             sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
             class="preview-iframe"
@@ -69,6 +70,7 @@
       <iframe
         v-else
         ref="iframe"
+        :key="iframeKey"
         :src="currentPreviewUrl"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         class="preview-iframe"
@@ -112,6 +114,7 @@ const tempUrl = ref(props.previewState?.displayURL || 'http://preview.pen/')
 const isFocused = ref(false)
 const currentPreviewUrl = ref(props.previewState?.contentURL || 'about:blank')
 const isLoading = ref(false)
+const iframeKey = ref(0)
 let loadingTimer = null
 
 function extractUrlSuffix(displayUrl) {
@@ -139,6 +142,7 @@ watch(() => props.previewState, (newState) => {
       const baseDisplay = newState.displayURL || 'http://preview.pen/'
       tempUrl.value = baseDisplay.replace(/[?#].*$/, '') + search + hash
       currentPreviewUrl.value = buildIframeUrl(newState.contentURL, tempUrl.value)
+      iframeKey.value++
       triggerFlash()
   }
 }, { immediate: true, deep: true })
@@ -157,6 +161,7 @@ function handleUrlEnter() {
   if (contentURL) {
     currentPreviewUrl.value = buildIframeUrl(contentURL, tempUrl.value)
   }
+  iframeKey.value++
   triggerFlash()
 }
 
@@ -176,6 +181,7 @@ let devtoolsBlobUrl = null
 
 watch(() => props.lastManualRender, () => {
   if (props.lastManualRender > 0) {
+    iframeKey.value++
     triggerFlash()
   }
 })

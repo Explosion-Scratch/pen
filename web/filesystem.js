@@ -1,6 +1,24 @@
 import { ref, reactive } from 'vue'
 import { getAllAdapters } from '../core/adapter_registry.js'
 
+const Storage = {
+  getItem(key, defaultValue = '{}') {
+    try {
+      return localStorage.getItem(key) || defaultValue
+    } catch (e) {
+      console.warn(`Storage: Failed to get ${key}`, e)
+      return defaultValue
+    }
+  },
+  setItem(key, value) {
+    try {
+      localStorage.setItem(key, value)
+    } catch (e) {
+      console.warn(`Storage: Failed to set ${key}`, e)
+    }
+  }
+}
+
 class BaseFileSystem {
   constructor() {
     this.files = reactive({})
@@ -55,6 +73,14 @@ class BaseFileSystem {
       const content = this.files[oldFilename]
       delete this.files[oldFilename]
       this.files[newFilename] = content
+      this.notify({ type: 'rename', oldFilename, newFilename })
+    }
+  }
+
+  deleteFile(filename) {
+    if (this.files[filename] !== undefined) {
+      delete this.files[filename]
+      this.notify({ type: 'delete', filename })
     }
   }
 }
@@ -134,6 +160,13 @@ class WebSocketFS extends BaseFileSystem {
       this.socket.send(JSON.stringify({ type: 'rename', oldFilename, newFilename, newType }))
     }
   }
+
+  deleteFile(filename) {
+    super.deleteFile(filename)
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({ type: 'delete', filename }))
+    }
+  }
 }
 
 class VirtualFS extends BaseFileSystem {
@@ -149,8 +182,24 @@ class VirtualFS extends BaseFileSystem {
     const initialFiles = window.__initial_file_map__ || {}
     const initialConfig = window.__initial_config__ || {}
     
-    const storedFiles = JSON.parse(localStorage.getItem(this.storageKey) || '{}')
-    const storedConfig = JSON.parse(localStorage.getItem(this.configKey) || '{}')
+    let storedFiles = {}
+    let storedConfig = {}
+
+    try {
+      const storedConfigRaw = Storage.getItem(this.configKey)
+      const parsedConfig = JSON.parse(storedConfigRaw)
+      
+      // Only load stored files if project name matches
+      if (parsedConfig.name === initialConfig.name) {
+        storedConfig = parsedConfig
+        const storedFilesRaw = Storage.getItem(this.storageKey)
+        storedFiles = JSON.parse(storedFilesRaw)
+      } else if (parsedConfig.name) {
+        console.warn(`VFS: Discarding stale data for project "${parsedConfig.name}" (Current: "${initialConfig.name}")`)
+      }
+    } catch (e) {
+      console.warn('VFS: Failed to restore state from local storage', e)
+    }
 
     const finalFiles = { ...initialFiles, ...storedFiles }
     const finalConfig = { ...initialConfig, ...storedConfig }
@@ -170,7 +219,7 @@ class VirtualFS extends BaseFileSystem {
 
   saveConfig(newConfig) {
     Object.assign(this.config, newConfig)
-    localStorage.setItem(this.configKey, JSON.stringify(this.config))
+    Storage.setItem(this.configKey, JSON.stringify(this.config))
   }
 
   renameFile(oldFilename, newFilename, newType) {
@@ -179,8 +228,14 @@ class VirtualFS extends BaseFileSystem {
     this.persist()
   }
 
+  deleteFile(filename) {
+    super.deleteFile(filename)
+    this.hasUnsavedChanges.value = true
+    this.persist()
+  }
+
   persist() {
-    localStorage.setItem(this.storageKey, JSON.stringify(this.files))
+    Storage.setItem(this.storageKey, JSON.stringify(this.files))
   }
 }
 

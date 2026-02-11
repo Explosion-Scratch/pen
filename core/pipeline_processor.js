@@ -59,37 +59,88 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
 }
 
 function injectLocationShim(document) {
-  const shimScript = `(function(){
-  var h = window.location.hash || '';
-  var m = h.match(/^#__pen=(.+)$/);
+  const shimScript = `(function() {
+  const h = window.location.hash || '';
+  const m = h.match(/#__pen=([A-Za-z0-9+/=]+)/);
   if (!m) return;
-  try {
-    var d = JSON.parse(atob(m[1]));
-    var vs = d.s || '';
-    var vh = d.h || '';
-    var sp = new URLSearchParams(vs);
-    Object.defineProperties(window.location, {
-      search: { get: function() { return vs; }, configurable: true },
-      hash: { get: function() { return vh; }, configurable: true },
-      href: { get: function() { return 'http://preview.pen/' + vs + vh; }, configurable: true }
-    });
-    var origUrl = window.URL;
-    var _penUrl = new origUrl('http://preview.pen/' + vs + vh);
-    if (!window.location.searchParams) {
-      Object.defineProperty(window.location, 'searchParams', {
-        get: function() { return sp; }, configurable: true
-      });
-    }
-  } catch(e) {}
-  })();`
+  
+  let penData = { s: '', h: '' };
+  try { penData = JSON.parse(atob(m[1])); } catch(e) { return; }
+  
+  const mockSearch = penData.s || '';
+  const mockHash = penData.h || '';
+  
+  // Patch Location prototype if possible, otherwise instance
+  const targets = [window.Location ? window.Location.prototype : window.location, window.location];
+  targets.forEach(t => {
+    try {
+      // Calculate href based on real base + mocked parts
+      const getMockHref = () => {
+        const base = window.location.origin + window.location.pathname;
+        return base + mockSearch + mockHash;
+      };
 
-  const script = document.createElement('script')
-  script.id = 'pen-location-shim'
-  script.textContent = shimScript
-  if (document.head.firstChild) {
-    document.head.insertBefore(script, document.head.firstChild)
-  } else {
-    document.head.appendChild(script)
+      Object.defineProperties(t, {
+        search: { get: () => mockSearch, configurable: true },
+        hash: { get: () => mockHash, configurable: true },
+        href: { get: getMockHref, configurable: true },
+        toString: { value: getMockHref, configurable: true }
+      });
+    } catch(e) {}
+  });
+
+  // Patch URL constructor
+  const OriginalURL = window.URL;
+  function PatchedURL(url, base) {
+    const u = (url === window.location) ? window.location.href : url;
+    const instance = new OriginalURL(u, base);
+    
+    if (typeof u === 'string' && u.includes('#__pen=')) {
+      const match = u.match(/#__pen=([A-Za-z0-9+/=]+)/);
+      if (match) {
+        try {
+          const d = JSON.parse(atob(match[1]));
+          const s = d.s || '';
+          const h = d.h || '';
+          const baseHref = instance.href.replace(/#__pen=.*$/, '');
+          const fullHref = baseHref + s + h;
+          const sp = new URLSearchParams(s);
+          
+          Object.defineProperties(instance, {
+            search: { get: () => s, configurable: true },
+            hash: { get: () => h, configurable: true },
+            href: { get: () => fullHref, configurable: true },
+            searchParams: { get: () => sp, configurable: true },
+            toString: { value: () => fullHref, configurable: true }
+          });
+        } catch(e) {}
+      }
+    }
+    return instance;
+  }
+  PatchedURL.prototype = OriginalURL.prototype;
+  PatchedURL.createObjectURL = OriginalURL.createObjectURL;
+  PatchedURL.revokeObjectURL = OriginalURL.revokeObjectURL;
+  window.URL = PatchedURL;
+
+  // Patch document properties
+  try {
+    Object.defineProperty(document, 'URL', { 
+      get: () => window.location.href, 
+      configurable: true 
+    });
+  } catch(e) {}
+
+  console.log('Pen: Location shim active (SearchParams & Hash only)');
+})();`;
+
+  const script = document.createElement('script');
+  script.id = 'pen-location-shim';
+  script.textContent = shimScript;
+  if (document.head) {
+    document.head.insertBefore(script, document.head.firstChild);
+  } else if (document.documentElement) {
+    document.documentElement.insertBefore(script, document.documentElement.firstChild);
   }
 }
 

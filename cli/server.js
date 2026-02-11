@@ -1,7 +1,7 @@
 import { WebSocketServer } from 'ws'
 import express from 'express'
 import { watch } from 'chokidar'
-import { readFileSync, writeFileSync, existsSync, unlinkSync, promises as fs } from 'fs'
+import { readFileSync, writeFileSync, existsSync, unlinkSync, renameSync, promises as fs } from 'fs'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import open from 'open'
@@ -91,21 +91,55 @@ export async function launchEditorFlow(projectPath, options = {}) {
           const { oldFilename, newFilename, newType } = msg
           const oldPath = join(projectPath, oldFilename)
           const newPath = join(projectPath, newFilename)
-          if (existsSync(oldPath)) {
-            writeFileSync(newPath, readFileSync(oldPath, 'utf-8'))
-            if (existsSync(oldPath)) unlinkSync(oldPath)
+          
+          if (oldPath !== newPath && existsSync(oldPath)) {
+            try {
+              renameSync(oldPath, newPath)
+            } catch (e) {
+              console.error(`Rename failed: ${oldFilename} -> ${newFilename}`, e)
+            }
           }
+          
           const editor = config.editors.find(e => e.filename === oldFilename)
           if (editor) {
             editor.filename = newFilename
             editor.type = newType
             writeFileSync(configPath, JSON.stringify(config, null, 2))
           }
-          fileMap[newFilename] = fileMap[oldFilename]
-          delete fileMap[oldFilename]
-          watcher.unwatch(oldPath)
-          watcher.add(newPath)
+          
+          if (oldFilename !== newFilename) {
+            fileMap[newFilename] = fileMap[oldFilename]
+            delete fileMap[oldFilename]
+            watcher.unwatch(oldPath)
+            watcher.add(newPath)
+          }
+          
           console.log(`🏷️  Renamed: ${oldFilename} → ${newFilename} (${newType})`)
+          
+          broadcast({ 
+            type: 'reinit',
+            config,
+            files: fileMap,
+            adapters: getAdaptersInfo()
+          })
+          break
+        }
+
+        case 'delete': {
+          const { filename } = msg
+          const filePath = join(projectPath, filename)
+          if (existsSync(filePath)) {
+            try { unlinkSync(filePath) } catch (e) {}
+          }
+          const index = config.editors.findIndex(e => e.filename === filename)
+          if (index !== -1) {
+            config.editors.splice(index, 1)
+            writeFileSync(configPath, JSON.stringify(config, null, 2))
+          }
+          delete fileMap[filename]
+          watcher.unwatch(filePath)
+          
+          console.log(`🗑️  Deleted: ${filename}`)
           
           broadcast({ 
             type: 'reinit',
