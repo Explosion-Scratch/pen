@@ -1,6 +1,6 @@
 <template>
   <div class="editor-card" :class="{ collapsed: isCollapsed }">
-    <header class="editor-header" @dblclick.stop="$emit('dblclick-header')">
+    <header class="editor-header">
       <div class="editor-info">
         <i :class="getEditorIcon(editor.type)"></i>
         <input
@@ -18,12 +18,7 @@
         </span>
       </div>
       <div class="editor-actions" v-if="!isCollapsed">
-        <button class="action-btn" @click.stop="showSettings = true" title="Editor settings">
-          <i class="ph-duotone ph-gear-six"></i>
-        </button>
-        <button class="action-btn" @click.stop="formatCode" title="Format code">
-          <i class="ph-duotone ph-magic-wand"></i>
-        </button>
+        <DropdownMenu :items="menuItems" align="right" />
         <button class="action-btn" @click.stop="$emit('toggle-collapse')" title="Collapse">
           <i class="ph-duotone ph-caret-up"></i>
         </button>
@@ -50,7 +45,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState, Compartment } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
@@ -62,6 +57,7 @@ import { indentWithTab } from '@codemirror/commands'
 import { abbreviationTracker, expandAbbreviation } from '@emmetio/codemirror6-plugin'
 import { penLightTheme } from '../codemirror/theme.js'
 import EditorSettings from './EditorSettings.vue'
+import DropdownMenu from './DropdownMenu.vue'
 import { editorStateManager } from '../state_management.js'
 
 const props = defineProps({
@@ -87,10 +83,58 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format', 'run', 'dblclick-header'])
+const emit = defineEmits(['update', 'rename', 'settings-update', 'toggle-collapse', 'format', 'minify', 'compile', 'run', 'dblclick-header'])
 
 const editorContainer = ref(null)
 const showSettings = ref(false)
+
+const menuItems = computed(() => {
+  const languageName = props.adapter?.name || props.editor.type
+  const items = [
+    {
+      label: `${languageName} Settings`,
+      icon: 'ph-duotone ph-gear-six',
+      action: () => { showSettings.value = true }
+    },
+    {
+      label: 'Beautify',
+      icon: 'ph-duotone ph-magic-wand',
+      action: formatCode
+    }
+  ]
+
+  if (props.adapter?.canMinify) {
+    items.push({
+      label: 'Minify',
+      icon: 'ph-duotone ph-arrows-in-line-vertical',
+      action: () => emit('minify', props.editor.filename)
+    })
+  }
+
+  if (props.adapter?.compileTargets?.length > 0) {
+    const targets = props.adapter.compileTargets
+    if (targets.length === 1) {
+      const target = targets[0]
+      items.push({
+        label: `Compile to ${target.toUpperCase()}`,
+        icon: 'ph-duotone ph-play',
+        action: () => emit('compile', props.editor.filename, target)
+      })
+    } else {
+      items.push({
+        label: 'Compile to',
+        icon: 'ph-duotone ph-play',
+        children: targets.map(target => ({
+          label: target.toUpperCase(),
+          action: () => emit('compile', props.editor.filename, target)
+        }))
+      })
+    }
+  }
+
+  return items
+})
+
 let view = null
 let updateListener = null
 const languageCompartment = new Compartment()

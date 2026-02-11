@@ -9,6 +9,7 @@ export class JavaScriptAdapter extends BaseAdapter {
   static extends = null
   static fileExtension = '.js'
   static mimeType = 'text/javascript'
+  static canMinify = true
 
   static getCdnResources(settings = {}) {
     return { scripts: [], styles: [] }

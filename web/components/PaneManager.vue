@@ -44,6 +44,8 @@
               @settings-update="handleSettingsUpdate"
               @toggle-collapse="togglePaneCollapse(idx)"
               @format="(filename) => $emit('format', filename)"
+              @minify="(filename) => $emit('minify', filename)"
+              @compile="(filename, target) => $emit('compile', filename, target)"
               @run="handleEditorRun"
               @dblclick-header="toggleMaximize(idx)"
             />
@@ -113,7 +115,7 @@ const props = defineProps({
   lastManualRender: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'settings'])
+const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'minify', 'compile', 'settings'])
 
 const minPaneSize = 5
 const isAnyDragging = ref(false)
@@ -393,6 +395,7 @@ onUnmounted(() => {
   cursor: pointer;
   animation: fadeIn 120ms ease;
   pointer-events: auto;
+  backdrop-filter: blur(4px) saturate(50%);
 }
 
 .maximize-overlay:hover {

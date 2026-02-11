@@ -7,10 +7,12 @@
     "pen": "./cli/index.js"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"bun run dev:web\" \"bun run dev:server\"",
+    "dev:web": "vite",
+    "dev:server": "cd test-pen && bun ../cli/index.js --headless",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node cli/index.js"
+    "start": "bun cli/index.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "concurrently": "^9.2.1",
     "vite": "^6.1.0"
   },
   "keywords": [

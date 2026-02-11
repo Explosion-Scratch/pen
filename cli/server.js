@@ -40,7 +40,7 @@ const DEVTOOLS_BRIDGE = `
 <\/script>
 `
 
-export async function launchEditorFlow(projectPath) {
+export async function launchEditorFlow(projectPath, options = {}) {
   const configPath = join(projectPath, CONFIG_FILENAME)
   const config = JSON.parse(readFileSync(configPath, 'utf-8'))
   const httpPort = 3000, wsPort = 3001, previewPort = 3002
@@ -73,15 +73,17 @@ export async function launchEditorFlow(projectPath) {
 
   wss.on('connection', (ws) => {
     clients.add(ws)
-    console.log('📡 Client connected')
+    if (!options.headless) console.log('📡 Client connected')
     const getAdaptersInfo = () => config.editors.map(e => {
       const A = getAdapter(e.type)
       return {
         id: A.id,
-        type: e.type, // Use the editor type
+        type: e.type,
         name: A.name,
         description: A.description,
         fileExtension: A.fileExtension,
+        compileTargets: A.compileTargets || [],
+        canMinify: A.canMinify || false,
         schema: A.getSchema?.() || {}
       }
     })
@@ -134,6 +136,27 @@ export async function launchEditorFlow(projectPath) {
           watcher.unwatch(oldPath)
           watcher.add(newPath)
           console.log(`🏷️  Renamed: ${oldFilename} → ${newFilename} (${newType})`)
+          
+          const adaptersInfo = config.editors.map(e => {
+            const A = getAdapter(e.type)
+            return {
+              id: A.id,
+              type: e.type,
+              name: A.name,
+              description: A.description,
+              fileExtension: A.fileExtension,
+              compileTargets: A.compileTargets || [],
+              canMinify: A.canMinify || false,
+              schema: A.getSchema?.() || {}
+            }
+          })
+          
+          broadcast({ 
+            type: 'sync-editors', 
+            editors: config.editors,
+            adapters: adaptersInfo
+          })
+          
           await renderAndBroadcast()
           break
         }
@@ -149,29 +172,53 @@ export async function launchEditorFlow(projectPath) {
           break
         }
 
-        case 'format': {
+        case 'format':
+        case 'minify':
+        case 'compile': {
           const content = fileMap[msg.filename]
           const editor = config.editors.find(e => e.filename === msg.filename)
           if (!editor || !content) break
           try {
             const adapter = new (getAdapter(editor.type))()
             adapter.setSettings(editor.settings || {})
-            const formatted = await adapter.beautify(content, null, msg.filename)
-            if (formatted !== content) {
-              fileMap[msg.filename] = formatted
-              writeFileSync(join(projectPath, msg.filename), formatted)
+            
+            let result
+            if (msg.type === 'format') {
+              result = await adapter.beautify(content, null, msg.filename)
+            } else if (msg.type === 'minify') {
+              if (adapter.minify) {
+                result = await adapter.minify(content)
+              } else {
+                console.warn(`Minify not supported for ${editor.type}`)
+                break
+              }
+            } else if (msg.type === 'compile') {
+              // Look for compileToX methods
+              const target = msg.target
+              const methodName = `compileTo${target.charAt(0).toUpperCase() + target.slice(1)}`
+              if (typeof adapter[methodName] === 'function') {
+                result = await adapter[methodName](content)
+              } else {
+                console.warn(`Compile to ${target} not supported for ${editor.type}`)
+                break
+              }
+            }
+
+            if (result !== undefined && result !== content) {
+              fileMap[msg.filename] = result
+              writeFileSync(join(projectPath, msg.filename), result)
               ignoreNextChange.add(msg.filename)
               setTimeout(() => ignoreNextChange.delete(msg.filename), 200)
-              broadcast({ type: 'external-update', filename: msg.filename, content: formatted })
+              broadcast({ type: 'external-update', filename: msg.filename, content: result })
               await renderAndBroadcast()
             }
           } catch (err) {
-            console.error('Format error:', err)
+            console.error(`${msg.type} error:`, err)
             const loc = err.loc
             broadcast({
               type: 'toast-error',
               filename: msg.filename,
-              name: err.name || 'Formatting Error',
+              name: err.name || `${msg.type.charAt(0).toUpperCase() + msg.type.slice(1)} Error`,
               message: err.message.split('\n')[0],
               line: loc?.start?.line || loc?.line || 0,
               column: loc?.start?.column || loc?.column || 0
@@ -231,7 +278,7 @@ export async function launchEditorFlow(projectPath) {
       }
     }
 
-    ws.on('close', () => { clients.delete(ws); console.log('📡 Client disconnected') })
+    ws.on('close', () => { clients.delete(ws); if (!options.headless) console.log('📡 Client disconnected') })
   })
 
   watcher.on('change', async (filePath) => {
@@ -261,22 +308,31 @@ export async function launchEditorFlow(projectPath) {
   app.get('/api/adapters', (_, res) => {
     res.json(config.editors.map(e => {
       const A = getAdapter(e.type)
-      return { id: A.id, type: e.type, name: A.name, description: A.description, fileExtension: A.fileExtension, schema: A.getSchema?.() || {} }
+      return { id: A.id, type: e.type, name: A.name, description: A.description, fileExtension: A.fileExtension, compileTargets: A.compileTargets || [], canMinify: A.canMinify || false, schema: A.getSchema?.() || {} }
     }))
   })
 
-  if (existsSync(distPath)) {
-    app.use(express.static(distPath))
-  } else {
-    app.get('/', (_, res) => res.send(`<!DOCTYPE html><html><head><title>Pen Editor</title><script type="module" src="http://localhost:5173/@vite/client"></script><script type="module" src="http://localhost:5173/main.js"></script></head><body><div id="app"></div></body></html>`))
+  if (!options.headless) {
+    if (existsSync(distPath)) {
+      app.use(express.static(distPath))
+    } else {
+      app.get('/', (_, res) => res.send(`<!DOCTYPE html><html><head><title>Pen Editor</title><script type="module" src="http://localhost:5173/@vite/client"></script><script type="module" src="http://localhost:5173/main.js"></script></head><body><div id="app"></div></body></html>`))
+    }
   }
 
   app.listen(httpPort, () => {
-    console.log(`\n\x1b[1m✨ Pen Editor\x1b[0m\n`)
-    console.log(`   🌐 Editor:  http://localhost:${httpPort}`)
-    console.log(`   📡 WS:      ws://localhost:${wsPort}`)
-    console.log(`   📄 Preview: http://localhost:${previewPort}`)
-    console.log(`\n   Press Ctrl+C to stop.\n`)
+    if (options.headless) {
+      console.log(`\n\x1b[1m✨ Pen Services (Headless)\x1b[0m\n`)
+      console.log(`   📡 API:     http://localhost:${httpPort}`)
+      console.log(`   📡 WS:      ws://localhost:${wsPort}`)
+      console.log(`   📄 Preview: http://localhost:${previewPort}\n`)
+    } else {
+      console.log(`\n\x1b[1m✨ Pen Editor\x1b[0m\n`)
+      console.log(`   🌐 Editor:  http://localhost:${httpPort}`)
+      console.log(`   📡 WS:      ws://localhost:${wsPort}`)
+      console.log(`   📄 Preview: http://localhost:${previewPort}`)
+      console.log(`\n   Press Ctrl+C to stop.\n`)
+    }
   })
 
   const previewApp = express()
@@ -290,7 +346,9 @@ export async function launchEditorFlow(projectPath) {
   })
   previewApp.listen(previewPort)
 
-  open(`http://localhost:${httpPort}`)
+  if (!options.headless) {
+    open(`http://localhost:${httpPort}`)
+  }
 }
 
 

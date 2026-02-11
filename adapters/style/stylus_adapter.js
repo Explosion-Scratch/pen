@@ -10,6 +10,8 @@ export class StylusAdapter extends CSSAdapter {
   static extends = 'css'
   static fileExtension = '.styl'
   static mimeType = 'text/x-stylus'
+  static compileTargets = ['css']
+  static canMinify = true
 
   static getCdnResources(settings = {}) {
     const parentResources = CSSAdapter.getCdnResources(settings)
@@ -84,6 +86,20 @@ body
           if (err) {
             console.error('Stylus compilation error:', err)
             resolve(`/* Stylus Error: ${err.message} */`)
+          } else {
+            resolve(css)
+          }
+        })
+    })
+  }
+
+  async minify(code) {
+    return new Promise((resolve, reject) => {
+      stylus(code)
+        .set('compress', true)
+        .render((err, css) => {
+          if (err) {
+            reject(err)
           } else {
             resolve(css)
           }

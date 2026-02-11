@@ -13,10 +13,20 @@ const LOGO = `
   ╰──────────────────────────────────╯`
 
 export async function handleCliInput(args) {
-  const command = args[0]
+  const flags = args.filter(a => a.startsWith('--'))
+  const cleanArgs = args.filter(a => !a.startsWith('--'))
+  
+  const command = cleanArgs[0]
   const cwd = process.cwd()
   const configPath = join(cwd, CONFIG_FILENAME)
   const hasConfig = existsSync(configPath)
+
+  const options = {
+    headless: flags.includes('--headless') || flags.includes('-h') && command !== 'help' // Basic check
+  }
+
+  // Proper flag handling for common ones
+  if (args.includes('--headless')) options.headless = true
 
   switch (command) {
     case 'init':
@@ -50,7 +60,16 @@ export async function handleCliInput(args) {
     case 'help':
     case '--help':
     case '-h':
-      printHelp()
+      if (args[0] === 'help' || args[0] === '--help' || (args[0] === '-h' && !hasConfig)) {
+        printHelp()
+        break
+      }
+      // fall through if it might be -h for headless in a project
+      if (hasConfig) {
+        await launchEditorFlow(cwd, options)
+      } else {
+        printHelp()
+      }
       break
 
     case '--version':
@@ -60,7 +79,7 @@ export async function handleCliInput(args) {
 
     default:
       if (hasConfig) {
-        await launchEditorFlow(cwd)
+        await launchEditorFlow(cwd, options)
       } else {
         await initializeNewProjectFlow(cwd)
       }

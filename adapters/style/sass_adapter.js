@@ -10,6 +10,8 @@ export class SASSAdapter extends CSSAdapter {
   static extends = 'css'
   static fileExtension = '.scss'
   static mimeType = 'text/x-scss'
+  static compileTargets = ['css']
+  static canMinify = true
 
   static getCdnResources(settings = {}) {
     const parentResources = CSSAdapter.getCdnResources(settings)
@@ -92,6 +94,18 @@ body {
     } catch (err) {
       console.error('SASS compilation error:', err)
       return `/* SASS Error: ${err.message} */`
+    }
+  }
+
+  async minify(code) {
+    try {
+      const result = sass.compileString(code, {
+        style: 'compressed',
+        sourceMap: this.settings.sourceMaps
+      })
+      return result.css
+    } catch (err) {
+      throw err
     }
   }
 

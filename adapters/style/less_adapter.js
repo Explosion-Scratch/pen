@@ -10,6 +10,8 @@ export class LESSAdapter extends CSSAdapter {
   static extends = 'css'
   static fileExtension = '.less'
   static mimeType = 'text/x-less'
+  static compileTargets = ['css']
+  static canMinify = true
 
   static getCdnResources(settings = {}) {
     const parentResources = CSSAdapter.getCdnResources(settings)
@@ -90,6 +92,18 @@ body {
     } catch (err) {
       console.error('LESS compilation error:', err)
       return `/* LESS Error: ${err.message} */`
+    }
+  }
+
+  async minify(code) {
+    try {
+      const result = await less.render(code, {
+        compress: true,
+        strictMath: this.settings.strictMath
+      })
+      return result.css
+    } catch (err) {
+      throw err
     }
   }
 

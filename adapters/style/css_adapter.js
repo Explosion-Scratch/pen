@@ -10,6 +10,7 @@ export class CSSAdapter extends BaseAdapter {
   static extends = null
   static fileExtension = '.css'
   static mimeType = 'text/css'
+  static canMinify = true
 
   static getCdnResources(settings = {}) {
     const resources = { scripts: [], styles: [] }

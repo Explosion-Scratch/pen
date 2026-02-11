@@ -8,6 +8,8 @@ export class BaseAdapter {
   static extends = null
   static fileExtension = '.txt'
   static mimeType = 'text/plain'
+  static compileTargets = []
+  static canMinify = false
 
   constructor() {
     this.settings = {}

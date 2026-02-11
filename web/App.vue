@@ -19,6 +19,8 @@
       @rename="handleRename"
       @settings-update="handleEditorSettingsUpdate"
       @format="handleFormat"
+      @minify="handleMinify"
+      @compile="handleCompile"
       @settings="showSettings = true"
     />
     <SettingsModal
@@ -133,6 +135,24 @@ function connectWebSocket() {
           }
         })
       }
+
+      if (message.type === 'sync-editors') {
+        // Update editors and adapters with server-synced data
+        adapters.value = message.adapters || []
+        
+        // Merge editor config updates but preserve runtime state if possible
+        // Actually simplest is to just map them again as we do in init
+        // We need to preserve IDs if possible or just rely on index/filename
+        const newEditors = (message.editors || []).map((e, idx) => {
+           // Try to find existing editor to keep ID or state if needed
+           // For now just regenerating like init is probably safer for consistency
+           return {
+             ...e,
+             id: e.id || `editor-${idx}-${Date.now()}`
+           }
+        })
+        editors.value = newEditors
+      }
     } catch (err) {
       console.error('WebSocket message error:', err)
     }
@@ -216,6 +236,18 @@ function handleEditorSettingsUpdate(filename, settings) {
 function handleFormat(filename) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'format', filename }))
+  }
+}
+
+function handleMinify(filename) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'minify', filename }))
+  }
+}
+
+function handleCompile(filename, target) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'compile', filename, target }))
   }
 }
 

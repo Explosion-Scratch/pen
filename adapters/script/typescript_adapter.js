@@ -10,6 +10,8 @@ export class TypeScriptAdapter extends JavaScriptAdapter {
   static extends = 'javascript'
   static fileExtension = '.ts'
   static mimeType = 'text/typescript'
+  static compileTargets = ['javascript']
+  static canMinify = true
 
   static getCdnResources(settings = {}) {
     return { scripts: [], styles: [] }
