@@ -75,9 +75,7 @@
         @click="toggleMaximize(altHoveredPane)"
       >
         <div class="maximize-overlay-content">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>
-          </svg>
+          <i :class="['ph-light', (altHoveredPane === 'preview' ? previewMaximized : maximizedIdx === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
           <span>{{ (altHoveredPane === 'preview' ? previewMaximized : maximizedIdx === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
         </div>
       </div>
@@ -197,10 +195,14 @@ function onMouseUp() {
 function handleRename(oldFilename, newFilename, newType) { emit('rename', oldFilename, newFilename, newType) }
 function handleSettingsUpdate(filename, settings) { emit('settings-update', filename, settings) }
 
+const mouseX = ref(0)
+const mouseY = ref(0)
+
 function onKeyDown(e) {
   if (e.key === 'Alt') {
     altKeyDown = true
     altPressed.value = true
+    checkAltHover()
   }
 }
 
@@ -213,11 +215,20 @@ function onKeyUp(e) {
 }
 
 function onMouseMove(e) {
-  if (!altKeyDown) {
+  mouseX.value = e.clientX
+  mouseY.value = e.clientY
+  
+  if (altKeyDown) {
+    checkAltHover()
+  } else {
     if (altHoveredPane.value !== null) altHoveredPane.value = null
-    return
   }
+}
 
+function checkAltHover() {
+  const x = mouseX.value
+  const y = mouseY.value
+  
   const editorCards = document.querySelectorAll('.editor-card')
   const previewCard = document.querySelector('.preview-card')
   let found = null
@@ -225,7 +236,7 @@ function onMouseMove(e) {
 
   editorCards.forEach((card, idx) => {
     const r = card.getBoundingClientRect()
-    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
       found = idx
       rect = r
     }
@@ -233,7 +244,7 @@ function onMouseMove(e) {
 
   if (found === null && previewCard) {
     const r = previewCard.getBoundingClientRect()
-    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
       found = 'preview'
       rect = r
     }

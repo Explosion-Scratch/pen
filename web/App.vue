@@ -6,6 +6,7 @@
       @settings="showSettings = true"
       @new-project="showTemplatePicker = true"
       @update-settings="handleAppSettingsUpdate"
+      @update-project-name="handleProjectNameUpdate"
     />
     <PaneManager
       :editors="editors"
@@ -27,6 +28,7 @@
       v-if="showSettings"
       :config="config"
       :settings="appSettings"
+      :current-path="currentPath"
       @close="showSettings = false"
       @save="handleSettingsSave"
     />
@@ -63,6 +65,7 @@ const appSettings = reactive({
 })
 
 const config = ref(null)
+const currentPath = ref('')
 const files = ref({})
 const editors = ref([])
 const adapters = ref([])
@@ -93,6 +96,8 @@ function connectWebSocket() {
         config.value = message.config
         files.value = message.files
         adapters.value = message.adapters || []
+        if (message.rootPath) currentPath.value = message.rootPath
+        
         editors.value = (message.config.editors || []).map((e, idx) => ({
           ...e,
           id: e.id || `editor-${idx}-${Date.now()}`
@@ -263,6 +268,18 @@ function handleSettingsSave(newConfig, newSettings) {
       layoutMode: appSettings.layoutMode
     }
     ws.send(JSON.stringify({ type: 'save-config', config: finalConfig }))
+  }
+}
+
+function handleProjectNameUpdate(newName) {
+  if (config.value) {
+    config.value.name = newName
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'save-config',
+        config: { ...config.value, ...appSettings }
+      }))
+    }
   }
 }
 

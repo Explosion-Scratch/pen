@@ -88,9 +88,12 @@ export async function launchEditorFlow(projectPath, options = {}) {
       }
     })
 
+      const displayPath = projectPath.replace(process.env.HOME, '~')
+
     ws.send(JSON.stringify({
       type: 'init',
       config,
+      rootPath: displayPath,
       files: fileMap,
       adapters: getAdaptersInfo()
     }))
@@ -296,7 +299,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
   const app = express()
   app.use(express.json())
 
-  app.get('/api/config', (_, res) => res.json(config))
+  app.get('/api/config', (_, res) => res.json({ ...config, rootPath: projectPath.replace(process.env.HOME, '~') }))
   app.get('/api/files', (_, res) => res.json(fileMap))
   app.get('/api/templates', (_, res) => {
     const templates = loadAllProjectTemplates().map(({ id, title, description, icon, config: c }) => ({

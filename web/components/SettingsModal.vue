@@ -9,6 +9,19 @@
       </header>
       <div class="modal-body">
         <div class="settings-section">
+          <h3>Project Location</h3>
+          <div class="settings-row path-row">
+            <code 
+              class="path-display" 
+              @click="copyPath" 
+              title="Click to copy path"
+            >
+              {{ currentPath || 'Loading...' }}
+              <i class="ph-duotone ph-copy"></i>
+            </code>
+          </div>
+        </div>
+        <div class="settings-section">
           <h3>Preview</h3>
           <div class="settings-row">
             <span class="settings-label">Auto Preview</span>
@@ -123,6 +136,10 @@ const props = defineProps({
   settings: {
     type: Object,
     required: true
+  },
+  currentPath: {
+    type: String,
+    default: ''
   }
 })
 
@@ -136,6 +153,15 @@ const scriptSuggestions = ref([])
 const scriptFocused = ref(false)
 let scriptSearchTimer = null
 let scriptBlurTimer = null
+
+function copyPath() {
+  if (props.currentPath) {
+    navigator.clipboard.writeText(props.currentPath)
+    // Could show a toast here if we had access to the toast system, 
+    // but a visual feedback on the button itself would be nice.
+    // For now simple copy.
+  }
+}
 
 // No parts needed for simple link
 function isUrl(s) {
@@ -301,6 +327,37 @@ watch(() => props.settings, (newSettings) => {
 
 .settings-section {
   margin-bottom: 24px;
+}
+
+.path-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--color-background-alt);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.path-display:hover {
+  background: var(--color-background);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.path-display:active {
+  background: var(--color-surface);
+  border-color: var(--color-accent);
+}
+
+.path-display i {
+  font-size: 14px;
 }
 
 .settings-section:last-child {

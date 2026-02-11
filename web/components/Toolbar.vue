@@ -3,34 +3,35 @@
     <div class="toolbar-left">
       <div class="logo">
         <i class="ph-duotone ph-pen-nib"></i>
-        <span class="logo-text">{{ projectName }}</span>
+        <input
+          ref="titleInput"
+          v-model="localProjectName"
+          class="title-input"
+          @blur="saveTitle"
+          @keydown.enter="$event.target.blur()"
+          @keydown.esc="cancelEditing"
+        />
       </div>
     </div>
     <div class="toolbar-center">
     </div>
     <div class="toolbar-right">
-      <button class="toolbar-btn" @click="$emit('new-project')" title="New Project">
-        <i class="ph-duotone ph-plus"></i>
-      </button>
-      <button class="toolbar-btn" @click="openPreviewTab" title="Open in new tab">
-        <i class="ph-duotone ph-arrow-square-out"></i>
-      </button>
-      <button 
-        class="toolbar-btn" 
-        @click="$emit('update-settings', { layoutMode: settings.layoutMode === 'columns' ? 'rows' : 'columns' })"
-        :title="settings.layoutMode === 'columns' ? 'Switch to 2 Row layout' : 'Switch to 2 Column layout'"
-      >
-        <i :class="['ph-duotone', settings.layoutMode === 'columns' ? 'ph-rows' : 'ph-columns']"></i>
-      </button>
-      <button class="toolbar-btn" @click="$emit('settings')" title="Settings">
-        <i class="ph-duotone ph-gear"></i>
-      </button>
+      <DropdownMenu :items="menuItems" align="right">
+        <template #trigger>
+          <button class="toolbar-btn menu-trigger" title="Menu">
+            <i class="ph-bold ph-dots-three-vertical"></i>
+          </button>
+        </template>
+      </DropdownMenu>
     </div>
   </header>
 </template>
 
 <script setup>
-defineProps({
+import { ref, computed, watch, nextTick } from 'vue'
+import DropdownMenu from './DropdownMenu.vue'
+
+const props = defineProps({
   projectName: {
     type: String,
     default: 'Pen'
@@ -41,11 +42,57 @@ defineProps({
   }
 })
 
-defineEmits(['settings', 'new-project', 'update-settings'])
+const emit = defineEmits(['settings', 'new-project', 'update-settings', 'update-project-name'])
+
+const localProjectName = ref(props.projectName)
+const titleInput = ref(null)
+
+watch(() => props.projectName, (newVal) => {
+  localProjectName.value = newVal
+})
+
+function saveTitle() {
+  if (localProjectName.value && localProjectName.value !== props.projectName) {
+    emit('update-project-name', localProjectName.value)
+  } else {
+    localProjectName.value = props.projectName
+  }
+}
+
+function cancelEditing() {
+  localProjectName.value = props.projectName
+  titleInput.value?.blur()
+}
 
 function openPreviewTab() {
   window.open('http://localhost:3002', '_blank')
 }
+
+const menuItems = computed(() => [
+  {
+    label: 'New Project',
+    icon: 'ph-duotone ph-plus',
+    action: () => emit('new-project')
+  },
+  {
+    label: 'Open preview',
+    icon: 'ph-duotone ph-arrow-square-out',
+    action: () => openPreviewTab()
+  },
+  {
+    label: 'Switch orientations',
+    icon: props.settings.layoutMode === 'columns' ? 'ph-duotone ph-rows' : 'ph-duotone ph-columns',
+    action: () => emit('update-settings', { layoutMode: props.settings.layoutMode === 'columns' ? 'rows' : 'columns' })
+  },
+  {
+    divider: true
+  },
+  {
+    label: 'Settings',
+    icon: 'ph-duotone ph-gear',
+    action: () => emit('settings')
+  }
+])
 </script>
 
 <style scoped>
@@ -94,14 +141,29 @@ function openPreviewTab() {
   font-size: 20px;
 }
 
-.logo-text {
+.title-input {
   font-family: var(--font-serif);
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  outline: none;
+  min-width: 120px;
+  transition: all 0.2s;
 }
 
+.title-input:hover {
+  background: var(--color-background);
+  border-color: var(--color-border);
+}
 
+.title-input:focus {
+  background: var(--color-surface);
+  border-color: var(--color-accent);
+}
 
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -118,14 +180,21 @@ function openPreviewTab() {
   font-weight: 500;
   color: var(--color-text-muted);
   transition: all var(--transition-fast);
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
-.toolbar-btn:hover {
+.toolbar-btn:hover, .toolbar-btn.active {
   background: var(--color-background-alt);
   color: var(--color-text);
 }
 
 .toolbar-btn i {
   font-size: 18px;
+}
+
+.menu-trigger {
+  padding: 6px;
 }
 </style>
