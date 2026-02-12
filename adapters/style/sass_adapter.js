@@ -76,8 +76,7 @@ body {
   static getDefaultSettings() {
     return {
       ...CSSAdapter.getDefaultSettings(),
-      indentedSyntax: false,
-      sourceMaps: false
+      indentedSyntax: false
     }
   }
 
@@ -97,8 +96,7 @@ body {
     try {
       const sass = await getSass()
       const result = sass.compileString(scssCode, {
-        style: 'expanded',
-        sourceMap: this.settings.sourceMaps
+        style: 'expanded'
       })
       return result.css
     } catch (err) {
@@ -117,8 +115,7 @@ body {
     try {
       const sass = await getSass()
       const result = sass.compileString(code, {
-        style: 'compressed',
-        sourceMap: this.settings.sourceMaps
+        style: 'compressed'
       })
       return result.css
     } catch (err) {
@@ -145,12 +142,6 @@ body {
         type: 'boolean',
         name: 'Use indented syntax',
         description: 'Use SASS indented syntax instead of SCSS',
-        default: false
-      },
-      sourceMaps: {
-        type: 'boolean',
-        name: 'Generate source maps',
-        description: 'Generate source maps for debugging',
         default: false
       }
     }

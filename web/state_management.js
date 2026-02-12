@@ -238,7 +238,8 @@ export function useFileSystem() {
     isVirtual: fileSystem.isVirtual,
     hasUnsavedChanges: fileSystem.hasUnsavedChanges,
     fs: fileSystem,
-    errors: fileSystemMirror.errors
+    errors: fileSystemMirror.errors,
+    addError: (err) => fileSystemMirror._errors.push(err)
   }
 }
 

@@ -65,13 +65,70 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
 
   injectGlobalResources(document, config)
   
+
   if (injectDev) {
     injectLocationShim(document)
     injectDebugScript(document)
+    injectErrorListener(document)
   }
 
   const finalHtml = serialize(document)
   return { html: finalHtml, errors }
+}
+
+function injectErrorListener(document) {
+  const errorScript = `
+    (function() {
+      // Error Listener for Pen
+      function sendError(error) {
+        // Ignore chobitsu errors
+        if (error.filename && error.filename.includes('chobitsu')) return;
+        if (error.stack && error.stack.includes('chobitsu')) return;
+        if (error.message && error.message.includes('chobitsu')) return;
+
+        window.parent.postMessage({
+          type: 'PEN_ERROR',
+          error: {
+            message: error.message || 'Unknown Error',
+            filename: error.filename,
+            line: error.lineno || error.line,
+            column: error.colno || error.column,
+            stack: error.error ? error.error.stack : null
+          }
+        }, '*');
+      }
+
+      window.onerror = function(message, source, lineno, colno, error) {
+        sendError({
+          message: message,
+          filename: source,
+          lineno: lineno,
+          colno: colno,
+          error: error
+        });
+        return false; // Let default handler run too (console)
+      };
+
+      window.addEventListener('unhandledrejection', function(event) {
+        sendError({
+          message: 'Unhandled Promise Rejection: ' + (event.reason ? (event.reason.message || event.reason) : 'Unknown'),
+          error: event.reason
+        });
+      });
+      
+      console.log('Pen: Runtime error listener active');
+    })();
+  `;
+
+  updateOrCreateElement(
+    document,
+    'pen-error-listener',
+    'script',
+    { id: 'pen-error-listener' },
+    errorScript,
+    'head',
+    true
+  )
 }
 
 function injectLocationShim(document) {

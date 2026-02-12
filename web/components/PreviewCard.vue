@@ -124,11 +124,13 @@
   </div>
 </template>
 
+
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import ErrorPanel from './ErrorPanel.vue'
+import { useFileSystem } from '../state_management.js'
 
 const props = defineProps({
   previewState: {
@@ -154,6 +156,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['refresh', 'settings', 'toggle-maximize', 'jump', 'clear-errors'])
+
+const { addError } = useFileSystem()
 
 const iframe = ref(null)
 const devtoolsIframe = ref(null)
@@ -354,6 +358,11 @@ function clearConsole() {
 }
 
 function handleMessage(event) {
+  if (event.data && event.data.type === 'PEN_ERROR') {
+    addError(event.data.error)
+    return
+  }
+
   if (event.source === iframe.value?.contentWindow) {
     if (typeof event.data === 'string') {
       devtoolsIframe.value?.contentWindow?.postMessage(event.data, '*');

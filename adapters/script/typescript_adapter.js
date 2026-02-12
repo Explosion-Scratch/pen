@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
           strict: this.settings.strict,
           esModuleInterop: true,
           skipLibCheck: true,
-          sourceMap: true,
+          sourceMap: false,
           inlineSourceMap: true,
           inlineSources: true
         }
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
           strict: this.settings.strict,
           esModuleInterop: true,
           skipLibCheck: true,
-          sourceMap: true,
+          sourceMap: false,
           inlineSourceMap: true,
           inlineSources: true
         },
