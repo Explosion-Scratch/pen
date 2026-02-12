@@ -59,7 +59,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['settings', 'new-project', 'update-settings', 'update-project-name', 'export', 'export-editor'])
+const emit = defineEmits(['settings', 'new-project', 'update-settings', 'update-project-name', 'export', 'export-editor', 'export-zip'])
 
 const localProjectName = ref(props.projectName)
 const titleInput = ref(null)
@@ -101,6 +101,11 @@ const menuItems = computed(() => [
     label: 'Export HTML',
     icon: 'ph-duotone ph-download-simple',
     action: () => emit('export')
+  },
+  {
+    label: 'Export ZIP',
+    icon: 'ph-duotone ph-file-zip',
+    action: () => emit('export-zip')
   },
   {
     label: 'Export Editor',

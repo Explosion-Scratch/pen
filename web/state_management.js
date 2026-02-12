@@ -1,6 +1,7 @@
 import { ref, reactive, readonly, watch, computed } from 'vue'
 import { executeSequentialRender } from '../core/pipeline_processor.js'
 import { getAdapter } from '../core/adapter_registry.js'
+import { exportAsZip as zipExport, exportProject as projectExport, exportEditor as editorExport } from './utils/exports.js'
 import { fileSystem } from './filesystem.js'
 
 // We now rely on fileSystem for the source of truth for files and config
@@ -106,63 +107,13 @@ async function triggerRender() {
   }
 }
 
+
 export async function exportProject() {
-  try {
-    const { html } = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config }, { dev: false })
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${fileSystem.config.name || 'pen-project'}.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  } catch (err) {
-    console.error('Export error:', err)
-    throw err
-  }
+  return projectExport(fileSystem.files, fileSystem.config)
 }
 
 export async function exportEditor() {
-  try {
-    const response = await fetch(window.location.href)
-    let html = await response.text()
-
-    const currentFiles = { ...fileSystem.files }
-    const currentConfig = { ...fileSystem.config }
-
-    const enc = (a) => JSON.stringify(encodeURIComponent(JSON.stringify(a)));
-    const dec = (a) => `JSON.parse(decodeURIComponent(${a}))`;
-    
-    const inject = `
-  <script>
-    window.__initial_file_map__ = ${dec(enc(currentFiles))};
-    window.__initial_config__ = ${dec(enc(currentConfig))};
-  </script>`
-    
-    if (html.includes('<head>')) {
-      html = html.replace('<head>', '<head>' + inject)
-    } else {
-      html = inject + html
-    }
-
-    const origin = window.location.origin
-    html = html.replace(/(src|href)="\/([^"]+)"/g, `$1="${origin}/$2"`)
-
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${fileSystem.config.name || 'pen-editor'}-portable.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  } catch (err) {
-    console.error('Export Editor error:', err)
-    throw err
-  }
+  return editorExport(fileSystem.files, fileSystem.config)
 }
 
 export const editorStateManager = {
@@ -223,6 +174,10 @@ export const editorStateManager = {
   
   // Deprecated/No-op as FileSystem handles this
   setSocket(ws) {}
+}
+
+export async function exportAsZip() {
+  return zipExport(fileSystem.files, fileSystem.config)
 }
 
 export function useFileSystem() {

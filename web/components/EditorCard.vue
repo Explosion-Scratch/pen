@@ -59,6 +59,7 @@ import { penLightTheme } from '../codemirror/theme.js'
 import EditorSettings from './EditorSettings.vue'
 import DropdownMenu from './DropdownMenu.vue'
 import { editorStateManager } from '../state_management.js'
+import { color } from '@uiw/codemirror-extensions-color'
 
 const props = defineProps({
   editor: {
@@ -180,12 +181,12 @@ function getLanguageExtension(type) {
     return sass()
   }
   if (type_ === 'javascript') {
-    return javascript()
+    return javascript({ jsx: true })
   }
   if (type_ === 'typescript') {
-    return javascript({ typescript: true })
+    return javascript({ typescript: true, jsx: true })
   }
-  return javascript()
+  return javascript({ jsx: true })
 }
 
 function isMarkupEditor(type) {
@@ -298,6 +299,7 @@ onMounted(() => {
     basicSetup,
     languageCompartment.of(getLanguageExtension(props.editor.type)),
     penLightTheme,
+    color,
     updateListener,
     EditorView.lineWrapping,
     ...getEmmetExtensions(),
@@ -350,6 +352,7 @@ onUnmounted(() => {
     view.destroy()
   }
 })
+// Trigger rebuild
 </script>
 
 <style scoped>

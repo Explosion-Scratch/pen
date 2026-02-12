@@ -12,6 +12,7 @@
       @update-project-name="handleProjectNameUpdate"
       @export="handleExport"
       @export-editor="handleExportEditor"
+      @export-zip="handleExportZip"
     />
     <PaneManager
       :editors="editors"
@@ -73,7 +74,7 @@ import SettingsModal from './components/SettingsModal.vue'
 import TemplatePickerModal from './components/TemplatePickerModal.vue'
 import Toolbar from './components/Toolbar.vue'
 import Toast from './components/Toast.vue'
-import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject, exportEditor } from './state_management.js'
+import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject, exportEditor, exportAsZip } from './state_management.js'
 import { fileSystem } from './filesystem.js'
 
 const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges, errors } = useFileSystem()
@@ -267,6 +268,17 @@ function handleExport() {
   })
 }
 
+function handleExportZip() {
+  exportAsZip().catch(err => {
+    addToast({
+      type: 'error',
+      title: 'Export Failed',
+      message: err.message
+    })
+  })
+}
+
+
 function handleExportEditor() {
   exportEditor().catch(err => {
     addToast({
@@ -276,6 +288,9 @@ function handleExportEditor() {
     })
   })
 }
+
+
+
 
 async function handleTemplateSelect(templateId) {
   showTemplatePicker.value = false
