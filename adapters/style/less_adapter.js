@@ -18,7 +18,7 @@ export class LESSAdapter extends CSSAdapter {
   static extends = 'css'
   static fileExtension = '.less'
   static mimeType = 'text/x-less'
-  static compileTargets = ['css']
+  static compileTargets = ['CSS']
   static canMinify = true
 
   static getCdnResources(settings = {}) {
@@ -46,12 +46,12 @@ export class LESSAdapter extends CSSAdapter {
       syntax: 'less',
       actions: {
         ...parentInit.actions,
-        compile: (target) => target === 'css' ? this.compileToCss.bind(this) : null
+        compile: (target) => (target === 'CSS' || target === 'css') ? this.compileToCSS.bind(this) : null
       }
     }
   }
 
-  async compileToCss(code) {
+  async compileToCSS(code) {
     try {
       const less = await getLess()
       const result = await less.render(code)
@@ -70,7 +70,7 @@ export class LESSAdapter extends CSSAdapter {
 
   async render(content, fileMap) {
     // Pipeline processor handles catching CompileError
-    const css = await this.compileToCss(content)
+    const css = await this.compileToCSS(content)
     const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
     return {
       ...fileMap,

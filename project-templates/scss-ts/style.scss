@@ -1,12 +1,12 @@
-$bg: #FDFCFB;
 $text: #1A1A1A;
-$accent: #7C3AED;
+$accent: #3bb09c;
+$bg: lighten($accent, 50);
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: 'Inter', -apple-system, sans-serif;
-  background: $bg;
+  background: linear-gradient(130deg, lighten($accent, 50), lighten($accent, 35));
   color: $text;
   display: flex;
   justify-content: center;
@@ -29,9 +29,9 @@ h1 { font-size: 2rem; margin-bottom: 0.25rem; }
   gap: 0.5rem;
   padding: 2rem;
   background: white;
-  border: 1px solid darken($bg, 8%);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  border: 2px solid rgba(darken($accent, 30%), 10%);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(darken($accent, 40), 5%);
 
   &__label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: lighten($text, 40%); }
   &__count { font-size: 3rem; font-weight: 700; color: $accent; }
@@ -41,7 +41,7 @@ h1 { font-size: 2rem; margin-bottom: 0.25rem; }
     background: $accent;
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     font-size: 1rem;
     cursor: pointer;
     transition: transform 0.1s;

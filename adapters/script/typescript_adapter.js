@@ -19,7 +19,7 @@ export class TypeScriptAdapter extends JavaScriptAdapter {
   static extends = 'javascript'
   static fileExtension = '.ts'
   static mimeType = 'text/typescript'
-  static compileTargets = ['javascript']
+  static compileTargets = ['JavaScript']
   static canMinify = true
 
   static getCdnResources(settings = {}) {
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
       syntax: 'typescript',
       actions: {
         ...parentInit.actions,
-        compile: (target) => (target === 'javascript' ? this.compileToJs.bind(this) : null)
+        compile: (target) => (target === 'JavaScript' || target === 'javascript' ? this.compileToJavaScript.bind(this) : null)
       }
     }
   }
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
     return await super.beautify(code, 'typescript')
   }
 
-  async compileToJs(tsCode) {
+  async compileToJavaScript(tsCode) {
     try {
       const ts = await getTs()
       const result = ts.transpileModule(tsCode, {

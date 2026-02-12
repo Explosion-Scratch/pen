@@ -31,7 +31,7 @@ body {
 .counter-card {
   background: var(--card-bg);
   padding: 2rem;
-  border-radius: 12px;
+  border-radius: 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.2);
   margin: 2rem 0;
 }
@@ -52,7 +52,7 @@ button {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   background: #444;
   color: white;
@@ -82,5 +82,5 @@ button.primary:hover {
 code {
   background: #444;
   padding: 0.2rem 0.4rem;
-  border-radius: 4px;
+  border-radius: 2px;
 }

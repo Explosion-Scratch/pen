@@ -9,7 +9,7 @@ export class StylusAdapter extends CSSAdapter {
   static extends = 'css'
   static fileExtension = '.styl'
   static mimeType = 'text/x-stylus'
-  static compileTargets = ['css']
+  static compileTargets = ['CSS']
   static canMinify = false
 
   static getCdnResources(settings = {}) {
@@ -38,7 +38,7 @@ export class StylusAdapter extends CSSAdapter {
     }
   }
 
-  async compileToCss(code) {
+  async compileToCSS(code) {
     return '/* Stylus compilation disabled */'
   }
 

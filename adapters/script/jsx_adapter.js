@@ -93,7 +93,7 @@ export class JSXAdapter extends JavaScriptAdapter {
   static extends = 'javascript'
   static fileExtension = '.jsx'
   static mimeType = 'text/javascript'
-  static compileTargets = ['javascript']
+  static compileTargets = ['JavaScript']
   static canMinify = true
 
   static getCdnResources(settings = {}) {
@@ -131,7 +131,7 @@ export class JSXAdapter extends JavaScriptAdapter {
       actions: {
         ...parentInit.actions,
         beautify: (code) => this.beautify(code),
-        compile: (target) => (target === 'javascript' ? this.compileToJs.bind(this) : null)
+        compile: (target) => (target === 'JavaScript' || target === 'javascript' ? this.compileToJavaScript.bind(this) : null)
       }
     }
   }
@@ -144,7 +144,7 @@ export class JSXAdapter extends JavaScriptAdapter {
    * @param {string} jsxCode
    * @returns {Promise<string>}
    */
-  async compileToJs(jsxCode) {
+  async compileToJavaScript(jsxCode) {
     try {
       const Babel = await getBabel()
       return await transpileJsx(Babel, jsxCode, {

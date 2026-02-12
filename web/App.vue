@@ -207,7 +207,7 @@ function handleEditorSettingsUpdate(filename, settings) {
 
 function handleFormat(filename) { triggerAction(filename, 'format') }
 function handleMinify(filename) { triggerAction(filename, 'minify') }
-function handleCompile(filename, target) { triggerAction(filename, 'compile') }
+function handleCompile(filename, target) { triggerAction(filename, 'compile', target) }
 
 function handleSettingsSave(newConfig, newSettings) {
   setConfig(newConfig)

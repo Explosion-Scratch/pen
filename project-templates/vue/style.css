@@ -25,7 +25,7 @@ button {
   background: var(--color-accent);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 1rem;
   cursor: pointer;
   transition: transform 0.1s, opacity 0.2s;

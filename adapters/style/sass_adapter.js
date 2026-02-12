@@ -19,7 +19,7 @@ export class SASSAdapter extends CSSAdapter {
   static extends = 'css'
   static fileExtension = '.scss'
   static mimeType = 'text/x-scss'
-  static compileTargets = ['css']
+  static compileTargets = ['CSS']
   static canMinify = true
 
   static getCdnResources(settings = {}) {
@@ -87,12 +87,12 @@ body {
       syntax: 'scss',
       actions: {
         ...parentInit.actions,
-        compile: (target) => target === 'css' ? this.compileToCss.bind(this) : null
+        compile: (target) => (target === 'CSS' || target === 'css') ? this.compileToCSS.bind(this) : null
       }
     }
   }
 
-  async compileToCss(scssCode) {
+  async compileToCSS(scssCode) {
     try {
       const sass = await getSass()
       const result = sass.compileString(scssCode, {
@@ -125,7 +125,7 @@ body {
 
   async render(content, fileMap) {
     // Pipeline processor handles catching CompileError
-    const css = await this.compileToCss(content)
+    const css = await this.compileToCSS(content)
     
     const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
     return {

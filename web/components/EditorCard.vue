@@ -148,7 +148,7 @@ const menuItems = computed(() => {
     if (targets.length === 1) {
       const target = targets[0]
       items.push({
-        label: `Compile to ${target.toUpperCase()}`,
+        label: `Compile to ${target}`,
         icon: 'ph-duotone ph-play',
         action: () => emit('compile', props.editor.filename, target)
       })
@@ -157,7 +157,7 @@ const menuItems = computed(() => {
         label: 'Compile to',
         icon: 'ph-duotone ph-play',
         children: targets.map(target => ({
-          label: target.toUpperCase(),
+          label: target,
           action: () => emit('compile', props.editor.filename, target)
         }))
       })

@@ -128,7 +128,7 @@ export const editorStateManager = {
     return false
   },
 
-  async triggerAction(filename, action) {
+  async triggerAction(filename, action, target) {
     const content = fileSystem.files[filename]
     const editorConfig = fileSystem.config.editors?.find(e => e.filename === filename)
     if (!editorConfig) return
@@ -144,9 +144,9 @@ export const editorStateManager = {
       } else if (action === 'minify') {
         if (adapter.minify) result = await adapter.minify(content)
       } else if (action === 'compile') {
-         const target = Adapter.compileTargets?.[0]
-         if (target) {
-            const methodName = `compileTo${target.charAt(0).toUpperCase() + target.slice(1)}`
+         const compileTarget = target || Adapter.compileTargets?.[0]
+         if (compileTarget) {
+            const methodName = `compileTo${compileTarget.charAt(0).toUpperCase() + compileTarget.slice(1)}`
             if (adapter[methodName]) result = await adapter[methodName](content)
          }
       }
