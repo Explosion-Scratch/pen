@@ -152,6 +152,24 @@ class WebSocketFS extends BaseFileSystem {
       this.isVirtual.value = true
       this.isConnected.value = true
 
+      // If we have existing state from the server connection, preserve it
+      // and switch to project-specific storage keys
+      if (this.config.name && Object.keys(this.files).length > 0) {
+          const projectName = this.config.name
+          this.storageKey = `pen-vfs-files-${projectName}`
+          this.configKey = `pen-vfs-config-${projectName}`
+          
+          this.persist()
+          this.notify({ 
+              type: 'init', 
+              files: this.files, 
+              config: this.config, 
+              adapters: getAllAdapters(), 
+              isFallback: true 
+          })
+          return
+      }
+
       let restored = false
       try {
           const storedConfigRaw = Storage.getItem(this.configKey, null)

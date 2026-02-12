@@ -98,19 +98,25 @@ const menuItems = computed(() => [
     action: () => openPreviewTab()
   },
   {
-    label: 'Export HTML',
-    icon: 'ph-duotone ph-download-simple',
-    action: () => emit('export')
-  },
-  {
-    label: 'Export ZIP',
-    icon: 'ph-duotone ph-file-zip',
-    action: () => emit('export-zip')
-  },
-  {
-    label: 'Export Editor',
-    icon: 'ph-duotone ph-grid-four',
-    action: () => emit('export-editor')
+    label: 'Export',
+    icon: 'ph-duotone ph-export',
+    children: [
+      {
+        label: 'Export HTML',
+        icon: 'ph-duotone ph-download-simple',
+        action: () => emit('export') 
+      },
+      {
+        label: 'Export ZIP',
+        icon: 'ph-duotone ph-file-zip',
+        action: () => emit('export-zip')
+      },
+      {
+        label: 'Export Editor',
+        icon: 'ph-duotone ph-grid-four',
+        action: () => emit('export-editor')
+      }
+    ]
   },
   {
     label: 'Switch orientations',

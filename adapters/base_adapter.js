@@ -111,8 +111,7 @@ export class BaseAdapter {
     }
   }
 
-  // Orchestration method: Adapters should use this to "save" files.
-  // The actual implementation of saving (disk write or WS message) is handled by the callback.
+
   async saveFile(filename, content, context = {}) {
     if (this.onSaveFile) {
       await this.onSaveFile(filename, content, context)
@@ -121,7 +120,7 @@ export class BaseAdapter {
     }
   }
 
-  // Helper to register the callback
+
   registerSaveFileCallback(callback) {
     this.onSaveFile = callback
   }

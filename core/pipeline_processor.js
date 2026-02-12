@@ -19,18 +19,15 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   const orderedEditors = getEditorOrder(config)
   const importOverrides = config.importOverrides || {}
   const errors = []
-
-  // Determine if we should inject devtools
-  // Default to the dev option, but allow config to override
+  
   let injectDev = options.dev
   if (config.preview && config.preview.injectDevTools === false) {
     injectDev = false
   } else if (config.preview && config.preview.injectDevTools === true) {
-    // If explicitly true in config, maybe allow it in production too?
-    // But user said "only the editor should when building" in their e.g.
-    // So let's stick to: dev option is the primary driver, config can disable it.
     injectDev = options.dev
   }
+
+
 
   for (const editor of orderedEditors) {
     try {

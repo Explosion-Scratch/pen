@@ -79,7 +79,7 @@ export function injectAfterBody(document, tagType, attributes = {}, content = nu
     element.innerHTML = content
   }
   document.documentElement.appendChild(element)
-  // Ensure it's the last child
+
   if (document.documentElement.lastChild !== element) {
       document.documentElement.appendChild(element)
   }

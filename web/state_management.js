@@ -4,9 +4,7 @@ import { getAdapter } from '../core/adapter_registry.js'
 import { exportAsZip as zipExport, exportProject as projectExport, exportEditor as editorExport } from './utils/exports.js'
 import { fileSystem } from './filesystem.js'
 
-// We now rely on fileSystem for the source of truth for files and config
-// But we might want to keep some local state or just proxy it.
-// The fileSystem exposes reactive 'files' and 'config'.
+
 
 let isRendering = false
 
@@ -35,15 +33,7 @@ export const fileSystemMirror = {
     if (!skipRender) triggerRender()
   },
 
-  receiveExternalUpdate(filename, content) {
-    // This is now handled by FileSystem internally, 
-    // but if App needs to call it manually...
-    // Actually FileSystem handles 'external-update' message.
-    // If we need to trigger render on external update:
-    // We can listen to FileSystem changes?
-    // Or FileSystem can trigger an event.
-    triggerRender()
-  },
+
   
   setConfig(config, skipRender = false) {
     fileSystem.updateConfig(config)
@@ -93,10 +83,8 @@ async function triggerRender() {
       
       fileSystemMirror.setErrors(errors || [])
 
-      // Abstracted "Write to Preview -> Get URL"
       const previewUrl = await fileSystem.writePreview(html)
       
-      // Broadcast preview URL update instead of HTML content
       const previewEvent = new CustomEvent('pen-preview-update', { detail: previewUrl })
       window.dispatchEvent(previewEvent)
     } while (pendingRender)
@@ -172,7 +160,7 @@ export const editorStateManager = {
     }
   },
   
-  // Deprecated/No-op as FileSystem handles this
+
   setSocket(ws) {}
 }
 
@@ -187,7 +175,7 @@ export function useFileSystem() {
     getFile: fileSystemMirror.getFile,
     getAllFiles: fileSystemMirror.getAllFiles,
     setAllFiles: fileSystemMirror.setAllFiles,
-    receiveExternalUpdate: fileSystemMirror.receiveExternalUpdate,
+
     setConfig: fileSystemMirror.setConfig,
     config: fileSystemMirror.config,
     isVirtual: fileSystem.isVirtual,

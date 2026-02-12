@@ -1,5 +1,5 @@
 import { input, select, confirm } from '@inquirer/prompts'
-import { writeFileSync, readFileSync, existsSync } from 'fs'
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs'
 import { join, basename } from 'path'
 import { getAdapter, getAdaptersByCategory, getAllAdapters } from '../core/adapter_registry.js'
 import { loadAllProjectTemplates } from '../core/project_templates.js'
@@ -26,9 +26,18 @@ export async function initializeNewProjectFlow(projectPath) {
 
   const projectName = await input({
     message: 'Project name',
-    default: basename(projectPath) || 'my-pen-project',
+    default: 'my-pen-project',
     validate: v => v.length > 0 || 'Required'
   })
+
+  // Create subfolder for project
+  const targetDir = join(projectPath, projectName)
+  if (!existsSync(targetDir)) {
+    mkdirSync(targetDir, { recursive: true })
+  }
+  
+  // Update projectPath to the new subfolder
+  projectPath = targetDir
 
   let config, files
 

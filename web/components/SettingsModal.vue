@@ -186,7 +186,7 @@ function copyPath() {
   }
 }
 
-// No parts needed for simple link
+
 function isUrl(s) {
   if (!s || typeof s !== 'string') return false
   const t = s.trim()

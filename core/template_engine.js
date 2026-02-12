@@ -1,5 +1,5 @@
-const isBrowser = typeof window !== 'undefined'
-// Handlebars removed as requested.
+
+
 
 export async function loadAdapterTemplate(adapterId) {
   // Check for Node environment
@@ -45,9 +45,7 @@ export async function loadAdapterTemplate(adapterId) {
   }
 }
 
-/**
- * Simplified to just return the template as Handlebars is removed.
- */
+
 export async function loadAndRenderTemplate(adapterId, variables = {}) {
   return await loadAdapterTemplate(adapterId) || ''
 }

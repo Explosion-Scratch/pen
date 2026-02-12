@@ -26,10 +26,10 @@
                 <span class="item-label">{{ item.label }}</span>
               </div>
               
-              <i v-if="item.children?.length > 0" class="ph ph-caret-right submenu-icon"></i>
+              <i v-if="item.children?.length > 0" :class="['submenu-icon', align === 'right' ? 'ph ph-caret-left' : 'ph ph-caret-right']"></i>
 
               <Transition name="fade">
-                <div v-if="item.children?.length > 0 && hoveredItem === item" class="submenu-container">
+                <div v-if="item.children?.length > 0 && hoveredItem === item" class="submenu-container" :class="{ 'opens-left': align === 'right' }">
                   <DropdownMenu 
                     :items="item.children" 
                     :is-submenu="true" 
@@ -175,6 +175,11 @@ export default {
   box-shadow: var(--shadow-lg);
   padding: 4px;
   min-width: 160px;
+}
+
+.submenu-container.opens-left {
+  left: auto;
+  right: 100%;
 }
 
 .align-right {

@@ -1,5 +1,5 @@
 {
-  "name": "Example Project",
+  "name": "test-solid",
   "version": "1.0.0",
   "editors": [
     {
@@ -11,19 +11,23 @@
       }
     },
     {
-      "type": "sass",
-      "filename": "style.scss",
+      "type": "less",
+      "filename": "style.less",
       "settings": {
         "normalize": true,
-        "indentedSyntax": false
+        "autoprefixer": false,
+        "tailwind": false
       }
     },
     {
-      "type": "javascript",
-      "filename": "script.js",
+      "type": "jsx",
+      "filename": "script.jsx",
       "settings": {
         "moduleType": "module",
-        "strictMode": true
+        "strictMode": true,
+        "pragma": "React.createElement",
+        "pragmaFrag": "React.Fragment",
+        "jsxRuntime": "classic"
       }
     }
   ],

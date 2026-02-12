@@ -202,11 +202,14 @@ watch(() => props.previewState, (newState) => {
 }, { immediate: true, deep: true })
 
 function triggerFlash() {
-  isLoading.value = true
-  if (loadingTimer) clearTimeout(loadingTimer)
-  loadingTimer = setTimeout(() => {
-    isLoading.value = false
-  }, 500)
+  isLoading.value = false
+  nextTick(() => {
+    isLoading.value = true
+    if (loadingTimer) clearTimeout(loadingTimer)
+    loadingTimer = setTimeout(() => {
+      isLoading.value = false
+    }, 500)
+  })
 }
 
 function handleUrlEnter() {
@@ -225,7 +228,7 @@ function handleUrlEsc() {
 }
 
 function onIframeLoad() {
-  isLoading.value = false
+
 }
 
 const devtoolsUrl = ref('')
@@ -308,7 +311,7 @@ watch(showDevtools, (val) => {
 
 
 
-// No longer used in header
+
 
 function toggleDevtools() {
   showDevtools.value = !showDevtools.value
@@ -327,22 +330,13 @@ function handleJumpToError(error) {
     emit('jump', emitData)
 }
 
-// Watch errors to auto-show panel if new errors appear?
-// Maybe only if it was closed and we get errors?
-// Or maybe just show the icon badge.
-// Let's rely on user clicking icon, unless it's a manual run?
-// User request: "Clicking this should show a panel"
-// So auto-show might be annoying.
-// But we should make sure the icon updates.
+
 
 watch(() => props.errors, (newErrors) => {
     if (newErrors.length > 0 && !showErrors.value) {
-        // Optional: Auto open? 
-        // "Clicking this should show a panel" implies manual toggle.
-        // But maybe we pulse the icon.
     }
     if (newErrors.length === 0 && showErrors.value) {
-        showErrors.value = false // Auto close if fixed
+        showErrors.value = false
     }
 })
 
@@ -353,8 +347,7 @@ function handleClearErrors() {
 }
 
 function clearConsole() {
-  // Chobitsu doesn't have a direct clear command via this bridge easily,
-  // but reloading the iframe (which happens on change) clears it.
+
 }
 
 function handleMessage(event) {
@@ -567,7 +560,7 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* Auto-run toggle moved to settings */
+
 
 
 .preview-body {

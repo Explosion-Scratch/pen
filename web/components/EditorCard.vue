@@ -215,12 +215,7 @@ function formatCode() {
   emit('format', props.editor.filename)
 }
 
-// function getAdapter() {
-//   return {
-//     name: props.editor.type.charAt(0).toUpperCase() + props.editor.type.slice(1),
-//     schema: {}
-//   }
-// }
+
 
 function handleSettingsSave(settings) {
   emit('settings-update', props.editor.filename, settings)
@@ -230,8 +225,7 @@ function handleSettingsSave(settings) {
 function jumpToLine(line, col = 0) {
   if (!view) return
   
-  // Convert 1-indexed line to 0-indexed if needed, but CM6 uses 1-indexed for some things
-  // Actually line(n) is 1-indexed in CM6 doc
+
   try {
     const lineObj = view.state.doc.line(Math.max(1, Math.min(line, view.state.doc.lines)))
     const pos = Math.min(lineObj.from + Math.max(0, col), lineObj.to)
@@ -352,7 +346,7 @@ onUnmounted(() => {
     view.destroy()
   }
 })
-// Trigger rebuild
+
 </script>
 
 <style scoped>

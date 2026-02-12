@@ -77,7 +77,7 @@ import Toast from './components/Toast.vue'
 import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject, exportEditor, exportAsZip } from './state_management.js'
 import { fileSystem } from './filesystem.js'
 
-const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges, errors } = useFileSystem()
+const { files, updateFile, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges, errors } = useFileSystem()
 const { triggerAction } = useEditors()
 
 const editors = computed(() => config.editors || [])
@@ -88,7 +88,7 @@ const appSettings = reactive({
   layoutMode: 'columns'
 })
 
-// Sync local appSettings with global config where appropriate
+
 watch(() => config.autoRun, (val) => appSettings.autoRun = val)
 
 const currentPath = ref('')
@@ -169,42 +169,12 @@ function handleFileUpdate(filename, content) {
   updateFile(filename, content)
   lastActivity.value[filename] = Date.now()
   
-  // Debounced save handled by FS interface inside updateFile? 
-  // No, updateFile in state_management calls fileSystem.writeFile which sends 'update' immediately/optimistically?
-  // Actually fileSystem.writeFile sends immediately.
-  // Do we want to debounce the Network call?
-  // The logic in state_management calls fileSystem.writeFile.
-  // In `filesystem.js`, `writeFile` sends immediately.
-  // If we want debounce, we should do it here or in filesystem.
-  // Previous logic had debounce. Let's keep debounce here and calling a "save" method?
-  // But updateFile triggers render.
-  // We can separate "update local content" (for render) and "save to disk" (network).
-  // `fileSystem.writeFile` mirrors `files[filename] = content` AND sends network.
-  // To debounce network, we shouldn't call `writeFile` on every keystroke if it sends network.
-  // We should update `files` directly? But `files` is readonly from `useFileSystem`.
-  // We need a method `updateFileContentOnly` vs `saveFile`.
-  // Or `writeFile` should be debounced internally?
-  // Let's assume `updateFile` in state_management updates reactive state (triggering render) AND saves.
-  // If we want to debounce save, we might need to change `state_management` or `filesystem`.
-  // For now, let's trust `filesystem.writeFile` is what we use, but maybe we should debounce the *network* part in filesystem?
-  // Or just rely on the fact that WebSocket is fast? 
-  // Previous code debounced `saveFile`.
-  
-  // Let's implement debounce here if possible, but `updateFile` on line 61 calls `fileSystem.writeFile`.
-  // We can change `state_management` to have `updateLocal` vs `save`.
-  // But `fileSystem.files` is the source of truth.
-  // If we modify `fileSystem.files` directly (if allowed) it updates state.
-  // `filesystem.js` `this.files` is reactive.
-  // `writeFile` does `this.files[filename] = content` then sends.
-  
-  // Let's leave it as is for now (immediate send). If performance is issue, we debounce in `filesystem.js`.
+
 }
 
 function handleRender(isManual = false) {
   if (isManual) lastManualRender.value = Date.now()
-  // Trigger render in state manager.
-  // We can just call updateFile with same content to trigger?
-  // Or `fileSystemMirror.updateFile` has logic to trigger render.
+
   const firstFile = Object.keys(files)[0]
   if (firstFile) updateFile(firstFile, files[firstFile])
 }
@@ -233,7 +203,7 @@ function handleEditorSettingsUpdate(filename, settings) {
     }
 }
 
-// delegates to state manager
+
 function handleFormat(filename) { triggerAction(filename, 'format') }
 function handleMinify(filename) { triggerAction(filename, 'minify') }
 function handleCompile(filename, target) { triggerAction(filename, 'compile') }
@@ -328,9 +298,7 @@ function removeToast(id) {
   toasts.value = toasts.value.filter(t => t.id !== id)
 }
 
-// This function needed to be exposed to template? 
-// It is used by Toast.vue @jump="handleJump"
-// And now by PaneManager @jump="handleJump"
+
 
 function handleJump(details) {
   editorStateManager.jumpToLocation(details.filename, details.line, details.column)
@@ -344,8 +312,7 @@ function handleClearErrors() {
 function handleKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key === 's') {
     event.preventDefault()
-    // saveFiles() // Sync all?
-    // FileSystem handles granular updates.
+
   }
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault()

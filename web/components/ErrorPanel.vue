@@ -47,7 +47,7 @@ defineProps({
 defineEmits(['close', 'jump', 'clear'])
 
 function formatMessage(msg) {
-  // If message contains a code frame (starts with newline or has generated code indicators), try to extract just the first line
+
   if (!msg) return 'Unknown Error'
   const firstLine = msg.split('\n')[0]
   return firstLine.length > 150 ? firstLine.substring(0, 150) + '...' : firstLine
