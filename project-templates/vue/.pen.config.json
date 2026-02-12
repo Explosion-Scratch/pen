@@ -23,10 +23,10 @@
     }
   ],
   "globalResources": {
-    "scripts": ["https://unpkg.com/vue@3"],
+    "scripts": [],
     "styles": []
   },
   "importOverrides": {
-    "vue": "https://esm.run/vue@3"
+    "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js"
   }
 }
