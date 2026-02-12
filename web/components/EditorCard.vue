@@ -10,6 +10,7 @@
           :value="editor.filename"
           @change="handleFilenameChange"
           @keydown.enter="handleFilenameChange"
+          @keydown.esc="$event.target.value = editor.filename; $event.target.blur()"
           @dblclick.stop
           spellcheck="false"
         />
@@ -46,14 +47,44 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { EditorView, basicSetup } from 'codemirror'
+import { 
+  EditorView, 
+  keymap, 
+  highlightActiveLine, 
+  drawSelection, 
+  dropCursor, 
+  crosshairCursor,
+  highlightSpecialChars,
+  lineNumbers,
+  highlightActiveLineGutter
+} from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
-import { keymap } from '@codemirror/view'
+import { 
+  history, 
+  historyKeymap, 
+  indentWithTab, 
+  defaultKeymap 
+} from '@codemirror/commands'
+import { 
+  indentOnInput, 
+  bracketMatching, 
+  foldGutter, 
+  foldKeymap,
+  syntaxHighlighting,
+  defaultHighlightStyle
+} from '@codemirror/language'
+import { 
+  autocompletion, 
+  completionKeymap, 
+  closeBrackets, 
+  closeBracketsKeymap 
+} from '@codemirror/autocomplete'
+import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import { lintKeymap } from '@codemirror/lint'
 import { javascript } from '@codemirror/lang-javascript'
 import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
 import { sass } from '@codemirror/lang-sass'
-import { indentWithTab } from '@codemirror/commands'
 import { abbreviationTracker, expandAbbreviation } from '@emmetio/codemirror6-plugin'
 import { penLightTheme } from '../codemirror/theme.js'
 import EditorSettings from './EditorSettings.vue'
@@ -139,6 +170,36 @@ const menuItems = computed(() => {
 let view = null
 let updateListener = null
 const languageCompartment = new Compartment()
+const tabSizeCompartment = new Compartment()
+const lineWrappingCompartment = new Compartment()
+const lineNumbersCompartment = new Compartment()
+const emmetCompartment = new Compartment()
+
+const basicSetupCustom = [
+  highlightSpecialChars(),
+  history(),
+  foldGutter(),
+  drawSelection(),
+  dropCursor(),
+  EditorState.allowMultipleSelections.of(true),
+  indentOnInput(),
+  syntaxHighlighting(defaultHighlightStyle, { crosshairCursor: true }),
+  bracketMatching(),
+  closeBrackets(),
+  autocompletion(),
+  crosshairCursor(),
+  highlightActiveLine(),
+  highlightSelectionMatches(),
+  keymap.of([
+    ...closeBracketsKeymap,
+    ...defaultKeymap,
+    ...searchKeymap,
+    ...historyKeymap,
+    ...foldKeymap,
+    ...completionKeymap,
+    ...lintKeymap
+  ])
+]
 
 const editorIcons = {
   html: 'ph-duotone ph-file-html',
@@ -199,6 +260,10 @@ function isStyleEditor(type) {
 
 function getEmmetExtensions() {
   const type_ = props.editor.type.toLowerCase()
+  const settings = props.editor.settings || {}
+  
+  if (settings.emmet === false) return []
+
   if (isMarkupEditor(type_) || isStyleEditor(type_)) {
     return [
       abbreviationTracker(),
@@ -220,6 +285,12 @@ function formatCode() {
 function handleSettingsSave(settings) {
   emit('settings-update', props.editor.filename, settings)
   showSettings.value = false
+}
+
+function handleKeydown(event) {
+  if (showSettings.value && event.key === 'Escape') {
+    showSettings.value = false
+  }
 }
 
 function jumpToLine(line, col = 0) {
@@ -279,6 +350,8 @@ onMounted(() => {
     }
   })
 
+  const settings = props.editor.settings || {}
+
   const extensions = [
     keymap.of([
       {
@@ -290,13 +363,15 @@ onMounted(() => {
         }
       }
     ]),
-    basicSetup,
+    basicSetupCustom,
     languageCompartment.of(getLanguageExtension(props.editor.type)),
+    tabSizeCompartment.of(EditorState.tabSize.of(settings.tabSize || 2)),
+    lineWrappingCompartment.of(settings.lineWrapping !== false ? EditorView.lineWrapping : []),
+    lineNumbersCompartment.of(settings.lineNumbers !== false ? [lineNumbers(), highlightActiveLineGutter()] : []),
+    emmetCompartment.of(getEmmetExtensions()),
     penLightTheme,
     color,
     updateListener,
-    EditorView.lineWrapping,
-    ...getEmmetExtensions(),
     keymap.of([indentWithTab])
   ]
 
@@ -311,7 +386,20 @@ onMounted(() => {
   })
 
   editorStateManager.registerEditor(props.editor.filename, view, { jumpToLine })
+  window.addEventListener('keydown', handleKeydown)
 })
+
+watch(() => props.editor.settings, (newSettings) => {
+  if (view && newSettings) {
+    const effects = [
+      tabSizeCompartment.reconfigure(EditorState.tabSize.of(newSettings.tabSize || 2)),
+      lineWrappingCompartment.reconfigure(newSettings.lineWrapping !== false ? EditorView.lineWrapping : []),
+      lineNumbersCompartment.reconfigure(newSettings.lineNumbers !== false ? [lineNumbers(), highlightActiveLineGutter()] : []),
+      emmetCompartment.reconfigure(getEmmetExtensions())
+    ]
+    view.dispatch({ effects })
+  }
+}, { deep: true })
 
 watch(() => props.content, (newContent) => {
   if (view && newContent !== view.state.doc.toString()) {
@@ -328,7 +416,10 @@ watch(() => props.content, (newContent) => {
 watch(() => props.editor.type, (newType) => {
   if (view) {
     view.dispatch({
-      effects: languageCompartment.reconfigure(getLanguageExtension(newType))
+      effects: [
+        languageCompartment.reconfigure(getLanguageExtension(newType)),
+        emmetCompartment.reconfigure(getEmmetExtensions())
+      ]
     })
   }
 })
@@ -342,6 +433,7 @@ watch(() => props.editor.filename, (newFilename, oldFilename) => {
 
 onUnmounted(() => {
   editorStateManager.unregisterEditor(props.editor.filename)
+  window.removeEventListener('keydown', handleKeydown)
   if (view) {
     view.destroy()
   }

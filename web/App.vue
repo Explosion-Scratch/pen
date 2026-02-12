@@ -194,12 +194,13 @@ function handleAppSettingsUpdate(newSettings) {
 }
 
 function handleEditorSettingsUpdate(filename, settings) {
-    // Local update
     const editor = config.editors.find(e => e.filename === filename)
     if (editor) editor.settings = settings
     
     if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
       fileSystem.socket.send(JSON.stringify({ type: 'editor-settings', filename, settings }))
+    } else if (fileSystem.isVirtual.value || fileSystem.fallbackMode) {
+      fileSystem.saveConfig(config)
     }
 }
 
@@ -310,6 +311,10 @@ function handleClearErrors() {
 }
 
 function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    if (showSettings.value) showSettings.value = false
+    if (showTemplatePicker.value) showTemplatePicker.value = false
+  }
   if ((event.metaKey || event.ctrlKey) && event.key === 's') {
     event.preventDefault()
 

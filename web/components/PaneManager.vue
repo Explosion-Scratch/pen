@@ -171,6 +171,13 @@ function onKeyDown(e) {
     altKeyDown = true
     altPressed.value = true
     checkAltHover()
+  } else if (e.key === 'Escape') {
+    if (previewMaximized.value) {
+      previewMaximized.value = false
+    }
+    if (pm.maximizedIdx.value !== null) {
+      pm.setMaximized(null)
+    }
   }
 }
 
@@ -233,11 +240,18 @@ function checkAltHover() {
   }
 }
 
+function onBlur() {
+  altKeyDown = false
+  altPressed.value = false
+  altHoveredPane.value = null
+}
+
 onMounted(() => {
   window.addEventListener('mousedown', onMouseDown)
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('blur', onBlur)
 })
 
 onUnmounted(() => {
@@ -246,6 +260,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('blur', onBlur)
 })
 </script>
 

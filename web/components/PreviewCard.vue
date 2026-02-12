@@ -346,6 +346,13 @@ function handleClearErrors() {
     showErrors.value = false
 }
 
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    if (showErrors.value) showErrors.value = false
+    if (showDevtools.value) showDevtools.value = false
+  }
+}
+
 function clearConsole() {
 
 }
@@ -369,10 +376,12 @@ function handleMessage(event) {
 
 onMounted(() => {
   window.addEventListener('message', handleMessage)
+  window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('message', handleMessage)
+  window.removeEventListener('keydown', handleKeydown)
   if (devtoolsBlobUrl) {
     URL.revokeObjectURL(devtoolsBlobUrl)
   }

@@ -82,6 +82,12 @@ function toggle() {
   isOpen.value = !isOpen.value
 }
 
+function handleKeydown(event) {
+  if (isOpen.value && event.key === 'Escape') {
+    close()
+  }
+}
+
 function close() {
   isOpen.value = false
   hoveredItem.value = null
@@ -118,12 +124,14 @@ function handleClickOutside(event) {
 onMounted(() => {
   if (!props.isSubmenu) {
     window.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleKeydown)
   }
 })
 
 onUnmounted(() => {
   if (!props.isSubmenu) {
     window.removeEventListener('click', handleClickOutside)
+    window.removeEventListener('keydown', handleKeydown)
   }
 })
 
