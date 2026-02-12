@@ -35,6 +35,8 @@ export async function loadAdapterTemplate(adapterId) {
         case 'stylus': content = (await import('../templates/stylus.txt?raw')).default; break;
         case 'typescript': content = (await import('../templates/typescript.txt?raw')).default; break;
         case 'jsx': content = (await import('../templates/jsx.txt?raw')).default; break;
+        case 'jsx_react': content = (await import('../templates/jsx_react.txt?raw')).default; break;
+        case 'jsx_solid': content = (await import('../templates/jsx_solid.txt?raw')).default; break;
         default: return null
       }
       return content

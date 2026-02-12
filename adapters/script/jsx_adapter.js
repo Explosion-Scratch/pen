@@ -7,7 +7,23 @@ import { CompileError } from '../../core/errors.js'
  * @returns {Promise<object>}
  */
 async function getBabel() {
-  return importModule('@babel/standalone', { windowGlobal: 'Babel' })
+  const Babel = await importModule('@babel/standalone', { windowGlobal: 'Babel' })
+  
+  if (!Babel.availablePresets['solid']) {
+    try {
+      const solidPreset = await importModule('babel-preset-solid', { 
+        cdnUrl: 'https://esm.sh/babel-preset-solid',
+        windowGlobal: 'babelPresetSolid'
+      })
+      if (solidPreset) {
+        Babel.registerPreset('solid', solidPreset.default || solidPreset)
+      }
+    } catch (e) {
+      console.error('JSXAdapter: Failed to load Solid Babel preset', e)
+    }
+  }
+
+  return Babel
 }
 
 /**
@@ -17,23 +33,18 @@ async function getBabel() {
  * @param {string} [options.pragma]
  * @param {string} [options.pragmaFrag]
  * @param {string} [options.runtime]
- * @returns {string}
+ * @param {string} [options.compiler]
+ * @returns {Promise<string>}
  */
-function transpileJsx(Babel, code, options = {}) {
+async function transpileJsx(Babel, code, options = {}) {
   const {
     pragma = 'React.createElement',
     pragmaFrag = 'React.Fragment',
-    runtime = 'classic'
+    runtime = 'classic',
+    compiler = 'react'
   } = options
 
   const presets = []
-
-  if (runtime === 'automatic') {
-    presets.push(['react', { runtime: 'automatic' }])
-  } else {
-    presets.push(['react', { pragma, pragmaFrag, runtime: 'classic' }])
-  }
-
   const plugins = [
     ['proposal-decorators', { legacy: true }],
     ['proposal-class-properties', { loose: true }],
@@ -41,6 +52,28 @@ function transpileJsx(Babel, code, options = {}) {
     ['proposal-private-property-in-object', { loose: true }],
     'proposal-object-rest-spread'
   ]
+
+  if (compiler === 'solid') {
+    if (Babel.availablePresets['solid']) {
+      presets.push('solid')
+    } else {
+      // Fallback if not registered, try to use it as a plugin if we have it
+      if (Babel.availablePlugins['solid']) {
+        plugins.push(['solid', { generate: 'dom', hydratable: false }])
+        // We still need JSX syntax
+        presets.push(['react', { runtime: 'classic', pragma: 'h' }])
+      }
+    }
+  } else if (runtime === 'automatic') {
+    presets.push(['react', { runtime: 'automatic' }])
+  } else {
+    presets.push(['react', { 
+      pragma, 
+      pragmaFrag, 
+      runtime: 'classic',
+      throwIfNamespace: false
+    }])
+  }
 
   const result = Babel.transform(code, {
     presets,
@@ -68,34 +101,25 @@ export class JSXAdapter extends JavaScriptAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('jsx', variables)
+    const compiler = variables.compiler || 'react'
+    const templateId = `jsx_${compiler}`
+    
+    // Attempt to load compiler-specific template first
+    let template = await loadAndRenderTemplate(templateId, variables)
+    if (template) return template
+    
+    // Fallback to generic jsx template
+    template = await loadAndRenderTemplate('jsx', variables)
     if (template) return template
 
-    return `import React from 'react'
-import { createRoot } from 'react-dom/client'
-
-function App() {
-  const [count, setCount] = React.useState(0)
-
-  return (
-    <div className="container">
-      <h1>${variables.projectName || 'Pen'}</h1>
-      <p>Count: {count}</p>
-      <button onClick={() => setCount(c => c + 1)}>Increment</button>
-    </div>
-  )
-}
-
-const root = createRoot(document.getElementById('root'))
-root.render(<App />)`
+    // Absolute fallback (rarely hit now)
+    return `import React from 'react'\nexport default () => <div>Hello World</div>`
   }
 
   static getDefaultSettings() {
     return {
       ...JavaScriptAdapter.getDefaultSettings(),
-      pragma: 'React.createElement',
-      pragmaFrag: 'React.Fragment',
-      jsxRuntime: 'classic'
+      compiler: 'react'
     }
   }
 
@@ -123,10 +147,8 @@ root.render(<App />)`
   async compileToJs(jsxCode) {
     try {
       const Babel = await getBabel()
-      return transpileJsx(Babel, jsxCode, {
-        pragma: this.settings.pragma,
-        pragmaFrag: this.settings.pragmaFrag,
-        runtime: this.settings.jsxRuntime
+      return await transpileJsx(Babel, jsxCode, {
+        compiler: this.settings.compiler
       })
     } catch (err) {
       // Babel error usually has loc: { line, column } or line, column directly
@@ -153,10 +175,8 @@ root.render(<App />)`
   async render(content, fileMap) {
     try {
       const Babel = await getBabel()
-      const js = transpileJsx(Babel, content, {
-        pragma: this.settings.pragma,
-        pragmaFrag: this.settings.pragmaFrag,
-        runtime: this.settings.jsxRuntime
+      const js = await transpileJsx(Babel, content, {
+        compiler: this.settings.compiler
       })
       return {
         ...fileMap,
@@ -181,25 +201,12 @@ root.render(<App />)`
 
   static getSchema() {
     return {
-      ...super.getSchema(),
-      pragma: {
-        type: 'string',
-        name: 'JSX Pragma',
-        description: 'Function to use for JSX element creation',
-        default: 'React.createElement'
-      },
-      pragmaFrag: {
-        type: 'string',
-        name: 'Fragment Pragma',
-        description: 'Component to use for JSX fragments',
-        default: 'React.Fragment'
-      },
-      jsxRuntime: {
+      compiler: {
         type: 'select',
-        name: 'JSX Runtime',
-        description: 'JSX transform runtime mode',
-        default: 'classic',
-        options: ['classic', 'automatic']
+        name: 'JSX Compiler',
+        description: 'Underlying framework/compiler for JSX',
+        default: 'react',
+        options: ['react', 'solid']
       }
     }
   }

@@ -1,0 +1,35 @@
+{
+  "template": {
+    "title": "Solid.js",
+    "description": "Solid starter with JSX support and Less"
+  },
+  "name": "solid-project",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "less",
+      "filename": "style.less",
+      "settings": { "normalize": true, "autoprefixer": false, "tailwind": false }
+    },
+    {
+      "type": "jsx",
+      "filename": "script.jsx",
+      "settings": { 
+        "compiler": "solid"
+      }
+    }
+  ],
+  "globalResources": {
+    "scripts": [],
+    "styles": []
+  },
+  "importOverrides": {
+    "solid-js/web": "https://esm.sh/solid-js/web",
+    "solid-js": "https://esm.sh/solid-js"
+  }
+}

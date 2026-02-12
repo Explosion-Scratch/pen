@@ -6,6 +6,9 @@ const IMPORT_OVERRIDES = {
   'tailwindcss/preflight': 'https://cdn.jsdelivr.net/npm/tailwindcss@3/src/css/preflight.css',
   'vue': 'https://unpkg.com/vue@3',
   'three': 'https://unpkg.com/three@latest/build/three.module.js',
+  'solid-js': 'https://esm.sh/solid-js',
+  'solid-js/web': 'https://esm.sh/solid-js/web',
+  'solid-js/h': 'https://esm.sh/solid-js/h',
 }
 
 /**

@@ -143,6 +143,15 @@ async function loadProjectTemplatesInBrowser() {
         'style.css': () => import('../project-templates/react/style.css?raw'),
         'script.jsx': () => import('../project-templates/react/script.jsx?raw'),
       }
+    },
+    'solid': {
+      config: () => import('../project-templates/solid/.pen.config.json'),
+      icon: () => import('../project-templates/solid/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/solid/index.html?raw'),
+        'style.less': () => import('../project-templates/solid/style.less?raw'),
+        'script.jsx': () => import('../project-templates/solid/script.jsx?raw'),
+      }
     }
   }
 
@@ -191,5 +200,5 @@ export function listProjectTemplateIds() {
   // But strictly following the signature... existing signature was sync.
   // We can't easily be sync in browser with dynamic imports. 
   // Consumers should prefer loadAllProjectTemplates.
-  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react']
+  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid']
 }

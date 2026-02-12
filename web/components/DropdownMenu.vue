@@ -1,6 +1,6 @@
 <template>
   <div class="dropdown-container" ref="containerRef">
-    <div class="dropdown-trigger" @click.stop="toggle">
+    <div class="dropdown-trigger" v-if="!isSubmenu" @click.stop="toggle">
       <slot name="trigger">
         <button class="menu-btn">
           <i class="ph ph-dots-three-vertical"></i>
@@ -29,7 +29,7 @@
               <i v-if="item.children?.length > 0" :class="['submenu-icon', align === 'right' ? 'ph ph-caret-left' : 'ph ph-caret-right']"></i>
 
               <Transition name="fade">
-                <div v-if="item.children?.length > 0 && hoveredItem === item" class="submenu-container" :class="{ 'opens-left': align === 'right' }">
+                <div v-if="item.children?.length > 0 && hoveredItem && JSON.stringify(hoveredItem) === JSON.stringify(item)" class="submenu-container" :class="{ 'opens-left': align === 'right' }">
                   <DropdownMenu 
                     :items="item.children" 
                     :is-submenu="true" 
@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, watch,computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   items: {
@@ -71,6 +71,11 @@ const containerRef = ref(null)
 const hoveredItem = ref(null)
 
 const alignClass = computed(() => `align-${props.align}`)
+
+watch(hoveredItem, (newItem) => {
+  console.log(newItem)
+})
+
 
 function toggle() {
   if (props.isSubmenu) return
