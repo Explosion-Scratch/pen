@@ -55,6 +55,14 @@
         />
       </div>
     </Teleport>
+
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-content">
+        <i class="ph-duotone ph-pen-nib loading-icon"></i>
+        <div class="loading-spinner"></div>
+        <p>Loading Pen...</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -91,6 +99,7 @@ const toasts = ref([])
 const lastManualRender = ref(0)
 const previewState = ref({ displayURL: '', contentURL: '' })
 const IDLE_THRESHOLD = 2000 // 2 seconds
+const isLoading = ref(true)
 let saveDebounceTimer = null
 
 onMounted(async () => {
@@ -104,6 +113,13 @@ onMounted(async () => {
      await fileSystem.connect()
   } catch (err) {
       console.error('Failed to connect to FS', err)
+      addToast({
+        type: 'error',
+        title: 'Connection Failed',
+        message: 'Could not connect to file system.'
+      })
+  } finally {
+      isLoading.value = false
   }
   
   window.addEventListener('keydown', handleKeydown)
@@ -264,7 +280,7 @@ function handleExportEditor() {
 async function handleTemplateSelect(templateId) {
   showTemplatePicker.value = false
 
-  if (fileSystem.isVirtual) {
+  if (fileSystem.isVirtual.value) {
     const { loadProjectTemplate } = await import('../core/project_templates.js')
     const template = await loadProjectTemplate(templateId)
     if (!template) return
@@ -345,5 +361,42 @@ function handleKeydown(event) {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--color-text-muted);
+}
+
+.loading-icon {
+  font-size: 48px;
+  color: var(--color-accent);
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

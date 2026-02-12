@@ -1,5 +1,7 @@
 import { ref, reactive } from 'vue'
 import { getAllAdapters } from '../core/adapter_registry.js'
+import { loadProjectTemplate } from '../core/project_templates.js'
+
 
 const Storage = {
   getItem(key, defaultValue = '{}') {
@@ -25,7 +27,7 @@ class BaseFileSystem {
     this.config = reactive({})
     this.previewUrl = ref('')
     this.onMessageCallbacks = new Set()
-    this.isVirtual = false
+    this.isVirtual = ref(false)
     this.hasUnsavedChanges = ref(false)
   }
 
@@ -90,27 +92,49 @@ class WebSocketFS extends BaseFileSystem {
     super()
     this.socket = null
     this.isConnected = ref(false)
+    this.retryCount = 0
+    this.maxRetries = 3
+    this.fallbackMode = false
+    this.storageKey = 'pen-vfs-files-offline'
+    this.configKey = 'pen-vfs-config-offline'
   }
 
   async connect(url = 'ws://localhost:3001') {
+    if (this.fallbackMode) return
+
     return new Promise((resolve, reject) => {
+      this._connectRecursive(url, resolve, reject)
+    })
+  }
+
+  _connectRecursive(url, resolve, reject) {
       this.socket = new WebSocket(url)
       
       this.socket.onopen = () => {
-        console.log('FileSystem connected')
         this.isConnected.value = true
+        this.retryCount = 0
         resolve()
       }
 
       this.socket.onclose = () => {
-        console.log('FileSystem disconnected')
         this.isConnected.value = false
-        setTimeout(() => this.connect(url), 2000)
+        if (!this.fallbackMode) {
+            if (this.retryCount < this.maxRetries) {
+                this.retryCount++
+                setTimeout(() => this._connectRecursive(url, resolve, reject), 200)
+            } else {
+                console.warn('Max retries reached. Switching to fallback mode.')
+                this.enableFallbackMode()
+                resolve()
+            }
+        }
       }
 
       this.socket.onerror = (err) => {
         console.error('FileSystem WebSocket error:', err)
-        if (!this.isConnected.value) reject(err)
+        if (!this.isConnected.value && this.retryCount >= this.maxRetries) {
+             reject(err)
+        }
       }
 
       this.socket.onmessage = (event) => {
@@ -121,7 +145,42 @@ class WebSocketFS extends BaseFileSystem {
           console.error('Failed to parse message:', err)
         }
       }
-    })
+  }
+
+  async enableFallbackMode() {
+      this.fallbackMode = true
+      this.isVirtual.value = true
+      this.isConnected.value = true
+
+      let restored = false
+      try {
+          const storedConfigRaw = Storage.getItem(this.configKey, null)
+          if (storedConfigRaw) {
+              const storedConfig = JSON.parse(storedConfigRaw)
+              this.updateConfig(storedConfig)
+              
+              const storedFilesRaw = Storage.getItem(this.storageKey, '{}')
+              const storedFiles = JSON.parse(storedFilesRaw)
+              this.updateFiles(storedFiles)
+              restored = true
+          }
+      } catch (e) {
+          console.warn('Fallback: Failed to restore from local storage', e)
+      }
+
+      if (!restored) {
+          try {
+              const template = await loadProjectTemplate('vanilla')
+              if (template) {
+                  this.updateConfig({ ...template.config, name: 'New Pen' })
+                  this.updateFiles(template.files)
+              }
+          } catch (e) {
+              console.error('Fallback: Failed to load vanilla template', e)
+          }
+      }
+      
+      this.notify({ type: 'init', files: this.files, config: this.config, adapters: getAllAdapters(), isFallback: true })
   }
 
   handleMessage(message) {
@@ -140,15 +199,28 @@ class WebSocketFS extends BaseFileSystem {
     this.notify(message)
   }
 
+  persist() {
+      if (this.fallbackMode) {
+          Storage.setItem(this.storageKey, JSON.stringify(this.files))
+          Storage.setItem(this.configKey, JSON.stringify(this.config))
+      }
+  }
+
   writeFile(filename, content) {
     this.files[filename] = content
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.fallbackMode) {
+        this.hasUnsavedChanges.value = true
+        this.persist()
+    } else if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'update', filename, content }))
     }
   }
 
   saveConfig(newConfig) {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.fallbackMode) {
+        this.updateConfig(newConfig)
+        this.persist()
+    } else if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'save-config', config: newConfig }))
     }
   }
@@ -156,14 +228,20 @@ class WebSocketFS extends BaseFileSystem {
   renameFile(oldFilename, newFilename, newType) {
     super.renameFile(oldFilename, newFilename, newType)
     
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.fallbackMode) {
+        this.hasUnsavedChanges.value = true
+        this.persist()
+    } else if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'rename', oldFilename, newFilename, newType }))
     }
   }
 
   deleteFile(filename) {
     super.deleteFile(filename)
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.fallbackMode) {
+        this.hasUnsavedChanges.value = true
+        this.persist()
+    } else if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'delete', filename }))
     }
   }
@@ -172,7 +250,7 @@ class WebSocketFS extends BaseFileSystem {
 class VirtualFS extends BaseFileSystem {
   constructor(projectName) {
     super()
-    this.isVirtual = true
+    this.isVirtual.value = true
     this.isConnected = ref(true)
     this.storageKey = projectName ? `pen-vfs-files-${projectName}` : 'pen-vfs-files'
     this.configKey = projectName ? `pen-vfs-config-${projectName}` : 'pen-vfs-config'
@@ -194,7 +272,6 @@ class VirtualFS extends BaseFileSystem {
       const storedConfigRaw = Storage.getItem(this.configKey)
       const parsedConfig = JSON.parse(storedConfigRaw)
 
-      // Only load stored files if project name matches
       if (parsedConfig.name === initialConfig.name) {
         storedConfig = parsedConfig
         const storedFilesRaw = Storage.getItem(this.storageKey)

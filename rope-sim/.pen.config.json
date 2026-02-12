@@ -1,0 +1,39 @@
+{
+  "name": "Rope Simulation!!!",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": {
+        "doctype": "html5",
+        "lang": "en"
+      }
+    },
+    {
+      "type": "css",
+      "filename": "style.css",
+      "settings": {
+        "normalize": false,
+        "autoprefixer": false
+      }
+    },
+    {
+      "type": "javascript",
+      "filename": "sketch.js",
+      "settings": {
+        "moduleType": "classic",
+        "strictMode": false
+      }
+    }
+  ],
+  "globalResources": {
+    "scripts": [
+      "https://cdn.jsdelivr.net/npm/p5@1/lib/p5.min.js"
+    ],
+    "styles": []
+  },
+  "autoRun": true,
+  "previewUrl": "",
+  "layoutMode": "columns"
+}
