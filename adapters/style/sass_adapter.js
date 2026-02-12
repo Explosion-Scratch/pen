@@ -1,6 +1,7 @@
 import { CSSAdapter } from './css_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
 import { importModule } from '../import_module.js'
+import { CompileError } from '../../core/errors.js'
 
 /**
  * @returns {Promise<object>}
@@ -101,8 +102,14 @@ body {
       })
       return result.css
     } catch (err) {
-      console.error('SASS compilation error:', err)
-      return `/* SASS Error: ${err.message} */`
+      // SASS error object has 'span' with start.line, start.column
+      throw new CompileError(err.message, {
+          adapterId: this.constructor.id,
+          filename: 'style.scss',
+          line: err.span?.start?.line !== undefined ? err.span.start.line + 1 : undefined,
+          column: err.span?.start?.column !== undefined ? err.span.start.column + 1 : undefined,
+          originalError: err
+      })
     }
   }
 
@@ -120,23 +127,14 @@ body {
   }
 
   async render(content, fileMap) {
-    try {
-      console.log('Pen: Rendering SASS...', { contentLen: content?.length })
-      const css = await this.compileToCss(content)
-      
-      console.log('Pen: SASS Rendered successfully')
-      const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
-      return {
-        ...fileMap,
-        css,
-        styleType
-      }
-    } catch (err) {
-      console.error('Pen: SASS Error:', err)
-      return {
-        ...fileMap,
-        css: `/* SASS Error: ${err.message} */`
-      }
+    // Pipeline processor handles catching CompileError
+    const css = await this.compileToCss(content)
+    
+    const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
+    return {
+    ...fileMap,
+    css,
+    styleType
     }
   }
 

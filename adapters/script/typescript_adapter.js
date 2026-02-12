@@ -1,6 +1,7 @@
 import { JavaScriptAdapter } from './javascript_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
 import { importModule } from '../import_module.js'
+import { CompileError } from '../../core/errors.js'
 
 /**
  * @returns {Promise<object>}
@@ -124,17 +125,57 @@ document.addEventListener('DOMContentLoaded', (): void => {
           sourceMap: true,
           inlineSourceMap: true,
           inlineSources: true
-        }
+        },
+        reportDiagnostics: true
       })
+      
+      if (result.diagnostics && result.diagnostics.length > 0) {
+          const firstDiag = result.diagnostics[0]
+          const message = typeof firstDiag.messageText === 'string' ? firstDiag.messageText : firstDiag.messageText.messageText
+          let line = undefined
+          let column = undefined
+          
+          if (firstDiag.file && firstDiag.start !== undefined) {
+              const { line: l, character } = firstDiag.file.getLineAndCharacterOfPosition(firstDiag.start)
+              line = l + 1
+              column = character + 1
+          }
+
+          throw new CompileError(message, {
+            adapterId: this.constructor.id,
+            filename: Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.ts',
+            line,
+            column
+          })
+      }
+
       return {
         ...fileMap,
         js: result.outputText
       }
     } catch (err) {
-      return {
-        ...fileMap,
-        js: `/* TypeScript Error: ${err.message} */\nconsole.error('TypeScript compilation failed');`
+      let line = undefined
+      let column = undefined
+      let message = err.message || String(err)
+      
+      if (err.diagnostics && err.diagnostics.length > 0) {
+          const firstDiag = err.diagnostics[0]
+          message = typeof firstDiag.messageText === 'string' ? firstDiag.messageText : firstDiag.messageText.messageText
+          
+          if (firstDiag.file && firstDiag.start !== undefined) {
+              const { line: l, character } = firstDiag.file.getLineAndCharacterOfPosition(firstDiag.start)
+              line = l + 1
+              column = character + 1
+          }
       }
+      
+      throw new CompileError(message, {
+          adapterId: this.constructor.id,
+          filename: Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.ts',
+          line,
+          column,
+          originalError: err
+      })
     }
   }
 

@@ -1,6 +1,7 @@
 import { JavaScriptAdapter } from './javascript_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
 import { importModule } from '../import_module.js'
+import { CompileError } from '../../core/errors.js'
 
 /**
  * @returns {Promise<object>}
@@ -128,8 +129,24 @@ root.render(<App />)`
         runtime: this.settings.jsxRuntime
       })
     } catch (err) {
-      console.error('JSX compilation error:', err)
-      return `/* JSX Error: ${err.message} */`
+      // Babel error usually has loc: { line, column } or line, column directly
+      // Message often contains code frame, which we don't want in the main message property if possible
+      // But for now, let's keep it simple and just rely on the UI to truncate/format it
+      let message = err.message
+      if (message.includes('\n')) {
+          message = message.split('\n')[0]
+      }
+      
+      // Remove file path from message if present (e.g. "/script.jsx: ")
+      message = message.replace(/^\/.*?\: /, '')
+
+      throw new CompileError(message, {
+          adapterId: this.constructor.id,
+          filename: 'script.jsx', 
+          line: err.loc ? err.loc.line : err.line,
+          column: err.loc ? err.loc.column : err.column,
+          originalError: err
+      })
     }
   }
 
@@ -146,10 +163,19 @@ root.render(<App />)`
         js
       }
     } catch (err) {
-      return {
-        ...fileMap,
-        js: `/* JSX Error: ${err.message} */\nconsole.error('JSX compilation failed');`
-      }
+       let message = err.message
+       if (message.includes('\n')) {
+           message = message.split('\n')[0]
+       }
+       message = message.replace(/^\/.*?\: /, '')
+
+       throw new CompileError(message, {
+          adapterId: this.constructor.id,
+          filename: Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.jsx',
+          line: err.loc ? err.loc.line : err.line,
+          column: err.loc ? err.loc.column : err.column,
+          originalError: err
+      })
     }
   }
 

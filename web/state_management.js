@@ -51,6 +51,15 @@ export const fileSystemMirror = {
 
   get config() {
     return fileSystem.config
+  },
+  
+  // Reactive error state
+  _errors: reactive([]),
+  get errors() {
+    return this._errors
+  },
+  setErrors(errs) {
+    this._errors.splice(0, this._errors.length, ...errs)
   }
 }
 
@@ -79,8 +88,10 @@ async function triggerRender() {
       pendingRender = false
       const files = { ...fileSystem.files }
       const config = { ...fileSystem.config }
-      const html = await executeSequentialRender(files, config, { dev: true })
+      const { html, errors } = await executeSequentialRender(files, config, { dev: true })
       
+      fileSystemMirror.setErrors(errors || [])
+
       // Abstracted "Write to Preview -> Get URL"
       const previewUrl = await fileSystem.writePreview(html)
       
@@ -97,7 +108,7 @@ async function triggerRender() {
 
 export async function exportProject() {
   try {
-    const html = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config }, { dev: false })
+    const { html } = await executeSequentialRender({ ...fileSystem.files }, { ...fileSystem.config }, { dev: false })
     const blob = new Blob([html], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -226,7 +237,8 @@ export function useFileSystem() {
     config: fileSystemMirror.config,
     isVirtual: fileSystem.isVirtual,
     hasUnsavedChanges: fileSystem.hasUnsavedChanges,
-    fs: fileSystem
+    fs: fileSystem,
+    errors: fileSystemMirror.errors
   }
 }
 

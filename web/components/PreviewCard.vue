@@ -37,6 +37,17 @@
         >
           <i class="ph-duotone ph-arrows-counter-clockwise"></i>
         </button>
+
+        <button 
+          v-if="errors.length > 0"
+          class="action-btn error-btn" 
+          @click="toggleErrors" 
+          :class="{ active: showErrors }"
+          title="Show Errors"
+        >
+          <i class="ph-duotone ph-warning-circle"></i>
+          <span class="error-badge">{{ errors.length }}</span>
+        </button>
         <button 
           class="action-btn" 
           @click="toggleDevtools" 
@@ -50,7 +61,23 @@
     <div class="preview-body">
       <Splitpanes v-if="showDevtools" horizontal class="default-theme preview-split">
         <Pane min-size="20">
+          <Splitpanes v-if="showErrors" horizontal class="default-theme preview-split">
+             <Pane min-size="20">
+                <iframe
+                  ref="iframe"
+                  :key="iframeKey"
+                  :src="currentPreviewUrl"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+                  class="preview-iframe"
+                  @load="onIframeLoad"
+                ></iframe>
+             </Pane>
+             <Pane size="30" min-size="10">
+                <ErrorPanel :errors="errors" @close="showErrors = false" @jump="handleJumpToError" />
+             </Pane>
+          </Splitpanes>
           <iframe
+            v-else
             ref="iframe"
             :key="iframeKey"
             :src="currentPreviewUrl"
@@ -67,15 +94,32 @@
           ></iframe>
         </Pane>
       </Splitpanes>
-      <iframe
-        v-else
-        ref="iframe"
-        :key="iframeKey"
-        :src="currentPreviewUrl"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-        class="preview-iframe"
-        @load="onIframeLoad"
-      ></iframe>
+      <div v-else class="full-height-container">
+          <Splitpanes v-if="showErrors" horizontal class="default-theme preview-split">
+             <Pane min-size="20">
+                <iframe
+                  ref="iframe"
+                  :key="iframeKey"
+                  :src="currentPreviewUrl"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+                  class="preview-iframe"
+                  @load="onIframeLoad"
+                ></iframe>
+             </Pane>
+             <Pane size="30" min-size="10">
+                <ErrorPanel :errors="errors" @close="showErrors = false" @jump="handleJumpToError" />
+             </Pane>
+          </Splitpanes>
+          <iframe
+            v-else
+            ref="iframe"
+            :key="iframeKey"
+            :src="currentPreviewUrl"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+            class="preview-iframe"
+            @load="onIframeLoad"
+          ></iframe>
+      </div>
     </div>
   </div>
 </template>
@@ -84,6 +128,7 @@
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
+import ErrorPanel from './ErrorPanel.vue'
 
 const props = defineProps({
   previewState: {
@@ -101,15 +146,20 @@ const props = defineProps({
   isMaximized: {
     type: Boolean,
     default: false
+  },
+  errors: {
+    type: Array,
+    default: () => []
   }
 })
 
-defineEmits(['refresh', 'settings', 'toggle-maximize'])
+const emit = defineEmits(['refresh', 'settings', 'toggle-maximize', 'jump', 'clear-errors'])
 
 const iframe = ref(null)
 const devtoolsIframe = ref(null)
 const urlInput = ref(null)
 const showDevtools = ref(false)
+const showErrors = ref(false)
 const tempUrl = ref(props.previewState?.displayURL || 'http://preview.pen/')
 const isFocused = ref(false)
 const currentPreviewUrl = ref(props.previewState?.contentURL || 'about:blank')
@@ -258,6 +308,44 @@ watch(showDevtools, (val) => {
 
 function toggleDevtools() {
   showDevtools.value = !showDevtools.value
+}
+
+function toggleErrors() {
+  showErrors.value = !showErrors.value
+}
+
+function handleJumpToError(error) {
+    const emitData = {
+        filename: error.filename,
+        line: error.line,
+        column: error.column
+    }
+    emit('jump', emitData)
+}
+
+// Watch errors to auto-show panel if new errors appear?
+// Maybe only if it was closed and we get errors?
+// Or maybe just show the icon badge.
+// Let's rely on user clicking icon, unless it's a manual run?
+// User request: "Clicking this should show a panel"
+// So auto-show might be annoying.
+// But we should make sure the icon updates.
+
+watch(() => props.errors, (newErrors) => {
+    if (newErrors.length > 0 && !showErrors.value) {
+        // Optional: Auto open? 
+        // "Clicking this should show a panel" implies manual toggle.
+        // But maybe we pulse the icon.
+    }
+    if (newErrors.length === 0 && showErrors.value) {
+        showErrors.value = false // Auto close if fixed
+    }
+})
+
+function handleClearErrors() {
+    console.log('PreviewCard: clear-errors emitted')
+    emit('clear-errors')
+    showErrors.value = false
 }
 
 function clearConsole() {
@@ -525,5 +613,46 @@ onUnmounted(() => {
   .devtools-iframe {
     background: #242424;
   }
+}
+
+.full-height-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.action-btn.error-btn {
+  color: var(--color-error);
+  position: relative;
+}
+
+.action-btn.error-btn:hover {
+  background: var(--color-error-bg, rgba(255, 0, 0, 0.1));
+}
+
+.action-btn.error-btn.active {
+  background: var(--color-error-dark);
+  color: white;
+}
+
+.error-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--color-error);
+    color: white;
+    font-size: 9px;
+    padding: 2px 4px;
+    border-radius: 10px;
+    min-width: 14px;
+    text-align: center;
+    border: 2px solid var(--color-background-alt); /* Cutout effect */
+}
+
+.action-btn.error-btn.active .error-badge {
+    border-color: var(--color-error); /* Blend in when active */
+    background: white;
+    color: var(--color-error);
 }
 </style>

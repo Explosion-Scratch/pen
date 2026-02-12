@@ -285,20 +285,8 @@ export async function launchEditorFlow(projectPath, options = {}) {
       console.log(`   🌐 Editor:  http://localhost:${httpPort}`)
       console.log(`   📡 WS:      ws://localhost:${wsPort}`)
       console.log(`\n   Press Ctrl+C to stop.\n`)
+
+      open(`http://localhost:${httpPort}`)
     }
   })
-
-  // The client now handles preview generation. 
-  /*
-  const previewApp = express()
-  previewApp.get('*', async (_, res) => {
-     // Preview handled by client now
-     res.send('Preview is managed by the client application.')
-  })
-  previewApp.listen(previewPort)
-  */
-  
-  if (!options.headless) {
-    // open(`http://localhost:${httpPort}`)
-  }
 }

@@ -1,5 +1,6 @@
 import { BaseAdapter } from '../base_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
+import { CompileError } from '../../core/errors.js'
 const isBrowser = typeof window !== 'undefined'
 
 let terserModule = null
@@ -89,6 +90,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async render(content, fileMap) {
     let js = content
+    try {
+       const terser = await getTerser()
+       if (terser) {
+           await terser.minify(js, { parse: {}, compress: false, mangle: false, output: { code: false } })
+       }
+
+    } catch (err) {
+        throw new CompileError(err.message, {
+            adapterId: this.constructor.id,
+            filename: Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.js', 
+            line: err.line,
+            column: err.col,
+            originalError: err
+        })
+    }
+
     if (this.settings.strictMode && !js.includes("'use strict'") && !js.includes('"use strict"')) {
     }
     return {

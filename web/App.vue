@@ -19,6 +19,7 @@
       :adapters="adapters"
       :preview-state="previewState"
       :settings="appSettings"
+      :errors="errors"
       @update="handleFileUpdate"
       @render="(isManual) => handleRender(isManual)"
       :last-manual-render="lastManualRender"
@@ -28,6 +29,8 @@
       @minify="handleMinify"
       @compile="handleCompile"
       @settings="showSettings = true"
+      @jump="handleJump"
+      @clear-errors="handleClearErrors"
     />
     <SettingsModal
       v-if="showSettings"
@@ -65,7 +68,7 @@ import Toast from './components/Toast.vue'
 import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject, exportEditor } from './state_management.js'
 import { fileSystem } from './filesystem.js'
 
-const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges } = useFileSystem()
+const { files, updateFile, receiveExternalUpdate, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges, errors } = useFileSystem()
 const { triggerAction } = useEditors()
 
 const editors = computed(() => config.editors || [])
@@ -294,8 +297,17 @@ function removeToast(id) {
   toasts.value = toasts.value.filter(t => t.id !== id)
 }
 
+// This function needed to be exposed to template? 
+// It is used by Toast.vue @jump="handleJump"
+// And now by PaneManager @jump="handleJump"
+
 function handleJump(details) {
   editorStateManager.jumpToLocation(details.filename, details.line, details.column)
+}
+
+function handleClearErrors() {
+  console.log('App: Clearing errors')
+  fileSystemMirror.setErrors([])
 }
 
 function handleKeydown(event) {

@@ -170,14 +170,19 @@ class WebSocketFS extends BaseFileSystem {
 }
 
 class VirtualFS extends BaseFileSystem {
-  constructor() {
+  constructor(projectName) {
     super()
     this.isVirtual = true
     this.isConnected = ref(true)
-    this.storageKey = 'pen-vfs-files'
-    this.configKey = 'pen-vfs-config'
+    this.storageKey = projectName ? `pen-vfs-files-${projectName}` : 'pen-vfs-files'
+    this.configKey = projectName ? `pen-vfs-config-${projectName}` : 'pen-vfs-config'
   }
 
+  /**
+   * Connects to the virtual file system and restores state from localStorage.
+   * Keys are scoped by project name to avoid clashing between different exports.
+   * @returns {Promise<void>}
+   */
   async connect() {
     const initialFiles = window.__initial_file_map__ || {}
     const initialConfig = window.__initial_config__ || {}
@@ -188,7 +193,7 @@ class VirtualFS extends BaseFileSystem {
     try {
       const storedConfigRaw = Storage.getItem(this.configKey)
       const parsedConfig = JSON.parse(storedConfigRaw)
-      
+
       // Only load stored files if project name matches
       if (parsedConfig.name === initialConfig.name) {
         storedConfig = parsedConfig
@@ -248,4 +253,6 @@ class VirtualFS extends BaseFileSystem {
   }
 }
 
-export const fileSystem = window.__initial_file_map__ ? new VirtualFS() : new WebSocketFS()
+export const fileSystem = window.__initial_file_map__ 
+  ? new VirtualFS(window.__initial_config__?.name) 
+  : new WebSocketFS()

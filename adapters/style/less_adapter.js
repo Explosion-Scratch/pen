@@ -1,6 +1,7 @@
 import { CSSAdapter } from './css_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
 import { importModule } from '../import_module.js'
+import { CompileError } from '../../core/errors.js'
 
 /**
  * @returns {Promise<object>}
@@ -56,28 +57,25 @@ export class LESSAdapter extends CSSAdapter {
       const result = await less.render(code)
       return result.css
     } catch (err) {
-      console.error('LESS compilation error:', err)
-      return `/* LESS Error: ${err.message} */`
+      // LESS error object usually has line, column, message
+      throw new CompileError(err.message, {
+          adapterId: this.constructor.id,
+          filename: 'style.less',
+          line: err.line,
+          column: err.column, // LESS columns might be 0-indexed? Let's check docs or assume 1-based or just pass it
+          originalError: err
+      })
     }
   }
 
   async render(content, fileMap) {
-    try {
-      console.log('Pen: Rendering LESS...', { contentLen: content?.length })
-      const css = await this.compileToCss(content)
-      console.log('Pen: LESS Rendered successfully')
-      const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
-      return {
-        ...fileMap,
-        css,
-        styleType
-      }
-    } catch (err) {
-      console.error('Pen: LESS Error:', err)
-      return {
-        ...fileMap,
-        css: `/* LESS Error: ${err.message} */`
-      }
+    // Pipeline processor handles catching CompileError
+    const css = await this.compileToCss(content)
+    const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
+    return {
+      ...fileMap,
+      css,
+      styleType
     }
   }
 

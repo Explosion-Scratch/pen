@@ -57,9 +57,12 @@
           :settings="settings"
           :last-manual-render="lastManualRender"
           :is-maximized="previewMaximized"
+          :errors="errors"
           @refresh="$emit('render', true)" 
           @settings="$emit('settings')"
           @toggle-maximize="previewMaximized = !previewMaximized"
+          @jump="(details) => $emit('jump', details)"
+          @clear-errors="$emit('clear-errors')"
         />
         <div v-show="isAnyDragging || altPressed" class="iframe-blocker"></div>
       </Pane>
@@ -106,10 +109,11 @@ const props = defineProps({
   adapters: { type: Array, default: () => [] },
   previewState: { type: Object, default: () => ({ displayURL: '', contentURL: '' }) },
   settings: { type: Object, required: true },
-  lastManualRender: { type: Number, default: 0 }
+  lastManualRender: { type: Number, default: 0 },
+  errors: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'minify', 'compile', 'settings'])
+const emit = defineEmits(['update', 'render', 'rename', 'settings-update', 'format', 'minify', 'compile', 'settings', 'jump', 'clear-errors'])
 
 const isAnyDragging = ref(false)
 let activeSplitter = null

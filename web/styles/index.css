@@ -24,6 +24,9 @@
   --color-accent-hover: #A53809;
   --color-border: #E5E2DF;
   --color-border-light: #F0EDEA;
+  --color-error: #DC2626;
+  --color-error-dark: #b24646;
+  --color-error-bg: #FEF2F2;
 
   --color-syntax-keyword: #C2410C;
   --color-syntax-string: #047857;

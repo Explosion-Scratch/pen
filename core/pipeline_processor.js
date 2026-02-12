@@ -5,6 +5,7 @@ const isBrowser = typeof window !== 'undefined'
 import { getAdapter } from './adapter_registry.js'
 import { createBaseDocument, serialize, injectIntoHead, injectAfterBody, mergeHead, updateOrCreateElement } from './dom_utils.js'
 import { transformImportsToCdn } from './cdn_transformer.js'
+import { CompileError } from './errors.js'
 
 /**
  * @param {Object} fileMap
@@ -17,6 +18,7 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   const document = createBaseDocument('en', config.name || 'Pen Preview')
   const orderedEditors = getEditorOrder(config)
   const importOverrides = config.importOverrides || {}
+  const errors = []
 
   // Determine if we should inject devtools
   // Default to the dev option, but allow config to override
@@ -31,19 +33,33 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   }
 
   for (const editor of orderedEditors) {
-    const Adapter = getAdapter(editor.type)
-    const adapter = new Adapter()
-    adapter.setSettings({ ...(editor.settings || {}), importOverrides })
+    try {
+      const Adapter = getAdapter(editor.type)
+      const adapter = new Adapter()
+      adapter.setSettings({ ...(editor.settings || {}), importOverrides })
 
-    const content = fileMap[editor.filename] || ''
-    const rendered = await adapter.render(content, fileMap)
+      const content = fileMap[editor.filename] || ''
+      const rendered = await adapter.render(content, fileMap)
 
-    if (Adapter.type === 'markup') {
-      injectMarkup(document, rendered)
-    } else if (Adapter.type === 'style') {
-      injectStyle(document, editor, Adapter, rendered)
-    } else if (Adapter.type === 'script') {
-      injectScript(document, editor, rendered, importOverrides)
+      if (Adapter.type === 'markup') {
+        injectMarkup(document, rendered)
+      } else if (Adapter.type === 'style') {
+        injectStyle(document, editor, Adapter, rendered)
+      } else if (Adapter.type === 'script') {
+        injectScript(document, editor, rendered, importOverrides)
+      }
+    } catch (err) {
+      console.error(`Error processing ${editor.filename}:`, err)
+      if (err instanceof CompileError) {
+        errors.push(err)
+      } else {
+        errors.push(new CompileError(err.message, {
+          adapterId: editor.type,
+          filename: editor.filename,
+          title: 'Processing Error',
+          originalError: err
+        }))
+      }
     }
   }
 
@@ -55,7 +71,7 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   }
 
   const finalHtml = serialize(document)
-  return finalHtml
+  return { html: finalHtml, errors }
 }
 
 function injectLocationShim(document) {
@@ -66,15 +82,16 @@ function injectLocationShim(document) {
   
   let penData = { s: '', h: '' };
   try { penData = JSON.parse(atob(m[1])); } catch(e) { return; }
+  console.log('Pen: Location shim active', penData);
+  // Mutable state for history API
+  let mockSearch = penData.s || '';
+  let mockHash = penData.h || '';
   
-  const mockSearch = penData.s || '';
-  const mockHash = penData.h || '';
-  
-  // Patch Location prototype if possible, otherwise instance
+  // 1. Patch Location (prototype & instance)
+  // We try-catch extensively because 'location' properties are often unforgeable
   const targets = [window.Location ? window.Location.prototype : window.location, window.location];
   targets.forEach(t => {
     try {
-      // Calculate href based on real base + mocked parts
       const getMockHref = () => {
         const base = window.location.origin + window.location.pathname;
         return base + mockSearch + mockHash;
@@ -89,12 +106,28 @@ function injectLocationShim(document) {
     } catch(e) {}
   });
 
-  // Patch URL constructor
+  // 2. Patch URLSearchParams
+  // This ensures 'new URLSearchParams(location.search)' works even if location.search is empty (unpatched)
+  // by falling back to mockSearch when input is empty.
+  const OriginalURLSearchParams = window.URLSearchParams;
+  class PatchedURLSearchParams extends OriginalURLSearchParams {
+    constructor(init) {
+      if ((init === undefined || init === '') && mockSearch) {
+        super(mockSearch);
+      } else {
+        super(init);
+      }
+    }
+  }
+  window.URLSearchParams = PatchedURLSearchParams;
+
+  // 3. Patch URL constructor
   const OriginalURL = window.URL;
   function PatchedURL(url, base) {
     const u = (url === window.location) ? window.location.href : url;
     const instance = new OriginalURL(u, base);
     
+    // If we detect the magic hash, hydrate the instance
     if (typeof u === 'string' && u.includes('#__pen=')) {
       const match = u.match(/#__pen=([A-Za-z0-9+/=]+)/);
       if (match) {
@@ -104,7 +137,7 @@ function injectLocationShim(document) {
           const h = d.h || '';
           const baseHref = instance.href.replace(/#__pen=.*$/, '');
           const fullHref = baseHref + s + h;
-          const sp = new URLSearchParams(s);
+          const sp = new OriginalURLSearchParams(s);
           
           Object.defineProperties(instance, {
             search: { get: () => s, configurable: true },
@@ -123,7 +156,48 @@ function injectLocationShim(document) {
   PatchedURL.revokeObjectURL = OriginalURL.revokeObjectURL;
   window.URL = PatchedURL;
 
-  // Patch document properties
+  // 4. Patch History API
+  // Allows SPAs to update the URL (mock state) without breaking out of the sandbox/iframe
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+  
+  const updateMockFromUrl = (url) => {
+    if (!url) return;
+    try {
+      // Create a URL object to parse the new path/search/hash
+      // We use the current mock location as base
+      const base = window.location.origin + window.location.pathname;
+      const temp = new OriginalURL(url, base + mockSearch + mockHash);
+      
+      // Update our mutable state
+      mockSearch = temp.search;
+      mockHash = temp.hash;
+    } catch(e) {
+      console.warn('Pen: Failed to parse history URL', e);
+    }
+  };
+
+  history.pushState = function(state, title, url) {
+    if (url) updateMockFromUrl(url);
+    try {
+      return originalPushState.apply(this, arguments);
+    } catch(e) {
+      // In sandboxed iframes or blobs, pushState might fail. 
+      // We swallow the error so the app continues running with our mocked state.
+      console.debug('Pen: history.pushState prevented by environment, state mocked.');
+    }
+  };
+  
+  history.replaceState = function(state, title, url) {
+    if (url) updateMockFromUrl(url);
+    try {
+      return originalReplaceState.apply(this, arguments);
+    } catch(e) {
+      console.debug('Pen: history.replaceState prevented by environment, state mocked.');
+    }
+  };
+
+  // 5. Patch document properties
   try {
     Object.defineProperty(document, 'URL', { 
       get: () => window.location.href, 
@@ -131,7 +205,7 @@ function injectLocationShim(document) {
     });
   } catch(e) {}
 
-  console.log('Pen: Location shim active (SearchParams & Hash only)');
+  console.log('Pen: Location shim active (SearchParams, History, URL)');
 })();`;
 
   const script = document.createElement('script');
