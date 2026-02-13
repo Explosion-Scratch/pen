@@ -1,11 +1,20 @@
 <template>
   <div class="preview-card">
-    <header class="preview-header" @click="e => e.altKey && $emit('toggle-maximize')">
+    <header
+      class="preview-header"
+      @click="(e) => e.altKey && $emit('toggle-maximize')"
+    >
       <div class="preview-info">
         <div class="url-input-container" :class="{ 'is-loading': isLoading }">
           <div class="loading-bar"></div>
-          <div class="url-highlight-overlay" aria-hidden="true" v-if="!isFocused">
-            <span class="url-protocol">{{ urlParts.protocol }}</span><span class="url-host">{{ urlParts.host }}</span><span class="url-path">{{ urlParts.path }}</span>
+          <div
+            class="url-highlight-overlay"
+            aria-hidden="true"
+            v-if="!isFocused"
+          >
+            <span class="url-protocol">{{ urlParts.protocol }}</span
+            ><span class="url-host">{{ urlParts.host }}</span
+            ><span class="url-path">{{ urlParts.path }}</span>
           </div>
           <input
             ref="urlInput"
@@ -22,35 +31,35 @@
         </div>
       </div>
       <div class="preview-actions">
-        <button 
+        <button
           v-if="!settings.autoRun"
-          class="action-btn play-btn" 
-          @click="$emit('refresh')" 
+          class="action-btn play-btn"
+          @click="$emit('refresh')"
           title="Run (Cmd+Enter)"
         >
           <i class="ph-duotone ph-play"></i>
         </button>
-        <button 
-          class="action-btn" 
-          @click="$emit('refresh')" 
+        <button
+          class="action-btn"
+          @click="$emit('refresh')"
           title="Refresh Preview"
         >
           <i class="ph-duotone ph-arrows-counter-clockwise"></i>
         </button>
 
-        <button 
+        <button
           v-if="errors.length > 0"
-          class="action-btn error-btn" 
-          @click="toggleErrors" 
+          class="action-btn error-btn"
+          @click="toggleErrors"
           :class="{ active: showErrors }"
           title="Show Errors"
         >
           <i class="ph-duotone ph-warning-circle"></i>
           <span class="error-badge">{{ errors.length }}</span>
         </button>
-        <button 
-          class="action-btn" 
-          @click="toggleDevtools" 
+        <button
+          class="action-btn"
+          @click="toggleDevtools"
           :class="{ active: showDevtools }"
           title="Toggle DevTools"
         >
@@ -59,22 +68,34 @@
       </div>
     </header>
     <div class="preview-body">
-      <Splitpanes v-if="showDevtools" horizontal class="default-theme preview-split">
+      <Splitpanes
+        v-if="showDevtools"
+        horizontal
+        class="default-theme preview-split"
+      >
         <Pane min-size="20">
-          <Splitpanes v-if="showErrors" horizontal class="default-theme preview-split">
-             <Pane min-size="20">
-                <iframe
-                  ref="iframe"
-                  :key="iframeKey"
-                  :src="currentPreviewUrl"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-                  class="preview-iframe"
-                  @load="onIframeLoad"
-                ></iframe>
-             </Pane>
-             <Pane size="30" min-size="10">
-                <ErrorPanel :errors="errors" @close="showErrors = false" @jump="handleJumpToError" />
-             </Pane>
+          <Splitpanes
+            v-if="showErrors"
+            horizontal
+            class="default-theme preview-split"
+          >
+            <Pane min-size="20">
+              <iframe
+                ref="iframe"
+                :key="iframeKey"
+                :src="currentPreviewUrl"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+                class="preview-iframe"
+                @load="onIframeLoad"
+              ></iframe>
+            </Pane>
+            <Pane size="30" min-size="10">
+              <ErrorPanel
+                :errors="errors"
+                @close="showErrors = false"
+                @jump="handleJumpToError"
+              />
+            </Pane>
           </Splitpanes>
           <iframe
             v-else
@@ -89,189 +110,244 @@
         <Pane min-size="20">
           <iframe
             ref="devtoolsIframe"
+            :key="devtoolsKey"
             :src="devtoolsUrl"
             class="devtools-iframe"
+            tabindex="-1"
           ></iframe>
         </Pane>
       </Splitpanes>
       <div v-else class="full-height-container">
-          <Splitpanes v-if="showErrors" horizontal class="default-theme preview-split">
-             <Pane min-size="20">
-                <iframe
-                  ref="iframe"
-                  :key="iframeKey"
-                  :src="currentPreviewUrl"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-                  class="preview-iframe"
-                  @load="onIframeLoad"
-                ></iframe>
-             </Pane>
-             <Pane size="30" min-size="10">
-                <ErrorPanel :errors="errors" @close="showErrors = false" @jump="handleJumpToError" />
-             </Pane>
-          </Splitpanes>
-          <iframe
-            v-else
-            ref="iframe"
-            :key="iframeKey"
-            :src="currentPreviewUrl"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-            class="preview-iframe"
-            @load="onIframeLoad"
-          ></iframe>
+        <Splitpanes
+          v-if="showErrors"
+          horizontal
+          class="default-theme preview-split"
+        >
+          <Pane min-size="20">
+            <iframe
+              ref="iframe"
+              :key="iframeKey"
+              :src="currentPreviewUrl"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+              class="preview-iframe"
+              @load="onIframeLoad"
+            ></iframe>
+          </Pane>
+          <Pane size="30" min-size="10">
+            <ErrorPanel
+              :errors="errors"
+              @close="showErrors = false"
+              @jump="handleJumpToError"
+            />
+          </Pane>
+        </Splitpanes>
+        <iframe
+          v-else
+          ref="iframe"
+          :key="iframeKey"
+          :src="currentPreviewUrl"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+          class="preview-iframe"
+          @load="onIframeLoad"
+        ></iframe>
       </div>
     </div>
   </div>
 </template>
 
-
 <script setup>
-import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { Splitpanes, Pane } from 'splitpanes'
-import 'splitpanes/dist/splitpanes.css'
-import ErrorPanel from './ErrorPanel.vue'
-import { useFileSystem } from '../state_management.js'
+import { ref, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { Splitpanes, Pane } from "splitpanes";
+import "splitpanes/dist/splitpanes.css";
+import ErrorPanel from "./ErrorPanel.vue";
+import { useFileSystem } from "../state_management.js";
+import { supportWorkers } from "../utils/patches.js";
 
 const props = defineProps({
   previewState: {
     type: Object,
-    default: () => ({ displayURL: '', contentURL: '' })
+    default: () => ({ displayURL: "", contentURL: "" }),
   },
   settings: {
     type: Object,
-    required: true
+    required: true,
   },
   lastManualRender: {
     type: Number,
-    default: 0
+    default: 0,
   },
   isMaximized: {
     type: Boolean,
-    default: false
+    default: false,
   },
   errors: {
     type: Array,
-    default: () => []
-  }
-})
+    default: () => [],
+  },
+});
 
-const emit = defineEmits(['refresh', 'settings', 'toggle-maximize', 'jump', 'clear-errors'])
+const emit = defineEmits([
+  "refresh",
+  "settings",
+  "toggle-maximize",
+  "jump",
+  "clear-errors",
+]);
 
-const { addError } = useFileSystem()
+const { addError } = useFileSystem();
 
-const iframe = ref(null)
-const devtoolsIframe = ref(null)
-const urlInput = ref(null)
-const showDevtools = ref(false)
-const showErrors = ref(false)
-const tempUrl = ref(props.previewState?.displayURL || 'http://preview.pen/')
-const isFocused = ref(false)
-const currentPreviewUrl = ref(props.previewState?.contentURL || 'about:blank')
-const isLoading = ref(false)
-const iframeKey = ref(0)
-let loadingTimer = null
+const iframe = ref(null);
+const devtoolsIframe = ref(null);
+const urlInput = ref(null);
+const showDevtools = ref(false);
+const showErrors = ref(false);
+const tempUrl = ref(props.previewState?.displayURL || "http://preview.pen/");
+const isFocused = ref(false);
+const currentPreviewUrl = ref(props.previewState?.contentURL || "about:blank");
+const isLoading = ref(false);
+const iframeKey = ref(0);
+const devtoolsKey = ref(0);
+const devtoolsMessageCache = new Map();
+let pendingDevtoolsResync = false;
+let loadingTimer = null;
 
 function extractUrlSuffix(displayUrl) {
   try {
-    const url = new URL(displayUrl)
-    return { search: url.search, hash: url.hash }
+    const url = new URL(displayUrl);
+    return { search: url.search, hash: url.hash };
   } catch {
-    const searchMatch = displayUrl.match(/(\?[^#]*)/)
-    const hashMatch = displayUrl.match(/(#.*)$/)
-    return { search: searchMatch?.[1] || '', hash: hashMatch?.[1] || '' }
+    const searchMatch = displayUrl.match(/(\?[^#]*)/);
+    const hashMatch = displayUrl.match(/(#.*)$/);
+    return { search: searchMatch?.[1] || "", hash: hashMatch?.[1] || "" };
   }
 }
 
 function buildIframeUrl(contentURL, displayUrl) {
-  if (!contentURL) return 'about:blank'
-  const { search, hash } = extractUrlSuffix(displayUrl)
-  if (!search && !hash) return contentURL
-  const payload = btoa(JSON.stringify({ s: search, h: hash }))
-  return contentURL + '#__pen=' + payload
+  if (!contentURL) return "about:blank";
+  const { search, hash } = extractUrlSuffix(displayUrl);
+  if (!search && !hash) return contentURL;
+  const payload = btoa(JSON.stringify({ s: search, h: hash }));
+  return contentURL + "#__pen=" + payload;
 }
 
-watch(() => props.previewState, (newState) => {
-  if (newState && newState.contentURL) {
-      const { search, hash } = extractUrlSuffix(tempUrl.value)
-      const baseDisplay = newState.displayURL || 'http://preview.pen/'
-      tempUrl.value = baseDisplay.replace(/[?#].*$/, '') + search + hash
-      currentPreviewUrl.value = buildIframeUrl(newState.contentURL, tempUrl.value)
-      iframeKey.value++
-      triggerFlash()
-  }
-}, { immediate: true, deep: true })
+watch(
+  () => props.previewState,
+  (newState) => {
+    if (newState && newState.contentURL) {
+      const { search, hash } = extractUrlSuffix(tempUrl.value);
+      const baseDisplay = newState.displayURL || "http://preview.pen/";
+      tempUrl.value = baseDisplay.replace(/[?#].*$/, "") + search + hash;
+      currentPreviewUrl.value = buildIframeUrl(
+        newState.contentURL,
+        tempUrl.value,
+      );
+      iframeKey.value++;
+      triggerFlash();
+      refreshDevtoolsBridge();
+    }
+  },
+  { immediate: true, deep: true },
+);
 
 function triggerFlash() {
-  isLoading.value = false
+  isLoading.value = false;
   nextTick(() => {
-    isLoading.value = true
-    if (loadingTimer) clearTimeout(loadingTimer)
+    isLoading.value = true;
+    if (loadingTimer) clearTimeout(loadingTimer);
     loadingTimer = setTimeout(() => {
-      isLoading.value = false
-    }, 500)
-  })
+      isLoading.value = false;
+    }, 500);
+  });
+}
+
+function refreshDevtoolsBridge() {
+  if (!showDevtools.value) return;
+  pendingDevtoolsResync = true;
+}
+
+function cacheDevtoolsMessage(message) {
+  try {
+    const parsed = JSON.parse(message);
+    const method = parsed && parsed.method;
+    if (!method) return;
+    if (method.endsWith(".enable") || method === "Target.setDiscoverTargets") {
+      devtoolsMessageCache.set(method, message);
+    }
+  } catch {}
+}
+
+function getResyncMessages() {
+  return [...devtoolsMessageCache.values()];
 }
 
 function handleUrlEnter() {
-  urlInput.value?.blur()
-  const contentURL = props.previewState?.contentURL
+  urlInput.value?.blur();
+  const contentURL = props.previewState?.contentURL;
   if (contentURL) {
-    currentPreviewUrl.value = buildIframeUrl(contentURL, tempUrl.value)
+    currentPreviewUrl.value = buildIframeUrl(contentURL, tempUrl.value);
   }
-  iframeKey.value++
-  triggerFlash()
+  iframeKey.value++;
+  triggerFlash();
+  refreshDevtoolsBridge();
 }
 
 function handleUrlEsc() {
-  tempUrl.value = props.previewState?.displayURL || 'http://preview.pen/'
-  urlInput.value?.blur()
+  tempUrl.value = props.previewState?.displayURL || "http://preview.pen/";
+  urlInput.value?.blur();
 }
 
 function onIframeLoad() {
-
+  if (!pendingDevtoolsResync || !showDevtools.value) return;
+  pendingDevtoolsResync = false;
+  const target = iframe.value?.contentWindow;
+  if (!target) return;
+  for (const message of getResyncMessages()) {
+    target.postMessage({ event: "DEV", data: message }, "*");
+  }
 }
 
-const devtoolsUrl = ref('')
-let devtoolsBlobUrl = null
+const devtoolsUrl = ref("");
+let devtoolsBlobUrl = null;
 
-
-
-watch(() => props.lastManualRender, () => {
-  if (props.lastManualRender > 0) {
-    iframeKey.value++
-    triggerFlash()
-  }
-})
+watch(
+  () => props.lastManualRender,
+  () => {
+    if (props.lastManualRender > 0) {
+      iframeKey.value++;
+      triggerFlash();
+      refreshDevtoolsBridge();
+    }
+  },
+);
 
 const urlParts = computed(() => {
   try {
-    const url = new URL(tempUrl.value)
+    const url = new URL(tempUrl.value);
     return {
-      protocol: url.protocol + '//',
+      protocol: url.protocol + "//",
       host: url.host,
-      path: url.pathname + url.search + url.hash
-    }
+      path: url.pathname + url.search + url.hash,
+    };
   } catch (e) {
     return {
-      protocol: '',
+      protocol: "",
       host: tempUrl.value,
-      path: ''
-    }
+      path: "",
+    };
   }
-})
-
-
+});
 
 function updateDevtoolsUrl() {
   if (devtoolsBlobUrl) {
-    URL.revokeObjectURL(devtoolsBlobUrl)
+    URL.revokeObjectURL(devtoolsBlobUrl);
   }
-  
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DevTools</title>
   <style>
     body { margin: 0; padding: 0; overflow: hidden; height: 100vh; background: #242424; }
@@ -280,114 +356,101 @@ function updateDevtoolsUrl() {
     }
   </style>
   <script>
-    // Monkey-patch Worker to support cross-origin worker scripts via Blob + importScripts
-    (function() {
-      const OriginalWorker = window.Worker;
-      window.Worker = function(scriptURL, options) {
-        if (typeof scriptURL === 'string' && (scriptURL.startsWith('http') || scriptURL.startsWith('//'))) {
-          const blob = new Blob(['importScripts("' + scriptURL + '");'], { type: 'application/javascript' });
-          return new OriginalWorker(URL.createObjectURL(blob), options);
-        }
-        return new OriginalWorker(scriptURL, options);
-      };
-    })();
+    (${supportWorkers.toString()})();
   <\/script>
 </head>
 <body class="undocked" id="-blink-dev-tools">
   <script src="https://unpkg.com/@ungap/custom-elements/es.js"><\/script>
   <script type="module" src="https://cdn.jsdelivr.net/npm/chii@1.12.3/public/front_end/entrypoints/chii_app/chii_app.js"><\/script>
 </body>
-</html>`
+</html>`;
 
-  devtoolsBlobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-  devtoolsUrl.value = `${devtoolsBlobUrl}#?embedded=${encodeURIComponent(window.location.origin)}`
+  devtoolsBlobUrl = URL.createObjectURL(
+    new Blob([html], { type: "text/html" }),
+  );
+  devtoolsUrl.value = `${devtoolsBlobUrl}#?embedded=${encodeURIComponent(window.location.origin)}`;
 }
 
 watch(showDevtools, (val) => {
   if (val && !devtoolsUrl.value) {
-    updateDevtoolsUrl()
+    updateDevtoolsUrl();
   }
-})
-
-
-
-
+});
 
 function toggleDevtools() {
-  showDevtools.value = !showDevtools.value
+  showDevtools.value = !showDevtools.value;
 }
 
 function toggleErrors() {
-  showErrors.value = !showErrors.value
+  showErrors.value = !showErrors.value;
 }
 
 function handleJumpToError(error) {
-    const emitData = {
-        filename: error.filename,
-        line: error.line,
-        column: error.column
-    }
-    emit('jump', emitData)
+  const emitData = {
+    filename: error.filename,
+    line: error.line,
+    column: error.column,
+  };
+  emit("jump", emitData);
 }
 
-
-
-watch(() => props.errors, (newErrors) => {
+watch(
+  () => props.errors,
+  (newErrors) => {
     if (newErrors.length > 0 && !showErrors.value) {
     }
     if (newErrors.length === 0 && showErrors.value) {
-        showErrors.value = false
+      showErrors.value = false;
     }
-})
+  },
+);
 
 function handleClearErrors() {
-    console.log('PreviewCard: clear-errors emitted')
-    emit('clear-errors')
-    showErrors.value = false
+  console.log("PreviewCard: clear-errors emitted");
+  emit("clear-errors");
+  showErrors.value = false;
 }
 
 function handleKeydown(event) {
-  if (event.key === 'Escape') {
-    if (showErrors.value) showErrors.value = false
-    if (showDevtools.value) showDevtools.value = false
+  if (event.key === "Escape") {
+    if (showErrors.value) showErrors.value = false;
+    if (showDevtools.value) showDevtools.value = false;
   }
-}
-
-function clearConsole() {
-
 }
 
 function handleMessage(event) {
-  if (event.data && event.data.type === 'PEN_ERROR') {
-    addError(event.data.error)
-    return
+  if (event.data && event.data.type === "PEN_ERROR") {
+    addError(event.data.error);
+    return;
   }
 
   if (event.source === iframe.value?.contentWindow) {
-    if (typeof event.data === 'string') {
-      devtoolsIframe.value?.contentWindow?.postMessage(event.data, '*');
+    if (typeof event.data === "string") {
+      devtoolsIframe.value?.contentWindow?.postMessage(event.data, "*");
     }
   } else if (event.source === devtoolsIframe.value?.contentWindow) {
-    if (typeof event.data === 'string') {
-      iframe.value?.contentWindow?.postMessage({ event: 'DEV', data: event.data }, '*');
+    if (typeof event.data === "string") {
+      cacheDevtoolsMessage(event.data);
+      iframe.value?.contentWindow?.postMessage(
+        { event: "DEV", data: event.data },
+        "*",
+      );
     }
   }
 }
 
 onMounted(() => {
-  window.addEventListener('message', handleMessage)
-  window.addEventListener('keydown', handleKeydown)
-})
+  window.addEventListener("message", handleMessage);
+  window.addEventListener("keydown", handleKeydown);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('message', handleMessage)
-  window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener("message", handleMessage);
+  window.removeEventListener("keydown", handleKeydown);
   if (devtoolsBlobUrl) {
-    URL.revokeObjectURL(devtoolsBlobUrl)
+    URL.revokeObjectURL(devtoolsBlobUrl);
   }
-})
-
-
+});
 </script>
 
 <style scoped>
@@ -447,9 +510,17 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.url-protocol { color: var(--color-text-muted); opacity: 0.5; }
-.url-host { color: var(--color-accent); font-weight: 500; }
-.url-path { color: var(--color-text-muted); }
+.url-protocol {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+.url-host {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+.url-path {
+  color: var(--color-text-muted);
+}
 
 .url-input {
   width: 100%;
@@ -497,7 +568,9 @@ onUnmounted(() => {
   background: var(--color-accent);
   opacity: 0.05;
   pointer-events: none;
-  transition: width var(--transition-fast), opacity var(--transition-fast);
+  transition:
+    width var(--transition-fast),
+    opacity var(--transition-fast);
   z-index: 1;
 }
 
@@ -507,10 +580,22 @@ onUnmounted(() => {
 }
 
 @keyframes loading-slide {
-  0% { left: -100%; width: 100%; opacity: 0; }
-  20% { opacity: 0.1; }
-  80% { opacity: 0.1; }
-  100% { left: 100%; width: 100%; opacity: 0; }
+  0% {
+    left: -100%;
+    width: 100%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.1;
+  }
+  80% {
+    opacity: 0.1;
+  }
+  100% {
+    left: 100%;
+    width: 100%;
+    opacity: 0;
+  }
 }
 
 .url-highlight-overlay {
@@ -527,7 +612,6 @@ onUnmounted(() => {
   overflow: hidden;
   z-index: 2;
 }
-
 
 .preview-actions {
   display: flex;
@@ -569,9 +653,6 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-
-
-
 .preview-body {
   flex: 1;
   overflow: hidden;
@@ -593,7 +674,7 @@ onUnmounted(() => {
 }
 
 .preview-split :deep(.splitpanes__splitter::after) {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -648,22 +729,22 @@ onUnmounted(() => {
 }
 
 .error-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background: var(--color-error);
-    color: white;
-    font-size: 9px;
-    padding: 2px 4px;
-    border-radius: 10px;
-    min-width: 14px;
-    text-align: center;
-    border: 2px solid var(--color-background-alt); /* Cutout effect */
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--color-error);
+  color: white;
+  font-size: 9px;
+  padding: 2px 4px;
+  border-radius: 10px;
+  min-width: 14px;
+  text-align: center;
+  border: 2px solid var(--color-background-alt); /* Cutout effect */
 }
 
 .action-btn.error-btn.active .error-badge {
-    border-color: var(--color-error); /* Blend in when active */
-    background: white;
-    color: var(--color-error);
+  border-color: var(--color-error); /* Blend in when active */
+  background: white;
+  color: var(--color-error);
 }
 </style>
