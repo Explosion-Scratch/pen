@@ -1,9 +1,9 @@
 {
   "template": {
-    "title": "Solid.js",
-    "description": "Solid starter with JSX support and Less"
+    "title": "D3.js",
+    "description": "Data visualization with D3.js"
   },
-  "name": "solid-project",
+  "name": "d3-project",
   "version": "1.0.0",
   "editors": [
     {
@@ -14,14 +14,12 @@
     {
       "type": "less",
       "filename": "style.less",
-      "settings": { "normalize": true, "autoprefixer": false, "tailwind": false }
+      "settings": { "normalize": true, "autoprefixer": false }
     },
     {
-      "type": "jsx",
-      "filename": "script.jsx",
-      "settings": { 
-        "compiler": "solid"
-      }
+      "type": "javascript",
+      "filename": "script.js",
+      "settings": { "moduleType": "module" }
     }
   ],
   "globalResources": {

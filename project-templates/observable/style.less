@@ -1,0 +1,33 @@
+@accent: #f9ab00;
+
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: lighten(@accent, 45%);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: darken(@accent, 35%);
+}
+
+.container {
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 25px rgba(0,0,0,0.04);
+  border: 1px solid lighten(@accent, 30%);
+}
+
+h1 {
+  margin-top: 0;
+  color: @accent;
+  font-weight: 700;
+}
+
+#plot {
+  margin: 1.5rem 0;
+  border: 1px dashed lighten(@accent, 20%);
+  padding: 1rem;
+  border-radius: 8px;
+}

@@ -1,0 +1,68 @@
+@accent: #1B9CE5;
+
+:root {
+  --accent-color: @accent;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: lighten(@accent, 45%);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: darken(@accent, 30%);
+}
+
+.container {
+  padding: 2.5rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+  border: 1px solid lighten(@accent, 35%);
+  text-align: center;
+  max-width: 400px;
+}
+
+h1 {
+  margin-top: 0;
+  color: @accent;
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+#viz {
+  margin: 1.5rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.accent-btn {
+  background-color: @accent;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:hover {
+    background-color: darken(@accent, 8%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px fade(@accent, 30%);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+p {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin-bottom: 0.5rem;
+}

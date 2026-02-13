@@ -206,7 +206,6 @@ const editorIcons = {
   css: 'ph-duotone ph-file-css',
   sass: 'ph-duotone ph-file-css',
   less: 'ph-duotone ph-file-css',
-  stylus: 'ph-duotone ph-file-css',
   javascript: 'ph-duotone ph-file-js',
   typescript: 'ph-duotone ph-file-ts'
 }
@@ -218,8 +217,6 @@ const extensionToType = {
   '.scss': 'sass',
   '.sass': 'sass',
   '.less': 'less',
-  '.styl': 'stylus',
-  '.stylus': 'stylus',
   '.js': 'javascript',
   '.mjs': 'javascript',
   '.ts': 'typescript',
@@ -235,7 +232,7 @@ function getLanguageExtension(type) {
   if (type_ === 'html') {
     return html()
   }
-  if (type_ === 'css' || type_ === 'less' || type_ === 'stylus') {
+  if (type_ === 'css' || type_ === 'less') {
     return css()
   }
   if (type_ === 'sass') {
@@ -255,7 +252,7 @@ function isMarkupEditor(type) {
 }
 
 function isStyleEditor(type) {
-  return ['css', 'sass', 'less', 'stylus'].includes(type.toLowerCase())
+  return ['css', 'sass', 'less'].includes(type.toLowerCase())
 }
 
 function getEmmetExtensions() {

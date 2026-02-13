@@ -2,7 +2,6 @@ import { HTMLAdapter } from '../adapters/markup/html_adapter.js'
 import { CSSAdapter } from '../adapters/style/css_adapter.js'
 import { SASSAdapter } from '../adapters/style/sass_adapter.js'
 import { LESSAdapter } from '../adapters/style/less_adapter.js'
-import { StylusAdapter } from '../adapters/style/stylus_adapter.js'
 import { JavaScriptAdapter } from '../adapters/script/javascript_adapter.js'
 import { TypeScriptAdapter } from '../adapters/script/typescript_adapter.js'
 import { JSXAdapter } from '../adapters/script/jsx_adapter.js'
@@ -12,10 +11,9 @@ const adapters = new Map([
   ['css', CSSAdapter],
   ['sass', SASSAdapter],
   ['less', LESSAdapter],
-  ['stylus', StylusAdapter],
   ['javascript', JavaScriptAdapter],
   ['typescript', TypeScriptAdapter],
-  ['jsx', JSXAdapter]
+  ['jsx', JSXAdapter],
 ])
 
 export function getAdapter(adapterId) {

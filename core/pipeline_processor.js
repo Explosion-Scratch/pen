@@ -19,6 +19,7 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   const orderedEditors = getEditorOrder(config)
   const importOverrides = config.importOverrides || {}
   const errors = []
+  const lateScripts = [...(config.globalResources?.bodyScripts || [])]
   
   let injectDev = options.dev
   if (config.preview && config.preview.injectDevTools === false) {
@@ -38,10 +39,22 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
       const content = fileMap[editor.filename] || ''
       const rendered = await adapter.render(content, fileMap)
 
+      // Handle adapter resources (scripts, styles, etc)
+      const resources = Adapter.getCdnResources?.(editor.settings) || {}
+      if (resources.styles) {
+        for (const styleUrl of resources.styles) injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
+      }
+      if (resources.scripts) {
+        for (const scriptUrl of resources.scripts) injectIntoHead(document, 'script', { src: scriptUrl })
+      }
+      if (resources.bodyScripts) {
+        lateScripts.push(...resources.bodyScripts)
+      }
+
       if (Adapter.type === 'markup') {
         injectMarkup(document, rendered)
       } else if (Adapter.type === 'style') {
-        injectStyle(document, editor, Adapter, rendered)
+        injectStyle(document, editor, rendered)
       } else if (Adapter.type === 'script') {
         injectScript(document, editor, rendered, importOverrides)
       }
@@ -62,11 +75,21 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
 
   injectGlobalResources(document, config)
   
+  // Inject late scripts (e.g. UnoCSS runtime)
+  for (const scriptDef of lateScripts) {
+    const isString = typeof scriptDef === 'string'
+    const src = isString ? scriptDef : scriptDef.src
+    const attrs = isString ? { src } : { src, ...(scriptDef.attrs || {}), ...(scriptDef.type ? { type: scriptDef.type } : {}) }
+    
+    // Allow non-script tags if needed? For now assume script.
+    injectAfterBody(document, 'script', attrs)
+  }
+  
 
   if (injectDev) {
     injectLocationShim(document)
-    injectDebugScript(document)
     injectErrorListener(document)
+    injectDebugScript(document)
   }
 
   const finalHtml = serialize(document)
@@ -294,7 +317,7 @@ function injectDebugScript(document) {
     });
 
     // Initialize
-    console.log('DevTools Bridge Initialized');
+    // console.log('DevTools Bridge Initialized');
   `
   
   updateOrCreateElement(
@@ -329,7 +352,7 @@ function injectMarkup(document, rendered) {
   }
 }
 
-function injectStyle(document, editor, Adapter, rendered) {
+function injectStyle(document, editor, rendered) {
   if (rendered.css) {
     updateOrCreateElement(
       document,
@@ -339,13 +362,6 @@ function injectStyle(document, editor, Adapter, rendered) {
       rendered.css + (editor.filename ? `\n\n/*# sourceURL=${editor.filename} */` : ''),
       'head'
     )
-  }
-  const resources = Adapter.getCdnResources?.(editor.settings) || { scripts: [], styles: [] }
-  for (const styleUrl of resources.styles || []) {
-    injectIntoHead(document, 'link', { rel: 'stylesheet', href: styleUrl })
-  }
-  for (const scriptUrl of resources.scripts || []) {
-    injectIntoHead(document, 'script', { src: scriptUrl })
   }
 }
 

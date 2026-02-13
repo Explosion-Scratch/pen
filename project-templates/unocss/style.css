@@ -1,0 +1,4 @@
+/* UnoCSS uses the runtime to inject styles, so this file can stay minimal */
+:root {
+  --accent: #4caf50;
+}

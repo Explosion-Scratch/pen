@@ -68,7 +68,6 @@ const adapterIcons = {
   css: 'ph-duotone ph-file-css',
   sass: 'ph-duotone ph-file-css',
   less: 'ph-duotone ph-file-css',
-  stylus: 'ph-duotone ph-file-css',
   javascript: 'ph-duotone ph-file-js',
   typescript: 'ph-duotone ph-file-ts'
 }
@@ -78,7 +77,6 @@ const fileExtensions = {
   css: '.css',
   sass: '.scss',
   less: '.less',
-  stylus: '.styl',
   javascript: '.js',
   typescript: '.ts'
 }

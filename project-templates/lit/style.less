@@ -1,0 +1,25 @@
+@accent: #325cff;
+
+:root {
+  --accent-color: @accent;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: lighten(@accent, 45%);
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  color: darken(@accent, 30%);
+}
+
+.container {
+  padding: 2.5rem;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+  border: 1px solid lighten(@accent, 35%);
+  text-align: center;
+}

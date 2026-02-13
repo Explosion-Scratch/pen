@@ -4,11 +4,11 @@ A CodePen-like editor for local development with live preview and preprocessing 
 
 ## Features
 
-- 🎨 **Multiple Editor Types**: HTML, Pug, Slim, CSS, SASS, LESS, Stylus, JavaScript, TypeScript
+- 🎨 **Multiple Editor Types**: HTML, CSS, SASS, LESS, JavaScript, TypeScript
 - ⚡ **Live Preview**: See changes instantly as you type
 - 🔄 **File Sync**: Changes sync between external editors and the web UI
 - 📦 **CDN Imports**: NPM imports are automatically transformed to Skypack CDN URLs
-- 🎯 **Preprocessing**: SASS, LESS, Stylus, and TypeScript compile on the fly
+- 🎯 **Preprocessing**: SASS, LESS, and TypeScript compile on the fly
 - ✨ **Beautiful Design**: Warm, minimal aesthetic with Maple Mono font
 
 ## Installation
@@ -33,7 +33,7 @@ pen
 This will prompt you to:
 1. Enter a project name
 2. Choose your markup language (HTML, Pug, Slim)
-3. Choose your styling tool (CSS, SASS, LESS, Stylus)
+3. Choose your styling tool (CSS, SASS, LESS)
 4. Choose your scripting tool (JavaScript, TypeScript)
 
 ### Launch the Editor
@@ -78,7 +78,7 @@ pen serve
 my-project/
 ├── .pen.config.json    # Project configuration
 ├── index.html          # HTML markup
-├── style.scss          # Styles (or .css, .less, .styl)
+├── style.scss          # Styles (or .css, .less)
 └── script.js           # JavaScript (or .ts)
 ```
 
@@ -113,7 +113,6 @@ The `.pen.config.json` file controls your project:
 - **CSS**: Standard CSS with Normalize.css option
 - **SASS/SCSS**: Compiles SCSS to CSS
 - **LESS**: Compiles LESS to CSS
-- **Stylus**: Compiles Stylus to CSS
 
 ### Scripts
 - **JavaScript**: ES modules with CDN import transformation

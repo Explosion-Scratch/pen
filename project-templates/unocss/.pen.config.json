@@ -1,0 +1,35 @@
+{
+  "template": {
+    "title": "UnoCSS",
+    "description": "Instant on-demand atomic CSS"
+  },
+  "name": "unocss-project",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "css",
+      "filename": "style.css",
+      "settings": { "normalize": true, "autoprefixer": false }
+    },
+    {
+      "type": "javascript",
+      "filename": "script.js",
+      "settings": { "moduleType": "module" }
+    }
+  ],
+  "globalResources": {
+    "scripts": [],
+    "styles": [],
+    "bodyScripts": [
+      {
+        "src": "https://cdn.jsdelivr.net/npm/@unocss/runtime",
+        "type": "module"
+      }
+    ]
+  }
+}

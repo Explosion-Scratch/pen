@@ -152,6 +152,71 @@ async function loadProjectTemplatesInBrowser() {
         'style.less': () => import('../project-templates/solid/style.less?raw'),
         'script.jsx': () => import('../project-templates/solid/script.jsx?raw'),
       }
+    },
+    'd3': {
+      config: () => import('../project-templates/d3/.pen.config.json'),
+      icon: () => import('../project-templates/d3/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/d3/index.html?raw'),
+        'style.less': () => import('../project-templates/d3/style.less?raw'),
+        'script.js': () => import('../project-templates/d3/script.js?raw'),
+      }
+    },
+    'threejs': {
+      config: () => import('../project-templates/threejs/.pen.config.json'),
+      icon: () => import('../project-templates/threejs/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/threejs/index.html?raw'),
+        'style.less': () => import('../project-templates/threejs/style.less?raw'),
+        'script.js': () => import('../project-templates/threejs/script.js?raw'),
+      }
+    },
+    'lit': {
+      config: () => import('../project-templates/lit/.pen.config.json'),
+      icon: () => import('../project-templates/lit/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/lit/index.html?raw'),
+        'style.less': () => import('../project-templates/lit/style.less?raw'),
+        'script.js': () => import('../project-templates/lit/script.js?raw'),
+      }
+    },
+    'preact': {
+      config: () => import('../project-templates/preact/.pen.config.json'),
+      icon: () => import('../project-templates/preact/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/preact/index.html?raw'),
+        'style.less': () => import('../project-templates/preact/style.less?raw'),
+        'script.jsx': () => import('../project-templates/preact/script.jsx?raw'),
+      }
+    },
+
+    'observable': {
+      config: () => import('../project-templates/observable/.pen.config.json'),
+      icon: () => import('../project-templates/observable/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/observable/index.html?raw'),
+        'style.less': () => import('../project-templates/observable/style.less?raw'),
+        'script.js': () => import('../project-templates/observable/script.js?raw'),
+      }
+    },
+    'htmx': {
+      config: () => import('../project-templates/htmx/.pen.config.json'),
+      icon: () => import('../project-templates/htmx/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/htmx/index.html?raw'),
+        'style.less': () => import('../project-templates/htmx/style.less?raw'),
+        'script.js': () => import('../project-templates/htmx/script.js?raw'),
+      }
+    },
+
+    'unocss': {
+      config: () => import('../project-templates/unocss/.pen.config.json'),
+      icon: () => import('../project-templates/unocss/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/unocss/index.html?raw'),
+        'style.css': () => import('../project-templates/unocss/style.css?raw'),
+        'script.js': () => import('../project-templates/unocss/script.js?raw'),
+      }
     }
   }
 
@@ -164,9 +229,6 @@ async function loadProjectTemplatesInBrowser() {
       const icon = iconModule.default || iconModule
 
       const files = {}
-      // We load ALL files defined in the manifest for simplicity/completeness,
-      // or we could filter by what's in config.editors if we trust the config.
-      // Let's load what's in the manifest to ensure we get the content.
       for (const [filename, fileLoader] of Object.entries(loader.files)) {
         const fileMod = await fileLoader()
         files[filename] = fileMod.default || fileMod
@@ -193,12 +255,5 @@ async function loadProjectTemplatesInBrowser() {
 }
 
 export function listProjectTemplateIds() {
-  // In browser we can return hardcoded keys
-  // In Node we (re)read directory
-  // For simplicity return known keys for now or async check?
-  // The original function was sync. We should make it async or just use loadAllProjectTemplates
-  // But strictly following the signature... existing signature was sync.
-  // We can't easily be sync in browser with dynamic imports. 
-  // Consumers should prefer loadAllProjectTemplates.
-  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid']
+  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid', 'd3', 'threejs', 'lit', 'preact', 'observable', 'htmx', 'unocss']
 }

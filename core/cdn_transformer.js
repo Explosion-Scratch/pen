@@ -9,6 +9,7 @@ const IMPORT_OVERRIDES = {
   'solid-js': 'https://esm.sh/solid-js',
   'solid-js/web': 'https://esm.sh/solid-js/web',
   'solid-js/h': 'https://esm.sh/solid-js/h',
+  'd3': 'https://cdn.jsdelivr.net/npm/d3@7/+esm',
 }
 
 /**

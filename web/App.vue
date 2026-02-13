@@ -13,6 +13,8 @@
       @export="handleExport"
       @export-editor="handleExportEditor"
       @export-zip="handleExportZip"
+      @import="handleImportFolder"
+      @import-file="handleImportFile"
     />
     <PaneManager
       :editors="editors"
@@ -42,14 +44,14 @@
       @save="handleSettingsSave"
       @toast="addToast"
     />
-    <Toast
-      :toasts="toasts"
-      @remove="removeToast"
-      @jump="handleJump"
-    />
-    
+    <Toast :toasts="toasts" @remove="removeToast" @jump="handleJump" />
+
     <Teleport to="body">
-      <div v-if="showTemplatePicker" class="modal-overlay" @click.self="showTemplatePicker = false">
+      <div
+        v-if="showTemplatePicker"
+        class="modal-overlay"
+        @click.self="showTemplatePicker = false"
+      >
         <TemplatePickerModal
           @close="showTemplatePicker = false"
           @select="handleTemplateSelect"
@@ -68,260 +70,370 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import PaneManager from './components/PaneManager.vue'
-import SettingsModal from './components/SettingsModal.vue'
-import TemplatePickerModal from './components/TemplatePickerModal.vue'
-import Toolbar from './components/Toolbar.vue'
-import Toast from './components/Toast.vue'
-import { editorStateManager, fileSystemMirror, useEditors, useFileSystem, exportProject, exportEditor, exportAsZip } from './state_management.js'
-import { fileSystem } from './filesystem.js'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import PaneManager from "./components/PaneManager.vue";
+import SettingsModal from "./components/SettingsModal.vue";
+import TemplatePickerModal from "./components/TemplatePickerModal.vue";
+import Toolbar from "./components/Toolbar.vue";
+import Toast from "./components/Toast.vue";
+import {
+  editorStateManager,
+  fileSystemMirror,
+  useEditors,
+  useFileSystem,
+  exportProject,
+  exportEditor,
+  exportAsZip,
+} from "./state_management.js";
+import { fileSystem } from "./filesystem.js";
+import { importer } from "./utils/importer.js";
+import JSZip from "jszip";
 
-const { files, updateFile, setConfig, setAllFiles, config, isVirtual, hasUnsavedChanges, errors } = useFileSystem()
-const { triggerAction } = useEditors()
+const {
+  files,
+  updateFile,
+  setConfig,
+  setAllFiles,
+  config,
+  isVirtual,
+  hasUnsavedChanges,
+  errors,
+} = useFileSystem();
+const { triggerAction } = useEditors();
 
-const editors = computed(() => config.editors || [])
+const editors = computed(() => config.editors || []);
 
 const appSettings = reactive({
   autoRun: true,
-  previewUrl: '',
-  layoutMode: 'columns'
-})
+  previewUrl: "",
+  layoutMode: "columns",
+});
 
+watch(
+  () => config.autoRun,
+  (val) => (appSettings.autoRun = val),
+);
 
-watch(() => config.autoRun, (val) => appSettings.autoRun = val)
-
-const currentPath = ref('')
-const adapters = ref([]) 
-const showSettings = ref(false)
-const showTemplatePicker = ref(false)
-const lastActivity = ref({})
-const toasts = ref([])
-const lastManualRender = ref(0)
-const previewState = ref({ displayURL: '', contentURL: '' })
-const IDLE_THRESHOLD = 2000 // 2 seconds
-const isLoading = ref(true)
-let saveDebounceTimer = null
+const currentPath = ref("");
+const adapters = ref([]);
+const showSettings = ref(false);
+const showTemplatePicker = ref(false);
+const lastActivity = ref({});
+const toasts = ref([]);
+const lastManualRender = ref(0);
+const previewState = ref({ displayURL: "", contentURL: "" });
+const IDLE_THRESHOLD = 2000; // 2 seconds
+const isLoading = ref(true);
+let saveDebounceTimer = null;
 
 onMounted(async () => {
   // Listen for preview updates from state manager (which gets them from FS writePreview)
-  window.addEventListener('pen-preview-update', (e) => {
-      previewState.value = e.detail
-  })
+  window.addEventListener("pen-preview-update", (e) => {
+    previewState.value = e.detail;
+  });
 
   // Connect to FS
   try {
-     await fileSystem.connect()
+    await fileSystem.connect();
   } catch (err) {
-      console.error('Failed to connect to FS', err)
-      addToast({
-        type: 'error',
-        title: 'Connection Failed',
-        message: 'Could not connect to file system.'
-      })
+    console.error("Failed to connect to FS", err);
+    addToast({
+      type: "error",
+      title: "Connection Failed",
+      message: "Could not connect to file system.",
+    });
   } finally {
-      isLoading.value = false
+    isLoading.value = false;
   }
-  
-  window.addEventListener('keydown', handleKeydown)
-})
+
+  window.addEventListener("keydown", handleKeydown);
+});
 
 onUnmounted(() => {
-  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
-  window.removeEventListener('keydown', handleKeydown)
-})
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  window.removeEventListener("keydown", handleKeydown);
+});
 
 function applyInitMessage(message) {
-    adapters.value = message.adapters || []
-    if (message.rootPath) currentPath.value = message.rootPath
-    if (message.config?.autoRun !== undefined) appSettings.autoRun = message.config.autoRun
-    if (message.config?.layoutMode) appSettings.layoutMode = message.config.layoutMode
+  adapters.value = message.adapters || [];
+  if (message.rootPath) currentPath.value = message.rootPath;
+  if (message.config?.autoRun !== undefined)
+    appSettings.autoRun = message.config.autoRun;
+  if (message.config?.layoutMode)
+    appSettings.layoutMode = message.config.layoutMode;
 }
 
 fileSystem.on((message) => {
-    if (message.type === 'init') {
-        applyInitMessage(message)
-    }
+  if (message.type === "init") {
+    applyInitMessage(message);
+  }
 
-    if (message.type === 'reinit') {
-        if (message.config) setConfig(message.config)
-        if (message.files) setAllFiles(message.files)
-        applyInitMessage(message)
-    }
-    
-    if (message.type === 'toast-error') {
-        addToast({
-          type: 'error',
-          title: message.name,
-          message: message.message,
-          details: {
-            filename: message.filename,
-            line: message.line,
-            column: message.column
-          }
-        })
-    }
-})
+  if (message.type === "reinit") {
+    if (message.config) setConfig(message.config);
+    if (message.files) setAllFiles(message.files);
+    applyInitMessage(message);
+  }
 
+  if (message.type === "toast-error") {
+    addToast({
+      type: "error",
+      title: message.name,
+      message: message.message,
+      details: {
+        filename: message.filename,
+        line: message.line,
+        column: message.column,
+      },
+    });
+  }
+});
 
 function handleFileUpdate(filename, content) {
   // Update state (triggers render if autoRun)
-  updateFile(filename, content)
-  lastActivity.value[filename] = Date.now()
-  
-
+  updateFile(filename, content);
+  lastActivity.value[filename] = Date.now();
 }
 
 function handleRender(isManual = false) {
-  if (isManual) lastManualRender.value = Date.now()
+  if (isManual) lastManualRender.value = Date.now();
 
-  const firstFile = Object.keys(files)[0]
-  if (firstFile) updateFile(firstFile, files[firstFile])
+  const firstFile = Object.keys(files)[0];
+  if (firstFile) updateFile(firstFile, files[firstFile]);
 }
 
 function handleRename(oldFilename, newFilename, newType) {
-    const editor = config.editors?.find(e => e.filename === oldFilename)
-    if (editor) {
-      editor.filename = newFilename
-      editor.type = newType
-    }
-    fileSystem.renameFile(oldFilename, newFilename, newType)
+  const editor = config.editors?.find((e) => e.filename === oldFilename);
+  if (editor) {
+    editor.filename = newFilename;
+    editor.type = newType;
+  }
+  fileSystem.renameFile(oldFilename, newFilename, newType);
 }
 
 function handleAppSettingsUpdate(newSettings) {
-  Object.assign(appSettings, newSettings)
-  fileSystem.saveConfig({ ...config, ...appSettings })
+  Object.assign(appSettings, newSettings);
+  fileSystem.saveConfig({ ...config, ...appSettings });
 }
 
 function handleEditorSettingsUpdate(filename, settings) {
-    const editor = config.editors.find(e => e.filename === filename)
-    if (editor) editor.settings = settings
-    
-    if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
-      fileSystem.socket.send(JSON.stringify({ type: 'editor-settings', filename, settings }))
-    } else if (fileSystem.isVirtual.value || fileSystem.fallbackMode) {
-      fileSystem.saveConfig(config)
-    }
+  const editor = config.editors.find((e) => e.filename === filename);
+  if (editor) editor.settings = settings;
+
+  if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
+    fileSystem.socket.send(
+      JSON.stringify({ type: "editor-settings", filename, settings }),
+    );
+  } else if (fileSystem.isVirtual.value || fileSystem.fallbackMode) {
+    fileSystem.saveConfig(config);
+  }
 }
 
-
-function handleFormat(filename) { triggerAction(filename, 'format') }
-function handleMinify(filename) { triggerAction(filename, 'minify') }
-function handleCompile(filename, target) { triggerAction(filename, 'compile', target) }
+function handleFormat(filename) {
+  triggerAction(filename, "format");
+}
+function handleMinify(filename) {
+  triggerAction(filename, "minify");
+}
+function handleCompile(filename, target) {
+  triggerAction(filename, "compile", target);
+}
 
 function handleSettingsSave(newConfig, newSettings) {
-  setConfig(newConfig)
-  if (newSettings) Object.assign(appSettings, newSettings)
-  showSettings.value = false
-  
-  const finalConfig = { 
-      ...newConfig, 
-      autoRun: appSettings.autoRun,
-      previewUrl: appSettings.previewUrl,
-      layoutMode: appSettings.layoutMode
-  }
-  fileSystem.saveConfig(finalConfig)
+  setConfig(newConfig);
+  if (newSettings) Object.assign(appSettings, newSettings);
+  showSettings.value = false;
+
+  const finalConfig = {
+    ...newConfig,
+    autoRun: appSettings.autoRun,
+    previewUrl: appSettings.previewUrl,
+    layoutMode: appSettings.layoutMode,
+  };
+  fileSystem.saveConfig(finalConfig);
 }
 
 function handleProjectNameUpdate(newName) {
-    const newConfig = { ...config, name: newName }
-    setConfig(newConfig)
-    fileSystem.saveConfig({ ...newConfig, ...appSettings })
+  const newConfig = { ...config, name: newName };
+  setConfig(newConfig);
+  fileSystem.saveConfig({ ...newConfig, ...appSettings });
 }
 
 function handleExport() {
-  exportProject().catch(err => {
+  exportProject().catch((err) => {
     addToast({
-      type: 'error',
-      title: 'Export Failed',
-      message: err.message
-    })
-  })
+      type: "error",
+      title: "Export Failed",
+      message: err.message,
+    });
+  });
 }
 
 function handleExportZip() {
-  exportAsZip().catch(err => {
+  exportAsZip().catch((err) => {
     addToast({
-      type: 'error',
-      title: 'Export Failed',
-      message: err.message
-    })
-  })
+      type: "error",
+      title: "Export Failed",
+      message: err.message,
+    });
+  });
 }
 
-
 function handleExportEditor() {
-  exportEditor().catch(err => {
+  exportEditor().catch((err) => {
     addToast({
-      type: 'error',
-      title: 'Export Failed',
-      message: err.message
-    })
-  })
+      type: "error",
+      title: "Export Failed",
+      message: err.message,
+    });
+  });
+}
+
+async function handleImportFolder() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.webkitdirectory = true;
+  input.onchange = async (e) => {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    await processImportResult(files);
+  };
+  input.click();
+}
+
+async function handleImportFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".zip,.html";
+  input.onchange = async (e) => {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    await processImportResult(files);
+  };
+  input.click();
+}
+
+async function processImportResult(files) {
+  try {
+    const result = await importer.processFiles(files);
+    if (result) {
+      setConfig(result.config);
+      setAllFiles(result.files);
+      addToast({
+        type: "success",
+        title: "Import Successful",
+        message: `Imported ${Object.keys(result.files).length} files`,
+      });
+    }
+  } catch (err) {
+    addToast({
+      type: "error",
+      title: "Import Failed",
+      message: err.message,
+    });
+  }
+}
+
+async function handleImport() {
+  // Traditional singular import removed in favor of explicit folder/file
+}
+
+// Global drag and drop support for folders and files
+onMounted(() => {
+  window.addEventListener("dragover", handleGlobalDragOver);
+  window.addEventListener("drop", handleGlobalDrop);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("dragover", handleGlobalDragOver);
+  window.removeEventListener("drop", handleGlobalDrop);
+});
+
+function handleGlobalDragOver(e) {
+  e.preventDefault();
+}
+
+async function handleGlobalDrop(e) {
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (files && files.length) {
+    await processImportResult(files);
+  }
 }
 
 
 
 
 async function handleTemplateSelect(templateId) {
-  showTemplatePicker.value = false
+  showTemplatePicker.value = false;
 
   if (fileSystem.isVirtual.value) {
-    const { loadProjectTemplate } = await import('../core/project_templates.js')
-    const template = await loadProjectTemplate(templateId)
-    if (!template) return
+    const { loadProjectTemplate } =
+      await import("../core/project_templates.js");
+    const template = await loadProjectTemplate(templateId);
+    if (!template) return;
 
-    const newConfig = { ...template.config, name: config.name || 'Untitled' }
-    setConfig(newConfig, true)
-    if (template.files) setAllFiles(template.files)
+    const newConfig = { ...template.config, name: config.name || "Untitled" };
+    setConfig(newConfig, true);
+    if (template.files) setAllFiles(template.files);
 
-    const { getAdapter } = await import('../core/adapter_registry.js')
-    adapters.value = (newConfig.editors || []).map(e => {
-      const A = getAdapter(e.type)
+    const { getAdapter } = await import("../core/adapter_registry.js");
+    adapters.value = (newConfig.editors || []).map((e) => {
+      const A = getAdapter(e.type);
       return {
-        id: A.id, type: e.type, name: A.name, description: A.description,
-        fileExtension: A.fileExtension, compileTargets: A.compileTargets || [],
-        canMinify: A.canMinify || false, schema: A.getSchema?.() || {}
-      }
-    })
-  } else if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
-    fileSystem.socket.send(JSON.stringify({ type: 'start-template', templateId }))
+        id: A.id,
+        type: e.type,
+        name: A.name,
+        description: A.description,
+        fileExtension: A.fileExtension,
+        compileTargets: A.compileTargets || [],
+        canMinify: A.canMinify || false,
+        schema: A.getSchema?.() || {},
+      };
+    });
+  } else if (
+    fileSystem.socket &&
+    fileSystem.socket.readyState === WebSocket.OPEN
+  ) {
+    fileSystem.socket.send(
+      JSON.stringify({ type: "start-template", templateId }),
+    );
   }
 }
 
 function addToast(toast) {
-  const id = Date.now()
-  toasts.value.push({ id, ...toast })
-  setTimeout(() => removeToast(id), 5000)
+  const id = Date.now();
+  toasts.value.push({ id, ...toast });
+  setTimeout(() => removeToast(id), 5000);
 }
 
 function removeToast(id) {
-  toasts.value = toasts.value.filter(t => t.id !== id)
+  toasts.value = toasts.value.filter((t) => t.id !== id);
 }
 
-
-
 function handleJump(details) {
-  editorStateManager.jumpToLocation(details.filename, details.line, details.column)
+  editorStateManager.jumpToLocation(
+    details.filename,
+    details.line,
+    details.column,
+  );
 }
 
 function handleClearErrors() {
-  console.log('App: Clearing errors')
-  fileSystemMirror.setErrors([])
+  console.log("App: Clearing errors");
+  fileSystemMirror.setErrors([]);
 }
 
 function handleKeydown(event) {
-  if (event.key === 'Escape') {
-    if (showSettings.value) showSettings.value = false
-    if (showTemplatePicker.value) showTemplatePicker.value = false
+  if (event.key === "Escape") {
+    if (showSettings.value) showSettings.value = false;
+    if (showTemplatePicker.value) showTemplatePicker.value = false;
   }
-  if ((event.metaKey || event.ctrlKey) && event.key === 's') {
-    event.preventDefault()
-
+  if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+    event.preventDefault();
   }
-  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-    event.preventDefault()
-    handleRender(true)
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    event.preventDefault();
+    handleRender(true);
   }
 }
 </script>
@@ -346,8 +458,12 @@ function handleKeydown(event) {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .loading-overlay {
@@ -384,6 +500,8 @@ function handleKeydown(event) {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

@@ -14,7 +14,15 @@
       </div>
     </div>
     <div class="toolbar-center">
-      <div v-if="isVirtual" class="vfs-badge" :title="hasUnsavedChanges ? 'Virtual storage has unsaved changes' : 'Using virtual storage'">
+      <div
+        v-if="isVirtual"
+        class="vfs-badge"
+        :title="
+          hasUnsavedChanges
+            ? 'Virtual storage has unsaved changes'
+            : 'Using virtual storage'
+        "
+      >
         <i class="ph-bold ph-hard-drive"></i>
         <span>Portable</span>
         <span v-if="hasUnsavedChanges" class="unsaved-dot"></span>
@@ -33,105 +41,141 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
-import DropdownMenu from './DropdownMenu.vue'
+import { ref, computed, watch, nextTick } from "vue";
+import DropdownMenu from "./DropdownMenu.vue";
 
 const props = defineProps({
   projectName: {
     type: String,
-    default: 'Pen'
+    default: "Pen",
   },
   settings: {
     type: Object,
-    required: true
+    required: true,
   },
   previewState: {
     type: Object,
-    default: () => ({ displayURL: '', contentURL: '' })
+    default: () => ({ displayURL: "", contentURL: "" }),
   },
   isVirtual: {
     type: Boolean,
-    default: false
+    default: false,
   },
   hasUnsavedChanges: {
     type: Boolean,
-    default: false
-  }
-})
+    default: false,
+  },
+});
 
-const emit = defineEmits(['settings', 'new-project', 'update-settings', 'update-project-name', 'export', 'export-editor', 'export-zip'])
+const emit = defineEmits([
+  "settings",
+  "new-project",
+  "update-settings",
+  "update-project-name",
+  "export",
+  "export-editor",
+  "export-zip",
+  "import",
+  "import-file",
+]);
 
-const localProjectName = ref(props.projectName)
-const titleInput = ref(null)
+const localProjectName = ref(props.projectName);
+const titleInput = ref(null);
 
-watch(() => props.projectName, (newVal) => {
-  localProjectName.value = newVal
-})
+watch(
+  () => props.projectName,
+  (newVal) => {
+    localProjectName.value = newVal;
+  },
+);
 
 function saveTitle() {
   if (localProjectName.value && localProjectName.value !== props.projectName) {
-    emit('update-project-name', localProjectName.value)
+    emit("update-project-name", localProjectName.value);
   } else {
-    localProjectName.value = props.projectName
+    localProjectName.value = props.projectName;
   }
 }
 
 function cancelEditing() {
-  localProjectName.value = props.projectName
-  titleInput.value?.blur()
+  localProjectName.value = props.projectName;
+  titleInput.value?.blur();
 }
 
 function openPreviewTab() {
-  const url = props.previewState?.contentURL || 'http://localhost:3002'
-  window.open(url, '_blank')
+  const url = props.previewState?.contentURL || "http://localhost:3002";
+  window.open(url, "_blank");
 }
 
 const menuItems = computed(() => [
   {
-    label: 'New Project',
-    icon: 'ph-duotone ph-plus',
-    action: () => emit('new-project')
+    label: "New Project",
+    icon: "ph-duotone ph-plus",
+    action: () => emit("new-project"),
   },
   {
-    label: 'Open preview',
-    icon: 'ph-duotone ph-arrow-square-out',
-    action: () => openPreviewTab()
-  },
-  {
-    label: 'Export',
-    icon: 'ph-duotone ph-export',
+    label: "Import Pen",
+    icon: "ph-duotone ph-folder-open",
     children: [
       {
-        label: 'Export HTML',
-        icon: 'ph-duotone ph-download-simple',
-        action: () => emit('export') 
+        label: "Import Folder",
+        icon: "ph-duotone ph-folder",
+        action: () => emit("import"),
       },
       {
-        label: 'Export ZIP',
-        icon: 'ph-duotone ph-file-zip',
-        action: () => emit('export-zip')
+        label: "Import File (ZIP/HTML)",
+        icon: "ph-duotone ph-file-zip",
+        action: () => emit("import-file"),
+      },
+    ],
+  },
+  {
+    label: "Open preview",
+    icon: "ph-duotone ph-arrow-square-out",
+    action: () => openPreviewTab(),
+  },
+  {
+    label: "Export",
+    icon: "ph-duotone ph-export",
+    children: [
+      {
+        label: "Export HTML",
+        icon: "ph-duotone ph-download-simple",
+        action: () => emit("export"),
       },
       {
-        label: 'Export Editor',
-        icon: 'ph-duotone ph-grid-four',
-        action: () => emit('export-editor')
-      }
-    ]
+        label: "Export ZIP",
+        icon: "ph-duotone ph-file-zip",
+        action: () => emit("export-zip"),
+      },
+      {
+        label: "Export Editor",
+        icon: "ph-duotone ph-grid-four",
+        action: () => emit("export-editor"),
+      },
+    ],
   },
   {
-    label: 'Switch orientations',
-    icon: props.settings.layoutMode === 'columns' ? 'ph-duotone ph-rows' : 'ph-duotone ph-columns',
-    action: () => emit('update-settings', { layoutMode: props.settings.layoutMode === 'columns' ? 'rows' : 'columns' })
+    label: "Switch orientations",
+    icon:
+      props.settings.layoutMode === "columns"
+        ? "ph-duotone ph-rows"
+        : "ph-duotone ph-columns",
+    action: () =>
+      emit("update-settings", {
+        layoutMode:
+          props.settings.layoutMode === "columns" ? "rows" : "columns",
+      }),
   },
   {
-    divider: true
+    divider: true,
   },
   {
-    label: 'Settings',
-    icon: 'ph-duotone ph-gear',
-    action: () => emit('settings')
-  }
-])
+    label: "Settings",
+    icon: "ph-duotone ph-gear",
+    action: () => emit("settings"),
+  },
+]);
 </script>
 
 <style scoped>
@@ -205,8 +249,12 @@ const menuItems = computed(() => [
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .toolbar-btn {
@@ -224,7 +272,8 @@ const menuItems = computed(() => [
   cursor: pointer;
 }
 
-.toolbar-btn:hover, .toolbar-btn.active {
+.toolbar-btn:hover,
+.toolbar-btn.active {
   background: var(--color-background-alt);
   color: var(--color-text);
 }
