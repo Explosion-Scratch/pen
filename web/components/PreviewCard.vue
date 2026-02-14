@@ -65,6 +65,16 @@
         >
           <i class="ph-duotone ph-terminal-window"></i>
         </button>
+
+        <button
+          class="action-btn"
+          @click="$emit('toggle-maximize')"
+          :title="isMaximized ? 'Restore Preview' : 'Maximize Preview'"
+        >
+          <i
+            :class="isMaximized ? 'ph-duotone ph-arrows-in' : 'ph-duotone ph-arrows-out'"
+          ></i>
+        </button>
       </div>
     </header>
     <div class="preview-body">

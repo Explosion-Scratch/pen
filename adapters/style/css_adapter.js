@@ -72,7 +72,10 @@ p {
     return {
       normalize: true,
       autoprefixer: false,
-      tailwind: false
+      tailwind: false,
+      injectTo: 'head',
+      injectPosition: 'beforeend',
+      priority: 20
     }
   }
 
@@ -128,7 +131,8 @@ p {
         name: 'Tailwind CSS',
         description: 'Enable Tailwind CDN processing (supports @layer, @apply, etc.)',
         default: false
-      }
+      },
+      ...super.getSchema()
     }
   }
 }

@@ -23,7 +23,7 @@
     }
   ],
   "globalResources": {
-    "scripts": ["https://cdn.tailwindcss.com"],
+    "scripts": [],
     "styles": []
   }
 }

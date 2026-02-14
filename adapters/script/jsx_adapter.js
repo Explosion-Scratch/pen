@@ -201,6 +201,7 @@ export class JSXAdapter extends JavaScriptAdapter {
 
   static getSchema() {
     return {
+      ...super.getSchema(),
       compiler: {
         type: 'select',
         name: 'JSX Compiler',

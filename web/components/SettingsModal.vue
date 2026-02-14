@@ -58,12 +58,57 @@
             <div
               v-for="(script, index) in localConfig.globalResources.scripts"
               :key="'script-' + index"
-              class="resource-item"
+              class="resource-item-wrapper"
             >
-              <input type="text" v-model="localConfig.globalResources.scripts[index]" />
-              <button class="remove-btn" @click="removeScript(index)">
-                <i class="ph-duotone ph-trash"></i>
-              </button>
+              <div class="resource-item">
+                <input 
+                  type="text" 
+                  :value="typeof script === 'string' ? script : script.src"
+                  @input="e => updateScriptValue(index, e.target.value)"
+                  placeholder="Script URL"
+                />
+                <button 
+                  class="settings-btn" 
+                  :class="{ active: typeof script === 'object' }"
+                  @click="toggleScriptSettings(index)"
+                  title="Resource Settings"
+                >
+                  <i class="ph-duotone ph-gear"></i>
+                </button>
+                <button class="remove-btn" @click="removeScript(index)">
+                  <i class="ph-duotone ph-trash"></i>
+                </button>
+              </div>
+              
+              <div v-if="typeof script === 'object'" class="resource-expanded-settings">
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label>Inject To</label>
+                    <input type="text" v-model="script.injectTo" placeholder="head" />
+                  </div>
+                  <div class="settings-field">
+                    <label>Position</label>
+                    <select v-model="script.injectPosition">
+                      <option value="beforebegin">Before Begin</option>
+                      <option value="afterbegin">After Begin</option>
+                      <option value="beforeend">Before End</option>
+                      <option value="afterend">After End</option>
+                    </select>
+                  </div>
+                  <div class="settings-field">
+                    <label>Priority</label>
+                    <input type="number" v-model.number="script.priority" />
+                  </div>
+                  <div class="settings-field">
+                    <label>Type</label>
+                    <select v-model="script.type">
+                      <option :value="undefined">Default</option>
+                      <option value="module">Module</option>
+                      <option value="text/javascript">Classic</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="resource-add">
               <input
@@ -100,12 +145,49 @@
             <div
               v-for="(style, index) in localConfig.globalResources.styles"
               :key="'style-' + index"
-              class="resource-item"
+              class="resource-item-wrapper"
             >
-              <input type="text" v-model="localConfig.globalResources.styles[index]" />
-              <button class="remove-btn" @click="removeStyle(index)">
-                <i class="ph-duotone ph-trash"></i>
-              </button>
+              <div class="resource-item">
+                <input 
+                  type="text" 
+                  :value="typeof style === 'string' ? style : style.src"
+                  @input="e => updateStyleValue(index, e.target.value)"
+                  placeholder="Style URL"
+                />
+                <button 
+                  class="settings-btn" 
+                  :class="{ active: typeof style === 'object' }"
+                  @click="toggleStyleSettings(index)"
+                  title="Resource Settings"
+                >
+                  <i class="ph-duotone ph-gear"></i>
+                </button>
+                <button class="remove-btn" @click="removeStyle(index)">
+                  <i class="ph-duotone ph-trash"></i>
+                </button>
+              </div>
+
+              <div v-if="typeof style === 'object'" class="resource-expanded-settings">
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label>Inject To</label>
+                    <input type="text" v-model="style.injectTo" placeholder="head" />
+                  </div>
+                  <div class="settings-field">
+                    <label>Position</label>
+                    <select v-model="style.injectPosition">
+                      <option value="beforebegin">Before Begin</option>
+                      <option value="afterbegin">After Begin</option>
+                      <option value="beforeend">Before End</option>
+                      <option value="afterend">After End</option>
+                    </select>
+                  </div>
+                  <div class="settings-field">
+                    <label>Priority</label>
+                    <input type="number" v-model.number="style.priority" />
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="resource-add">
               <input
@@ -269,6 +351,52 @@ function removeScript(index) {
 
 function removeStyle(index) {
   localConfig.value.globalResources.styles.splice(index, 1)
+}
+
+function toggleScriptSettings(index) {
+  const current = localConfig.value.globalResources.scripts[index]
+  if (typeof current === 'string') {
+    localConfig.value.globalResources.scripts[index] = {
+      src: current,
+      priority: 10,
+      injectTo: 'head',
+      injectPosition: 'beforeend'
+    }
+  } else {
+    localConfig.value.globalResources.scripts[index] = current.src
+  }
+}
+
+function updateScriptValue(index, value) {
+  const current = localConfig.value.globalResources.scripts[index]
+  if (typeof current === 'string') {
+    localConfig.value.globalResources.scripts[index] = value
+  } else {
+    current.src = value
+  }
+}
+
+function toggleStyleSettings(index) {
+  const current = localConfig.value.globalResources.styles[index]
+  if (typeof current === 'string') {
+    localConfig.value.globalResources.styles[index] = {
+      src: current,
+      priority: 10,
+      injectTo: 'head',
+      injectPosition: 'beforeend'
+    }
+  } else {
+    localConfig.value.globalResources.styles[index] = current.src
+  }
+}
+
+function updateStyleValue(index, value) {
+  const current = localConfig.value.globalResources.styles[index]
+  if (typeof current === 'string') {
+    localConfig.value.globalResources.styles[index] = value
+  } else {
+    current.src = value
+  }
 }
 
 function save() {
@@ -626,6 +754,74 @@ input:checked + .switch-slider:before {
 .remove-btn:hover {
   background: #FEE2E2;
   color: #DC2626;
+}
+
+.settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.settings-btn:hover, .settings-btn.active {
+  background: var(--color-background-alt);
+  color: var(--color-accent);
+}
+
+.resource-item-wrapper {
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.resource-item-wrapper:has(.resource-expanded-settings) {
+  border-color: var(--color-border-light);
+  background: rgba(var(--color-background-alt-rgb), 0.3);
+  padding: 4px;
+}
+
+.resource-expanded-settings {
+  padding: 12px;
+  margin-top: 4px;
+  background: var(--color-background-alt);
+  border-radius: var(--radius-md);
+  animation: slideDown 200ms ease;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-field label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.settings-field input, .settings-field select {
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .modal-footer {

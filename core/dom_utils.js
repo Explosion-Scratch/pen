@@ -114,7 +114,7 @@ export function removeElement(document, selector) {
 export function updateOrCreateElement(document, selector, tagType, attributes, content, parent = 'head', prepend = false) {
   let element
   try {
-    element = document.querySelector(selector)
+    element = selector ? document.querySelector(selector) : null
   } catch {
     element = null
   }
@@ -126,11 +126,13 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
 
   if (!element) {
     element = document.createElement(tagType)
-    const parentNode = parent === 'head' ? document.head : 
-                       parent === 'body' ? document.body : 
-                       document.documentElement
+    const parentNode = parent === 'head' || parent === 'before-head' ? document.head : 
+                       parent === 'body' || parent === 'before-body' ? document.body : 
+                       document.querySelector(parent) || document.documentElement
 
-    if (prepend) {
+    const isPrepend = prepend || parent === 'before-head' || parent === 'before-body'
+
+    if (isPrepend) {
       parentNode.prepend(element)
     } else {
       parentNode.appendChild(element)
@@ -142,11 +144,75 @@ export function updateOrCreateElement(document, selector, tagType, attributes, c
   }
   
   if (content !== null) {
-    if (tagType === 'script') {
+    if (tagType === 'script' || tagType === 'style') {
       element.textContent = content
     } else {
       element.innerHTML = content
     }
   }
   return element
+}
+
+/**
+ * Injects a resource into the document based on its configuration.
+ * @param {Document} document 
+ * @param {Object} config 
+ */
+export function injectResourceByConfig(document, config) {
+  const { 
+    tagType, 
+    attrs = {}, 
+    srcString = null, 
+    injectTo = 'head', 
+    injectPosition = 'beforeend',
+    id = null
+  } = config;
+
+  const element = document.createElement(tagType || (attrs.src ? 'script' : attrs.href ? 'link' : 'style'));
+  
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value !== undefined && value !== null) {
+      element.setAttribute(key, String(value));
+    }
+  }
+
+  if (id) element.id = id;
+
+  if (srcString !== null) {
+    if (element.tagName === 'SCRIPT' || element.tagName === 'STYLE') {
+      element.textContent = srcString;
+    } else {
+      element.innerHTML = srcString;
+    }
+  }
+
+  const target = document.querySelector(injectTo) || (injectTo === 'head' ? document.head : injectTo === 'body' ? document.body : document.documentElement);
+  
+  if (!target) {
+    console.warn(`Injection target "${injectTo}" not found, appending to documentElement`);
+    document.documentElement.appendChild(element);
+    return;
+  }
+
+  // Linkedom support for insertAdjacentElement is often spotty or uses different names
+  if (target.insertAdjacentElement) {
+    target.insertAdjacentElement(injectPosition, element);
+  } else {
+    // Fallback logic for environments without insertAdjacentElement
+    switch (injectPosition) {
+      case 'beforebegin':
+        target.parentNode?.insertBefore(element, target);
+        break;
+      case 'afterbegin':
+        target.insertBefore(element, target.firstChild);
+        break;
+      case 'afterend':
+        target.parentNode?.insertBefore(element, target.nextSibling);
+        break;
+      case 'beforeend':
+      default:
+        target.appendChild(element);
+        break;
+    }
+  }
 }

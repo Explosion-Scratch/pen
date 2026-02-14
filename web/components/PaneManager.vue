@@ -37,6 +37,7 @@
               :adapter="adapters[idx]"
               :content="files[editor.filename] || ''"
               :is-collapsed="pm.isCollapsed(idx)"
+              :is-maximized="pm.maximizedIdx.value === idx"
               :layout-mode="settings.layoutMode"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
@@ -77,7 +78,7 @@
         @click="toggleMaximize(altHoveredPane)"
       >
         <div class="maximize-overlay-content">
-          <i :class="['ph-light', (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
+          <i :class="['ph-duotone', (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
           <span>{{ (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
         </div>
       </div>
@@ -101,7 +102,9 @@ const previewSize = ref(60)
 const altHoveredPane = ref(null)
 const overlayStyle = ref({})
 const altPressed = ref(false)
+const altShowOverlay = ref(false)
 let altKeyDown = false
+let altTimer = null
 
 const props = defineProps({
   editors: { type: Array, default: () => [] },
@@ -168,9 +171,14 @@ const mouseY = ref(0)
 
 function onKeyDown(e) {
   if (e.key === 'Alt') {
-    altKeyDown = true
-    altPressed.value = true
-    checkAltHover()
+    if (!altKeyDown) {
+      altKeyDown = true
+      altPressed.value = true
+      altTimer = setTimeout(() => {
+        altShowOverlay.value = true
+        checkAltHover()
+      }, 200)
+    }
   } else if (e.key === 'Escape') {
     if (previewMaximized.value) {
       previewMaximized.value = false
@@ -184,7 +192,9 @@ function onKeyDown(e) {
 function onKeyUp(e) {
   if (e.key === 'Alt') {
     altKeyDown = false
+    clearTimeout(altTimer)
     altPressed.value = false
+    altShowOverlay.value = false
     altHoveredPane.value = null
   }
 }
@@ -194,6 +204,10 @@ function onMouseMove(e) {
   mouseY.value = e.clientY
   
   if (altKeyDown) {
+    if (!altShowOverlay.value) {
+      clearTimeout(altTimer)
+      altShowOverlay.value = true
+    }
     checkAltHover()
   } else {
     if (altHoveredPane.value !== null) altHoveredPane.value = null
@@ -201,6 +215,8 @@ function onMouseMove(e) {
 }
 
 function checkAltHover() {
+  if (!altShowOverlay.value) return
+  
   const x = mouseX.value
   const y = mouseY.value
   

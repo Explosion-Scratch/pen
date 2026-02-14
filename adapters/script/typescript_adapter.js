@@ -187,7 +187,12 @@ document.addEventListener('DOMContentLoaded', (): void => {
         name: 'Target',
         description: 'ECMAScript target version',
         default: 'ES2022',
-        options: ['ES2020', 'ES2021', 'ES2022', 'ESNext']
+        options: [
+          { label: 'ES2020', value: 'ES2020' },
+          { label: 'ES2021', value: 'ES2021' },
+          { label: 'ES2022', value: 'ES2022' },
+          { label: 'ESNext', value: 'ESNext' }
+        ]
       },
       strict: {
         type: 'boolean',

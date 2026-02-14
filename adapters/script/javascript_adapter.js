@@ -55,7 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
   static getDefaultSettings() {
     return {
       moduleType: 'module',
-      strictMode: true
+      strictMode: true,
+      injectTo: 'body',
+      injectPosition: 'beforeend',
+      priority: 30
     }
   }
 
@@ -118,17 +121,21 @@ document.addEventListener('DOMContentLoaded', () => {
     return {
       moduleType: {
         type: 'select',
-        name: 'Script Type',
-        description: 'JavaScript module type',
+        name: 'Module Type',
+        description: 'JavaScript module system to use',
         default: 'module',
-        options: ['module', 'classic']
+        options: [
+          { label: 'Module', value: 'module' },
+          { label: 'Classic', value: 'classic' }
+        ]
       },
       strictMode: {
         type: 'boolean',
         name: 'Strict Mode',
         description: 'Enable JavaScript strict mode',
         default: true
-      }
+      },
+      ...super.getSchema()
     }
   }
 }

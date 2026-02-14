@@ -138,7 +138,32 @@ export class BaseAdapter {
   }
 
   static getSchema() {
-    return {}
+    return {
+      injectTo: {
+        type: 'string',
+        name: 'Inject To',
+        description: 'CSS selector for the target element',
+        default: 'head'
+      },
+      injectPosition: {
+        type: 'select',
+        name: 'Inject Position',
+        description: 'Position relative to the target element',
+        default: 'beforeend',
+        options: [
+          { label: 'Before Begin', value: 'beforebegin' },
+          { label: 'After Begin', value: 'afterbegin' },
+          { label: 'Before End', value: 'beforeend' },
+          { label: 'After End', value: 'afterend' }
+        ]
+      },
+      priority: {
+        type: 'number',
+        name: 'Priority',
+        description: 'Loading priority (lower numbers load earlier)',
+        default: 10
+      }
+    }
   }
 }
 

@@ -1,18 +1,13 @@
-// Basic DOM Utils for SSR/Node. Browser uses native DOM.
-import { parseHTML } from "linkedom";
-const isBrowser = typeof window !== "undefined";
-
 import { getAdapter } from "./adapter_registry.js";
 import {
   createBaseDocument,
   serialize,
-  injectIntoHead,
-  injectAfterBody,
   mergeHead,
-  updateOrCreateElement,
+  injectResourceByConfig,
 } from "./dom_utils.js";
 import { transformImportsToCdn } from "./cdn_transformer.js";
 import { CompileError } from "./errors.js";
+import { ResourceManager } from "./resource_manager.js";
 
 /**
  * @param {Object} fileMap
@@ -26,13 +21,23 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   const orderedEditors = getEditorOrder(config);
   const importOverrides = config.importOverrides || {};
   const errors = [];
-  const lateScripts = [...(config.globalResources?.bodyScripts || [])];
+  const resourceManager = new ResourceManager();
 
   let injectDev = options.dev;
   if (config.preview && config.preview.injectDevTools === false) {
     injectDev = false;
   } else if (config.preview && config.preview.injectDevTools === true) {
     injectDev = options.dev;
+  }
+
+  // Register Global Resources
+  injectGlobalResources(resourceManager, config);
+
+  // Register System Resources (Dev tools, etc)
+  if (injectDev) {
+    resourceManager.add(getLocationShimResource());
+    resourceManager.add(getErrorListenerResource());
+    resourceManager.add(getDebugScriptResource());
   }
 
   for (const editor of orderedEditors) {
@@ -44,29 +49,54 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
       const content = fileMap[editor.filename] || "";
       const rendered = await adapter.render(content, fileMap);
 
-      // Handle adapter resources (scripts, styles, etc)
-      const resources = Adapter.getCdnResources?.(editor.settings) || {};
-      if (resources.styles) {
-        for (const styleUrl of resources.styles)
-          injectIntoHead(document, "link", {
-            rel: "stylesheet",
-            href: styleUrl,
-          });
+      // Handle adapter-provided resources
+      const adapterResources = Adapter.getCdnResources?.(editor.settings) || {};
+      if (adapterResources.styles) {
+        for (const styleUrl of adapterResources.styles) {
+          resourceManager.add({ type: 'link', attrs: { rel: 'stylesheet', href: styleUrl }, priority: 5 });
+        }
       }
-      if (resources.scripts) {
-        for (const scriptUrl of resources.scripts)
-          injectIntoHead(document, "script", { src: scriptUrl });
+      if (adapterResources.scripts) {
+        for (const scriptUrl of adapterResources.scripts) {
+          resourceManager.add({ type: 'script', attrs: { src: scriptUrl }, priority: 5 });
+        }
       }
-      if (resources.bodyScripts) {
-        lateScripts.push(...resources.bodyScripts);
+      if (adapterResources.bodyScripts) {
+         for (const scriptDef of adapterResources.bodyScripts) {
+            resourceManager.add({ 
+              type: 'script', 
+              ...(typeof scriptDef === 'string' ? { attrs: { src: scriptDef } } : { attrs: { src: scriptDef.src, ...(scriptDef.attrs || {}) }, type: scriptDef.type }),
+              priority: 15 
+            });
+         }
       }
 
       if (Adapter.type === "markup") {
         injectMarkup(document, rendered);
       } else if (Adapter.type === "style") {
-        injectStyle(document, editor, rendered);
+        resourceManager.add({
+          id: `pen-style-${editor.type}`,
+          tagType: 'style',
+          attrs: { id: `pen-style-${editor.type}`, type: rendered.styleType || "text/css" },
+          srcString: rendered.css + (editor.filename ? `\n\n/*# sourceURL=${editor.filename} */` : ""),
+          priority: editor.settings?.priority || 20,
+          injectTo: editor.settings?.injectTo || 'head',
+          injectPosition: editor.settings?.injectPosition || 'beforeend'
+        });
       } else if (Adapter.type === "script") {
-        injectScript(document, editor, rendered, importOverrides);
+        let js = rendered.js || "";
+        js = transformImportsToCdn(js, importOverrides);
+        const scriptType = editor.settings?.moduleType === "classic" ? "text/javascript" : "module";
+
+        resourceManager.add({
+          id: `pen-script-${editor.type}`,
+          tagType: 'script',
+          attrs: { id: `pen-script-${editor.type}`, type: scriptType },
+          srcString: js,
+          priority: editor.settings?.priority || 30,
+          injectTo: editor.settings?.injectTo || 'body',
+          injectPosition: editor.settings?.injectPosition || 'beforeend'
+        });
       }
     } catch (err) {
       console.error(`Error processing ${editor.filename}:`, err);
@@ -85,44 +115,44 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
     }
   }
 
-  injectGlobalResources(document, config);
+  // Group resources by target and position to handle stack-like insertion
+  const groups = [];
+  const groupMap = new Map();
 
-  // Inject late scripts (e.g. UnoCSS runtime)
-  for (const scriptDef of lateScripts) {
-    const isString = typeof scriptDef === "string";
-    const src = isString ? scriptDef : scriptDef.src;
-    const attrs = isString
-      ? { src }
-      : {
-          src,
-          ...(scriptDef.attrs || {}),
-          ...(scriptDef.type ? { type: scriptDef.type } : {}),
-        };
-
-    // Allow non-script tags if needed? For now assume script.
-    injectAfterBody(document, "script", attrs);
+  for (const res of resourceManager.getAllSorted()) {
+    const key = `${res.injectTo}:${res.injectPosition}`;
+    if (!groupMap.has(key)) {
+      const g = { target: res.injectTo, position: res.injectPosition, items: [] };
+      groups.push(g);
+      groupMap.set(key, g);
+    }
+    groupMap.get(key).items.push(res);
   }
 
-  if (injectDev) {
-    injectLocationShim(document);
-    injectErrorListener(document);
-    injectDebugScript(document);
+  // Inject groups
+  for (const group of groups) {
+    // For positions that naturally stack in reverse (LIFO behavior),
+    // we reverse the sorted items so that lower priority ends up 
+    // being inserted last, which places it closer to the target
+    // (and thus earlier in the document relative to others in its group).
+    if (group.position === 'afterbegin' || group.position === 'afterend') {
+      group.items.reverse();
+    }
+    
+    for (const resConfig of group.items) {
+      injectResourceByConfig(document, resConfig);
+    }
   }
 
   const finalHtml = serialize(document);
   return { html: finalHtml, errors };
 }
 
-function injectErrorListener(document) {
+function getErrorListenerResource() {
   const errorScript = `
     (function() {
-      // Error Listener for Pen
       function sendError(error) {
-        // Ignore chobitsu errors
         if (error.filename && error.filename.includes('chobitsu')) return;
-        if (error.stack && error.stack.includes('chobitsu')) return;
-        if (error.message && error.message.includes('chobitsu')) return;
-
         window.parent.postMessage({
           type: 'PEN_ERROR',
           error: {
@@ -134,55 +164,36 @@ function injectErrorListener(document) {
           }
         }, '*');
       }
-
       window.onerror = function(message, source, lineno, colno, error) {
-        sendError({
-          message: message,
-          filename: source,
-          lineno: lineno,
-          colno: colno,
-          error: error
-        });
-        return false; // Let default handler run too (console)
+        sendError({ message, filename: source, lineno, colno, error });
+        return false;
       };
-
       window.addEventListener('unhandledrejection', function(event) {
         sendError({
           message: 'Unhandled Promise Rejection: ' + (event.reason ? (event.reason.message || event.reason) : 'Unknown'),
           error: event.reason
         });
       });
-
-      console.log('Pen: Runtime error listener active');
     })();
   `;
-
-  updateOrCreateElement(
-    document,
-    "pen-error-listener",
-    "script",
-    { id: "pen-error-listener" },
-    errorScript,
-    "head",
-    true,
-  );
+  return {
+    id: 'pen-error-listener',
+    tagType: 'script',
+    attrs: { id: 'pen-error-listener' },
+    srcString: errorScript,
+    priority: 1
+  };
 }
 
-function injectLocationShim(document) {
+function getLocationShimResource() {
   const shimScript = `(function() {
   const h = window.location.hash || '';
   const m = h.match(/#__pen=([A-Za-z0-9+/=]+)/);
   if (!m) return;
-
   let penData = { s: '', h: '' };
   try { penData = JSON.parse(atob(m[1])); } catch(e) { return; }
-  console.log('Pen: Location shim active', penData);
-  // Mutable state for history API
   let mockSearch = penData.s || '';
   let mockHash = penData.h || '';
-
-  // 1. Patch Location (prototype & instance)
-  // We try-catch extensively because 'location' properties are often unforgeable
   const targets = [window.Location ? window.Location.prototype : window.location, window.location];
   targets.forEach(t => {
     try {
@@ -190,7 +201,6 @@ function injectLocationShim(document) {
         const base = window.location.origin + window.location.pathname;
         return base + mockSearch + mockHash;
       };
-
       Object.defineProperties(t, {
         search: { get: () => mockSearch, configurable: true },
         hash: { get: () => mockHash, configurable: true },
@@ -199,29 +209,14 @@ function injectLocationShim(document) {
       });
     } catch(e) {}
   });
-
-  // 2. Patch URLSearchParams
-  // This ensures 'new URLSearchParams(location.search)' works even if location.search is empty (unpatched)
-  // by falling back to mockSearch when input is empty.
   const OriginalURLSearchParams = window.URLSearchParams;
-  class PatchedURLSearchParams extends OriginalURLSearchParams {
-    constructor(init) {
-      if ((init === undefined || init === '') && mockSearch) {
-        super(mockSearch);
-      } else {
-        super(init);
-      }
-    }
-  }
-  window.URLSearchParams = PatchedURLSearchParams;
-
-  // 3. Patch URL constructor
+  window.URLSearchParams = class extends OriginalURLSearchParams {
+    constructor(init) { super((init === undefined || init === '') && mockSearch ? mockSearch : init); }
+  };
   const OriginalURL = window.URL;
   function PatchedURL(url, base) {
     const u = (url === window.location) ? window.location.href : url;
     const instance = new OriginalURL(u, base);
-
-    // If we detect the magic hash, hydrate the instance
     if (typeof u === 'string' && u.includes('#__pen=')) {
       const match = u.match(/#__pen=([A-Za-z0-9+/=]+)/);
       if (match) {
@@ -232,7 +227,6 @@ function injectLocationShim(document) {
           const baseHref = instance.href.replace(/#__pen=.*$/, '');
           const fullHref = baseHref + s + h;
           const sp = new OriginalURLSearchParams(s);
-
           Object.defineProperties(instance, {
             search: { get: () => s, configurable: true },
             hash: { get: () => h, configurable: true },
@@ -249,173 +243,123 @@ function injectLocationShim(document) {
   PatchedURL.createObjectURL = OriginalURL.createObjectURL;
   PatchedURL.revokeObjectURL = OriginalURL.revokeObjectURL;
   window.URL = PatchedURL;
-
-  // 4. Patch History API
-  // Allows SPAs to update the URL (mock state) without breaking out of the sandbox/iframe
   const originalPushState = history.pushState;
   const originalReplaceState = history.replaceState;
-
   const updateMockFromUrl = (url) => {
     if (!url) return;
     try {
-      // Create a URL object to parse the new path/search/hash
-      // We use the current mock location as base
       const base = window.location.origin + window.location.pathname;
       const temp = new OriginalURL(url, base + mockSearch + mockHash);
-
-      // Update our mutable state
       mockSearch = temp.search;
       mockHash = temp.hash;
-    } catch(e) {
-      console.warn('Pen: Failed to parse history URL', e);
-    }
+    } catch(e) {}
   };
-
-  history.pushState = function(state, title, url) {
-    if (url) updateMockFromUrl(url);
-    try {
-      return originalPushState.apply(this, arguments);
-    } catch(e) {
-      // In sandboxed iframes or blobs, pushState might fail.
-      // We swallow the error so the app continues running with our mocked state.
-      console.debug('Pen: history.pushState prevented by environment, state mocked.');
-    }
-  };
-
-  history.replaceState = function(state, title, url) {
-    if (url) updateMockFromUrl(url);
-    try {
-      return originalReplaceState.apply(this, arguments);
-    } catch(e) {
-      console.debug('Pen: history.replaceState prevented by environment, state mocked.');
-    }
-  };
-
-  // 5. Patch document properties
-  try {
-    Object.defineProperty(document, 'URL', {
-      get: () => window.location.href,
-      configurable: true
-    });
-  } catch(e) {}
-
-  console.log('Pen: Location shim active (SearchParams, History, URL)');
+  history.pushState = function(state, title, url) { if (url) updateMockFromUrl(url); try { return originalPushState.apply(this, arguments); } catch(e) {} };
+  history.replaceState = function(state, title, url) { if (url) updateMockFromUrl(url); try { return originalReplaceState.apply(this, arguments); } catch(e) {} };
+  try { Object.defineProperty(document, 'URL', { get: () => window.location.href, configurable: true }); } catch(e) {}
 })();`;
-
-  const script = document.createElement("script");
-  script.id = "pen-location-shim";
-  script.textContent = shimScript;
-  if (document.head) {
-    document.head.insertBefore(script, document.head.firstChild);
-  } else if (document.documentElement) {
-    document.documentElement.insertBefore(
-      script,
-      document.documentElement.firstChild,
-    );
-  }
+  return {
+    id: 'pen-location-shim',
+    tagType: 'script',
+    attrs: { id: 'pen-location-shim' },
+    srcString: shimScript,
+    priority: 0 // Earliest
+  };
 }
 
-function injectDebugScript(document) {
+function getDebugScriptResource() {
   const debugScript = `
     import chobitsu from 'https://esm.sh/chobitsu';
     window.chobitsu = chobitsu;
-
-    // Connect Chobitsu to parent window (DevTools bridge)
-    chobitsu.setOnMessage((message) => {
-      window.parent.postMessage(message, '*');
-    });
-
+    chobitsu.setOnMessage((message) => { window.parent.postMessage(message, '*'); });
     window.addEventListener('message', (event) => {
-      // Basic security check - in production you'd want to check origin
       if (event.data && event.data.event === 'DEV') {
-        try {
-          chobitsu.sendRawMessage(event.data.data);
-        } catch (e) {
-          console.error('Failed to send message to Chobitsu:', e);
-        }
+        try { chobitsu.sendRawMessage(event.data.data); } catch (e) { console.error(e); }
       }
     });
-
-    // Initialize
-    // console.log('DevTools Bridge Initialized');
     console.clear();
   `;
-
-  updateOrCreateElement(
-    document,
-    "pen-debug-bridge",
-    "script",
-    { id: "pen-debug-bridge", type: "module" },
-    debugScript,
-    "head",
-    true,
-  );
+  return {
+    id: 'pen-debug-bridge',
+    tagType: 'script',
+    attrs: { id: 'pen-debug-bridge', type: 'module' },
+    srcString: debugScript,
+    priority: 2
+  };
 }
 
 function injectMarkup(document, rendered) {
   let bodyHtml = rendered.bodyContent || "";
   let headHtml = rendered.headContent || "";
   const htmlAttrs = rendered.htmlAttributes || {};
-
   if (bodyHtml && (/\<html/i.test(bodyHtml) || /<!DOCTYPE/i.test(bodyHtml))) {
     const { document: tempDoc } = parseHTML(bodyHtml);
     bodyHtml = tempDoc.body.innerHTML;
     headHtml += tempDoc.head.innerHTML;
-    for (const attr of tempDoc.documentElement.attributes) {
-      htmlAttrs[attr.name] = attr.value;
-    }
+    for (const attr of tempDoc.documentElement.attributes) { htmlAttrs[attr.name] = attr.value; }
   }
-
   if (bodyHtml) document.body.innerHTML = bodyHtml;
   if (headHtml) mergeHead(document, headHtml);
-  for (const [key, value] of Object.entries(htmlAttrs)) {
-    document.documentElement.setAttribute(key, value);
-  }
+  for (const [key, value] of Object.entries(htmlAttrs)) { document.documentElement.setAttribute(key, value); }
 }
 
-function injectStyle(document, editor, rendered) {
-  if (rendered.css) {
-    updateOrCreateElement(
-      document,
-      `#pen-style-${editor.type}`,
-      "style",
-      {
-        id: `pen-style-${editor.type}`,
-        type: rendered.styleType || "text/css",
-      },
-      rendered.css +
-        (editor.filename ? `\n\n/*# sourceURL=${editor.filename} */` : ""),
-      "head",
-    );
-  }
-}
-
-function injectScript(document, editor, rendered, importOverrides) {
-  let js = rendered.js || "";
-  js = transformImportsToCdn(js, importOverrides);
-
-  // Respect moduleType setting, default to 'module'
-  const scriptType =
-    editor.settings?.moduleType === "classic" ? "text/javascript" : "module";
-
-  updateOrCreateElement(
-    document,
-    `#pen-script-${editor.type}`,
-    "script",
-    { id: `pen-script-${editor.type}`, type: scriptType },
-    js,
-    "after-body",
-  );
-}
-
-function injectGlobalResources(document, config) {
+function injectGlobalResources(resourceManager, config) {
   if (!config.globalResources) return;
-  // Inject global scripts into HEAD for better library availability
-  for (const scriptUrl of config.globalResources.scripts || []) {
-    injectIntoHead(document, "script", { src: scriptUrl });
+  
+  // Scripts
+  for (const scriptDef of config.globalResources.scripts || []) {
+    const isString = typeof scriptDef === "string";
+    resourceManager.add({
+      tagType: 'script',
+      priority: 10,
+      injectTo: 'head',
+      injectPosition: 'beforeend',
+      ...(isString ? { attrs: { src: scriptDef } } : { 
+        attrs: { src: scriptDef.src, type: scriptDef.type, ...(scriptDef.attrs || {}) }, 
+        srcString: scriptDef.srcString,
+        priority: scriptDef.priority,
+        injectTo: scriptDef.injectTo,
+        injectPosition: scriptDef.injectPosition
+      })
+    });
   }
-  for (const styleUrl of config.globalResources.styles || []) {
-    injectIntoHead(document, "link", { rel: "stylesheet", href: styleUrl });
+
+  // Styles
+  for (const styleDef of config.globalResources.styles || []) {
+    const isString = typeof styleDef === "string";
+    resourceManager.add({
+      tagType: 'link',
+      priority: 10,
+      injectTo: 'head',
+      injectPosition: 'beforeend',
+      ...(isString ? { attrs: { rel: 'stylesheet', href: styleDef } } : { 
+        attrs: { rel: 'stylesheet', href: styleDef.href, ...(styleDef.attrs || {}) }, 
+        srcString: styleDef.srcString,
+        priority: styleDef.priority,
+        injectTo: styleDef.injectTo,
+        injectPosition: styleDef.injectPosition
+      })
+    });
+  }
+
+  // Body Scripts (legacy/special)
+  if (config.globalResources.bodyScripts) {
+    for (const scriptDef of config.globalResources.bodyScripts) {
+      const isString = typeof scriptDef === "string";
+      resourceManager.add({
+        tagType: 'script',
+        priority: 15, // Default for body scripts
+        injectTo: 'body',
+        injectPosition: 'beforeend',
+        ...(isString ? { attrs: { src: scriptDef } } : { 
+          attrs: { src: scriptDef.src, type: scriptDef.type, ...(scriptDef.attrs || {}) }, 
+          srcString: scriptDef.srcString,
+          priority: scriptDef.priority,
+          injectTo: scriptDef.injectTo,
+          injectPosition: scriptDef.injectPosition
+        })
+      });
+    }
   }
 }
 

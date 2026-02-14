@@ -20,8 +20,8 @@
       </div>
       <div class="editor-actions" v-if="!isCollapsed">
         <DropdownMenu :items="menuItems" align="right" />
-        <button class="action-btn" @click.stop="$emit('toggle-collapse')" title="Collapse">
-          <i class="ph-duotone ph-caret-up"></i>
+        <button class="action-btn" @click.stop="$emit('toggle-collapse')" :title="isMaximized ? 'Restore' : 'Collapse'">
+          <i :class="isMaximized ? 'ph-duotone ph-arrows-in' : 'ph-duotone ph-caret-up'"></i>
         </button>
       </div>
       <div class="editor-actions" v-else>
@@ -106,6 +106,10 @@ const props = defineProps({
     default: ''
   },
   isCollapsed: {
+    type: Boolean,
+    default: false
+  },
+  isMaximized: {
     type: Boolean,
     default: false
   },

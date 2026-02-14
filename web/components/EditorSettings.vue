@@ -39,10 +39,10 @@
             <select :id="key" v-model="localSettings[key]">
               <option
                 v-for="option in setting.options"
-                :key="option"
-                :value="option"
+                :key="typeof option === 'object' ? option.value : option"
+                :value="typeof option === 'object' ? option.value : option"
               >
-                {{ option }}
+                {{ typeof option === 'object' ? option.label : option }}
               </option>
             </select>
           </template>

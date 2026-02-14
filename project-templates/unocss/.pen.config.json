@@ -19,17 +19,23 @@
     {
       "type": "javascript",
       "filename": "script.js",
-      "settings": { "moduleType": "module" }
+      "settings": { 
+        "moduleType": "module", 
+        "injectTo": "head", 
+        "injectPosition": "beforeend"
+      }
     }
   ],
   "globalResources": {
-    "scripts": [],
-    "styles": [],
-    "bodyScripts": [
+    "scripts": [
       {
-        "src": "https://cdn.jsdelivr.net/npm/@unocss/runtime",
+        "src": "https://cdn.jsdelivr.net/npm/@unocss/runtime/core.global.js",
+        "priority": 15,
+        "injectTo": "html",
+        "injectPosition": "beforeEnd",
         "type": "module"
       }
-    ]
+    ],
+    "styles": []
   }
 }
