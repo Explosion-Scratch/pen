@@ -278,6 +278,7 @@ function refreshDevtoolsBridge() {
 function cacheDevtoolsMessage(message) {
   try {
     const parsed = JSON.parse(message);
+    if (parsed.id) return; // Never cache request/response pairs with IDs
     const method = parsed && parsed.method;
     if (!method) return;
     if (method.endsWith(".enable") || method === "Target.setDiscoverTargets") {
@@ -306,13 +307,21 @@ function handleUrlEsc() {
   urlInput.value?.blur();
 }
 
+let lastMessageTime = 0;
+
 function onIframeLoad() {
-  if (!pendingDevtoolsResync || !showDevtools.value) return;
-  pendingDevtoolsResync = false;
-  const target = iframe.value?.contentWindow;
-  if (!target) return;
-  for (const message of getResyncMessages()) {
-    target.postMessage({ event: "DEV", data: message }, "*");
+  scriptIdToFilename.clear();
+  if (!showDevtools.value) return;
+  
+  // Only resync if we haven't received anything from the new iframe context yet
+  // or if we have something critical to re-enable
+  if (pendingDevtoolsResync) {
+    pendingDevtoolsResync = false;
+    const target = iframe.value?.contentWindow;
+    if (!target) return;
+    for (const message of getResyncMessages()) {
+      target.postMessage({ event: "DEV", data: message }, "*");
+    }
   }
 }
 
@@ -428,6 +437,8 @@ function handleKeydown(event) {
   }
 }
 
+const scriptIdToFilename = new Map();
+
 function handleMessage(event) {
   if (event.data && event.data.type === "PEN_ERROR") {
     addError(event.data.error);
@@ -436,10 +447,31 @@ function handleMessage(event) {
 
   if (event.source === iframe.value?.contentWindow) {
     if (typeof event.data === "string") {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.method === "Debugger.scriptParsed") {
+          const { scriptId, url } = msg.params;
+          if (url && !url.startsWith("http") && !url.startsWith("blob:")) {
+            const filename = url;
+            scriptIdToFilename.set(scriptId, filename);
+          }
+        }
+      } catch (e) {}
       devtoolsIframe.value?.contentWindow?.postMessage(event.data, "*");
     }
   } else if (event.source === devtoolsIframe.value?.contentWindow) {
     if (typeof event.data === "string") {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.method === "Debugger.setScriptSource") {
+          const { scriptId, scriptSource } = msg.params;
+          const filename = scriptIdToFilename.get(scriptId);
+          if (filename) {
+            const { updateFile } = useFileSystem();
+            updateFile(filename, scriptSource);
+          }
+        }
+      } catch (e) {}
       cacheDevtoolsMessage(event.data);
       iframe.value?.contentWindow?.postMessage(
         { event: "DEV", data: event.data },

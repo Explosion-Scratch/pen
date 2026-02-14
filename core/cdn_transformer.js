@@ -51,10 +51,16 @@ export function isRelativeImport(importPath) {
 export function transformImportsToCdn(jsCode, overrides = {}) {
   const allOverrides = { ...IMPORT_OVERRIDES, ...overrides }
   return jsCode.replace(NPM_IMPORT_REGEX, (match, packageName) => {
+    // Check for explicit override first, even if it's an absolute URL
+    if (allOverrides[packageName]) {
+       const url = allOverrides[packageName]
+       return match.replace(`"${packageName}"`, `"${url}"`).replace(`'${packageName}'`, `'${url}'`)
+    }
+
     if (isRelativeImport(packageName) || packageName.startsWith('http://') || packageName.startsWith('https://')) {
       return match
     }
-    const url = allOverrides[packageName] || getCdnUrl(packageName, overrides)
+    const url = getCdnUrl(packageName, overrides)
     return match.replace(`"${packageName}"`, `"${url}"`).replace(`'${packageName}'`, `'${url}'`)
   })
 }

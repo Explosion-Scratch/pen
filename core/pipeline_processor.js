@@ -10,6 +10,30 @@ import { CompileError } from "./errors.js";
 import { ResourceManager } from "./resource_manager.js";
 
 /**
+ * Generates an identity source map (1:1 mapping) for a given file and content.
+ * @param {string} filename 
+ * @param {string} content 
+ * @returns {string} Base64 encoded data URL for the source map
+ */
+function generateIdentitySourceMap(filename, content) {
+  const lines = content.split('\n').length;
+  const mappings = 'AAAA' + ';AACA'.repeat(lines - 1);
+  const map = {
+    version: 3,
+    file: filename,
+    sources: [filename],
+    sourcesContent: [content],
+    names: [],
+    mappings: mappings
+  };
+  const json = JSON.stringify(map);
+  const base64 = typeof btoa === 'function' 
+    ? btoa(unescape(encodeURIComponent(json))) 
+    : Buffer.from(json).toString('base64');
+  return `data:application/json;charset=utf-8;base64,${base64}`;
+}
+
+/**
  * @param {Object} fileMap
  * @param {Object} config
  * @param {Object} [options]
@@ -74,11 +98,14 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
       if (Adapter.type === "markup") {
         injectMarkup(document, rendered);
       } else if (Adapter.type === "style") {
+        const css = rendered.css || "";
+        const styleId = `pen-style-${editor.type}`;
+        
         resourceManager.add({
-          id: `pen-style-${editor.type}`,
+          id: styleId,
           tagType: 'style',
-          attrs: { id: `pen-style-${editor.type}`, type: rendered.styleType || "text/css" },
-          srcString: rendered.css + (editor.filename ? `\n\n/*# sourceURL=${editor.filename} */` : ""),
+          attrs: { id: styleId, type: rendered.styleType || "text/css" },
+          srcString: css + (editor.filename ? `\n\n/*# sourceMappingURL=${generateIdentitySourceMap(editor.filename, content)} */` : ""),
           priority: editor.settings?.priority || 20,
           injectTo: editor.settings?.injectTo || 'head',
           injectPosition: editor.settings?.injectPosition || 'beforeend'
@@ -87,11 +114,18 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
         let js = rendered.js || "";
         js = transformImportsToCdn(js, importOverrides);
         const scriptType = editor.settings?.moduleType === "classic" ? "text/javascript" : "module";
+        const scriptId = `pen-script-${editor.type}`;
+
+        if (js && editor.filename) {
+          if (!js.includes('sourceMappingURL=')) {
+            js += `\n//# sourceMappingURL=${generateIdentitySourceMap(editor.filename, content)}`;
+          }
+        }
 
         resourceManager.add({
-          id: `pen-script-${editor.type}`,
+          id: scriptId,
           tagType: 'script',
-          attrs: { id: `pen-script-${editor.type}`, type: scriptType },
+          attrs: { id: scriptId, type: scriptType },
           srcString: js,
           priority: editor.settings?.priority || 30,
           injectTo: editor.settings?.injectTo || 'body',
@@ -181,7 +215,9 @@ function getErrorListenerResource() {
     tagType: 'script',
     attrs: { id: 'pen-error-listener' },
     srcString: errorScript,
-    priority: 1
+    priority: 1,
+    injectTo: 'head',
+    injectPosition: 'afterbegin'
   };
 }
 
@@ -263,7 +299,9 @@ function getLocationShimResource() {
     tagType: 'script',
     attrs: { id: 'pen-location-shim' },
     srcString: shimScript,
-    priority: 0 // Earliest
+    priority: 0, // Earliest
+    injectTo: 'head',
+    injectPosition: 'afterbegin'
   };
 }
 
@@ -284,7 +322,9 @@ function getDebugScriptResource() {
     tagType: 'script',
     attrs: { id: 'pen-debug-bridge', type: 'module' },
     srcString: debugScript,
-    priority: 2
+    priority: 2,
+    injectTo: 'head',
+    injectPosition: 'afterbegin'
   };
 }
 

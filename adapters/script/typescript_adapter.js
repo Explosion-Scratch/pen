@@ -84,6 +84,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
     try {
       const ts = await getTs()
       const result = ts.transpileModule(tsCode, {
+        fileName: 'script.ts',
         compilerOptions: {
           target: this.getTargetEnum(ts),
           module: ts.ModuleKind.ESNext,
@@ -115,7 +116,9 @@ document.addEventListener('DOMContentLoaded', (): void => {
   async render(content, fileMap) {
     try {
       const ts = await getTs()
+      const filename = Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.ts'
       const result = ts.transpileModule(content, {
+        fileName: filename,
         compilerOptions: {
           target: this.getTargetEnum(ts),
           module: ts.ModuleKind.ESNext,

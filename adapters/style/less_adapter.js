@@ -54,7 +54,11 @@ export class LESSAdapter extends CSSAdapter {
   async compileToCSS(code) {
     try {
       const less = await getLess()
-      const result = await less.render(code)
+      const filename = 'style.less'
+      const result = await less.render(code, {
+        filename,
+        sourceMap: { sourceMapInline: true, sourceMapFileInline: true }
+      })
       return result.css
     } catch (err) {
       // LESS error object usually has line, column, message

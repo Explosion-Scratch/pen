@@ -96,9 +96,16 @@ body {
     try {
       const sass = await getSass()
       const result = sass.compileString(scssCode, {
-        style: 'expanded'
+        style: 'expanded',
+        sourceMap: true,
+        sourceMapIncludeSources: true
       })
-      return result.css
+      let css = result.css
+      if (result.sourceMap) {
+        const mapBase64 = btoa(JSON.stringify(result.sourceMap))
+        css += `\n/*# sourceMappingURL=data:application/json;base64,${mapBase64} */`
+      }
+      return css
     } catch (err) {
       // SASS error object has 'span' with start.line, start.column
       throw new CompileError(err.message, {

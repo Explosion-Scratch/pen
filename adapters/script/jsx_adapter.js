@@ -78,8 +78,9 @@ async function transpileJsx(Babel, code, options = {}) {
   const result = Babel.transform(code, {
     presets,
     plugins,
-    filename: 'script.jsx',
-    sourceType: 'module'
+    filename: options.filename || 'script.jsx',
+    sourceType: 'module',
+    sourceMaps: 'inline'
   })
 
   return result.code
@@ -148,7 +149,8 @@ export class JSXAdapter extends JavaScriptAdapter {
     try {
       const Babel = await getBabel()
       return await transpileJsx(Babel, jsxCode, {
-        compiler: this.settings.compiler
+        compiler: this.settings.compiler,
+        filename: 'script.jsx'
       })
     } catch (err) {
       // Babel error usually has loc: { line, column } or line, column directly
@@ -175,8 +177,10 @@ export class JSXAdapter extends JavaScriptAdapter {
   async render(content, fileMap) {
     try {
       const Babel = await getBabel()
+      const filename = Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.jsx'
       const js = await transpileJsx(Babel, content, {
-        compiler: this.settings.compiler
+        compiler: this.settings.compiler,
+        filename: filename
       })
       return {
         ...fileMap,
