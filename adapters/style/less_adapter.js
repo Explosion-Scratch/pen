@@ -57,9 +57,10 @@ export class LESSAdapter extends CSSAdapter {
       const filename = 'style.less'
       const result = await less.render(code, {
         filename,
-        sourceMap: { sourceMapInline: true, sourceMapFileInline: true }
+        sourceMap: { sourceMapFileInline: false, outputSourceFiles: true }
       })
-      return result.css
+      // map is a string in result.map
+      return { css: result.css, map: result.map }
     } catch (err) {
       // LESS error object usually has line, column, message
       throw new CompileError(err.message, {
@@ -74,11 +75,12 @@ export class LESSAdapter extends CSSAdapter {
 
   async render(content, fileMap) {
     // Pipeline processor handles catching CompileError
-    const css = await this.compileToCSS(content)
+    const { css, map } = await this.compileToCSS(content)
     const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
     return {
       ...fileMap,
       css,
+      map,
       styleType
     }
   }

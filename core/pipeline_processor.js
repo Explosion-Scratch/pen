@@ -1,4 +1,5 @@
 import { getAdapter } from "./adapter_registry.js";
+import { SourceMapBuilder } from "./source_map_builder.js";
 import {
   createBaseDocument,
   serialize,
@@ -9,29 +10,7 @@ import { transformImportsToCdn } from "./cdn_transformer.js";
 import { CompileError } from "./errors.js";
 import { ResourceManager } from "./resource_manager.js";
 
-/**
- * Generates an identity source map (1:1 mapping) for a given file and content.
- * @param {string} filename 
- * @param {string} content 
- * @returns {string} Base64 encoded data URL for the source map
- */
-function generateIdentitySourceMap(filename, content) {
-  const lines = content.split('\n').length;
-  const mappings = 'AAAA' + ';AACA'.repeat(lines - 1);
-  const map = {
-    version: 3,
-    file: filename,
-    sources: [filename],
-    sourcesContent: [content],
-    names: [],
-    mappings: mappings
-  };
-  const json = JSON.stringify(map);
-  const base64 = typeof btoa === 'function' 
-    ? btoa(unescape(encodeURIComponent(json))) 
-    : Buffer.from(json).toString('base64');
-  return `data:application/json;charset=utf-8;base64,${base64}`;
-}
+
 
 /**
  * @param {Object} fileMap
@@ -97,28 +76,70 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
 
       if (Adapter.type === "markup") {
         injectMarkup(document, rendered);
+        
+        if (injectDev && editor.filename && content) {
+             const htmlMapResource = getHtmlSourceMapResource(editor.filename, content);
+             resourceManager.add(htmlMapResource);
+        }
+
       } else if (Adapter.type === "style") {
-        const css = rendered.css || "";
+        // Use SourceMapBuilder for Styles (CSS)
+        // Note: For now we are still keeping one style block per editor for simplicity in DOM insertion,
+        // but we can generate a source map for it.
         const styleId = `pen-style-${editor.type}`;
         
+        // If the adapter returned a map, we use it. If not, we generate identity.
+        let cssBuilder = new SourceMapBuilder('style.css'); // Virtual filename for the chunk
+        let cssCode = rendered.css || "";
+        
+        if (editor.filename && cssCode) {
+           // Source Maps only in Dev
+           if (injectDev) {
+               if (rendered.map) {
+                 cssBuilder.addWithMap(cssCode, rendered.map, editor.filename, content);
+               } else {
+                 cssBuilder.add(cssCode, editor.filename, content);
+               }
+               // Add source map comment
+               cssCode += `\n/*# sourceMappingURL=${cssBuilder.toDataURL()} */`;
+           }
+        }
+
         resourceManager.add({
           id: styleId,
           tagType: 'style',
           attrs: { id: styleId, type: rendered.styleType || "text/css" },
-          srcString: css + (editor.filename ? `\n\n/*# sourceMappingURL=${generateIdentitySourceMap(editor.filename, content)} */` : ""),
+          srcString: cssCode,
           priority: editor.settings?.priority || 20,
           injectTo: editor.settings?.injectTo || 'head',
           injectPosition: editor.settings?.injectPosition || 'beforeend'
         });
       } else if (Adapter.type === "script") {
         let js = rendered.js || "";
+        
+        // Transform imports BEFORE mapping? 
+        // If we transform imports, we break source maps unless we use a proper transformer that preserves maps.
+        // Current 'transformImportsToCdn' is a simple regex replace usually. 
+        // For accurate maps, we should ideally parse-transform-generate with maps.
+        // For now, let's assume transform doesn't shift lines too much or we accept the slight drift,
+        // OR we apply the transform on the 'js' result.
+        
         js = transformImportsToCdn(js, importOverrides);
+        
         const scriptType = editor.settings?.moduleType === "classic" ? "text/javascript" : "module";
         const scriptId = `pen-script-${editor.type}`;
 
-        if (js && editor.filename) {
-          if (!js.includes('sourceMappingURL=')) {
-            js += `\n//# sourceMappingURL=${generateIdentitySourceMap(editor.filename, content)}`;
+        let jsBuilder = new SourceMapBuilder('script.js');
+        if (editor.filename && js) {
+          // Source Maps only in Dev
+          if (injectDev) {
+              if (rendered.map) {
+                jsBuilder.addWithMap(js, rendered.map, editor.filename, content);
+              } else {
+                jsBuilder.add(js, editor.filename, content);
+              }
+              jsBuilder.addRaw(`\n//# sourceMappingURL=${jsBuilder.toDataURL()}`);
+              js = jsBuilder.toString();
           }
         }
 
@@ -178,7 +199,11 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
     }
   }
 
-  const finalHtml = serialize(document);
+  let finalHtml = serialize(document);
+  
+  // Source mapping for markup is handled inside injectMarkup now
+
+
   return { html: finalHtml, errors };
 }
 
@@ -338,9 +363,43 @@ function injectMarkup(document, rendered) {
     headHtml += tempDoc.head.innerHTML;
     for (const attr of tempDoc.documentElement.attributes) { htmlAttrs[attr.name] = attr.value; }
   }
-  if (bodyHtml) document.body.innerHTML = bodyHtml;
+  if (bodyHtml) {
+      document.body.innerHTML = bodyHtml;
+  }
   if (headHtml) mergeHead(document, headHtml);
   for (const [key, value] of Object.entries(htmlAttrs)) { document.documentElement.setAttribute(key, value); }
+}
+
+function getHtmlSourceMapResource(filename, content) {
+  // Minimal JS placeholder
+  const jsCode = `export const placeholder = {};`;
+
+  // Source map with original content embedded
+  const sourceMap = {
+    version: 3,
+    file: "virtual-html.js",       // The compiled JS file
+    sources: [filename],     // Original filename
+    sourcesContent: [content], // Embed the full content here
+    names: [],
+    mappings: ""             // empty works for file-level mapping
+  };
+
+  // Encode source map as base64 data URL
+  const base64Map = (typeof btoa === 'function' ? btoa : (str) => Buffer.from(str).toString('base64'))(unescape(encodeURIComponent(JSON.stringify(sourceMap))));
+  const sourceMapURL = `data:application/json;base64,${base64Map}`;
+
+  // Combine JS and source map
+  const finalCode = `${jsCode}\n//# sourceMappingURL=${sourceMapURL}`;
+
+  return {
+      id: 'pen-html-sourcemap',
+      tagType: 'script',
+      attrs: { type: 'module' },
+      srcString: finalCode,
+      priority: 100, // Very low priority
+      injectTo: 'body',
+      injectPosition: 'beforeend'
+  };
 }
 
 function injectGlobalResources(resourceManager, config) {

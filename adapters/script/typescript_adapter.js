@@ -91,15 +91,15 @@ document.addEventListener('DOMContentLoaded', (): void => {
           strict: this.settings.strict,
           esModuleInterop: true,
           skipLibCheck: true,
-          sourceMap: false,
-          inlineSourceMap: true,
+          sourceMap: true,
+          inlineSourceMap: false,
           inlineSources: true
         }
       })
-      return result.outputText
+      return { js: result.outputText, map: result.sourceMapText }
     } catch (err) {
       console.error('TypeScript compilation error:', err)
-      return `/* TypeScript Error: ${err.message} */`
+      return { js: `/* TypeScript Error: ${err.message} */`, map: null }
     }
   }
 
@@ -125,8 +125,8 @@ document.addEventListener('DOMContentLoaded', (): void => {
           strict: this.settings.strict,
           esModuleInterop: true,
           skipLibCheck: true,
-          sourceMap: false,
-          inlineSourceMap: true,
+          sourceMap: true,
+          inlineSourceMap: false,
           inlineSources: true
         },
         reportDiagnostics: true
@@ -154,7 +154,8 @@ document.addEventListener('DOMContentLoaded', (): void => {
 
       return {
         ...fileMap,
-        js: result.outputText
+        js: result.outputText,
+        map: result.sourceMapText
       }
     } catch (err) {
       let line = undefined

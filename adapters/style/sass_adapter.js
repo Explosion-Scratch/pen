@@ -100,12 +100,16 @@ body {
         sourceMap: true,
         sourceMapIncludeSources: true
       })
-      let css = result.css
-      if (result.sourceMap) {
-        const mapBase64 = btoa(JSON.stringify(result.sourceMap))
-        css += `\n/*# sourceMappingURL=data:application/json;base64,${mapBase64} */`
+      
+      // We return the raw map object/string, SourceMapBuilder will handle unification
+      let map = result.sourceMap
+      if (map) {
+         // Start with identity logic if needed, but Sass gives us a good map usually.
+         // We might need to ensure 'file' and 'sources' are set correctly?
+         // Sass output usually has "source.css" as file, but we will override in SourceMapBuilder
       }
-      return css
+
+      return { css: result.css, map }
     } catch (err) {
       // SASS error object has 'span' with start.line, start.column
       throw new CompileError(err.message, {
@@ -132,12 +136,13 @@ body {
 
   async render(content, fileMap) {
     // Pipeline processor handles catching CompileError
-    const css = await this.compileToCSS(content)
+    const { css, map } = await this.compileToCSS(content)
     
     const styleType = this.settings.tailwind ? 'text/tailwindcss' : 'text/css'
     return {
     ...fileMap,
     css,
+    map,
     styleType
     }
   }
