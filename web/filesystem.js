@@ -216,8 +216,6 @@ class WebSocketFS extends BaseFileSystem {
         this.updateConfig(message.config);
       }
       if (message.files) this.updateFiles(message.files);
-    } else if (message.type === "external-update") {
-      this.files[message.filename] = message.content;
     }
     this.notify(message);
   }

@@ -1,6 +1,5 @@
 import { WebSocketServer } from "ws";
 import express from "express";
-import { watch } from "chokidar";
 import {
   readFileSync,
   writeFileSync,
@@ -26,22 +25,12 @@ export async function launchEditorFlow(projectPath, options = {}) {
 
   const clients = new Set();
   let fileMap = {};
-  const ignoreNextChange = new Set();
 
   for (const editor of config.editors) {
     const filePath = join(projectPath, editor.filename);
     if (existsSync(filePath))
       fileMap[editor.filename] = readFileSync(filePath, "utf-8");
   }
-
-  let watcher = watch(
-    config.editors.map((e) => join(projectPath, e.filename)),
-    {
-      persistent: true,
-      ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 100 },
-    },
-  );
 
   // Broadcast to all connected clients
   const broadcast = (msg) => {
@@ -96,11 +85,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
       switch (msg.type) {
         case "update": {
           fileMap[msg.filename] = msg.content;
-          ignoreNextChange.add(msg.filename);
           fs.writeFile(join(projectPath, msg.filename), msg.content)
-            .then(() =>
-              setTimeout(() => ignoreNextChange.delete(msg.filename), 1000),
-            )
             .catch((err) =>
               console.error(`Write failed ${msg.filename}:`, err),
             );
@@ -137,8 +122,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
           if (oldFilename !== newFilename) {
             fileMap[newFilename] = fileMap[oldFilename];
             delete fileMap[oldFilename];
-            watcher.unwatch(oldPath);
-            watcher.add(newPath);
           }
 
           console.log(
@@ -170,7 +153,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
             writeFileSync(configPath, JSON.stringify(config, null, 2));
           }
           delete fileMap[filename];
-          watcher.unwatch(filePath);
 
           console.log(`🗑️  Deleted: ${filename}`);
 
@@ -240,27 +222,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
           writeFileSync(configPath, JSON.stringify(config, null, 2));
           console.log(`🚀 Project reset to template: ${msg.templateId}`);
 
-          watcher.close();
-          watcher = watch(
-            config.editors.map((e) => join(projectPath, e.filename)),
-            {
-              persistent: true,
-              ignoreInitial: true,
-              awaitWriteFinish: { stabilityThreshold: 100 },
-            },
-          );
-          watcher.on("change", async (filePath) => {
-            const filename = filePath.split("/").pop();
-            if (ignoreNextChange.has(filename)) return;
-            console.log(`📝 External change: ${filename}`);
-            fileMap[filename] = readFileSync(filePath, "utf-8");
-            broadcast({
-              type: "external-update",
-              filename,
-              content: fileMap[filename],
-            });
-          });
-
           broadcast({
             type: "reinit",
             config,
@@ -320,16 +281,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
             Object.assign(config, newConfig);
             Object.assign(fileMap, newFileMap);
 
-            watcher.close();
-            watcher = watch(
-              config.editors.map((e) => join(folderPath, e.filename)),
-              {
-                persistent: true,
-                ignoreInitial: true,
-                awaitWriteFinish: { stabilityThreshold: 100 },
-              },
-            );
-
             console.log(`📂 Imported folder: ${folderPath}`);
 
             broadcast({
@@ -352,18 +303,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
     ws.on("close", () => {
       clients.delete(ws);
       if (!options.headless) console.log("📡 Client disconnected");
-    });
-  });
-
-  watcher.on("change", async (filePath) => {
-    const filename = filePath.split("/").pop();
-    if (ignoreNextChange.has(filename)) return;
-    console.log(`📝 External change: ${filename}`);
-    fileMap[filename] = readFileSync(filePath, "utf-8");
-    broadcast({
-      type: "external-update",
-      filename,
-      content: fileMap[filename],
     });
   });
 

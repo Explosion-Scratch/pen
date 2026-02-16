@@ -55,7 +55,7 @@ export const fileSystemMirror = {
 }
 
 fileSystem.on((msg) => {
-  if (msg.type === 'init' || msg.type === 'reinit' || msg.type === 'external-update') {
+  if (msg.type === 'init' || msg.type === 'reinit') {
     triggerRender()
   }
 })
