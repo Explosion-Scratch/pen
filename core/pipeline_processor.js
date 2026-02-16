@@ -40,7 +40,9 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   if (injectDev) {
     resourceManager.add(getLocationShimResource());
     resourceManager.add(getErrorListenerResource());
-    resourceManager.add(getDebugScriptResource());
+    for (const res of getDebugScriptResources()) {
+      resourceManager.add(res);
+    }
   }
 
   for (const editor of orderedEditors) {
@@ -330,27 +332,81 @@ function getLocationShimResource() {
   };
 }
 
-function getDebugScriptResource() {
-  const debugScript = `
-    import chobitsu from 'https://esm.sh/chobitsu';
-    window.chobitsu = chobitsu;
-    chobitsu.setOnMessage((message) => { window.parent.postMessage(message, '*'); });
-    window.addEventListener('message', (event) => {
-      if (event.data && event.data.event === 'DEV') {
-        try { chobitsu.sendRawMessage(event.data.data); } catch (e) { console.error(e); }
+function getDebugScriptResources() {
+  // Chobitsu loaded synchronously via script tag (like Solid Playground)
+  const chobitsuScript = {
+    id: 'pen-chobitsu',
+    tagType: 'script',
+    attrs: { id: 'pen-chobitsu', src: 'https://cdn.jsdelivr.net/npm/chobitsu' },
+    priority: 1,
+    injectTo: 'head',
+    injectPosition: 'afterbegin'
+  };
+
+  // Bridge script: simple relay matching the Solid Playground pattern.
+  // chobitsu is already globally available from the sync script above.
+  const bridgeScript = `
+    const sendToDevtools = (message) => {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    };
+    let id = 0;
+    const sendToChobitsu = (message) => {
+      message.id = 'tmp' + ++id;
+      chobitsu.sendRawMessage(JSON.stringify(message));
+    };
+
+    chobitsu.setOnMessage((message) => {
+      if (message.includes('"id":"tmp')) return;
+      window.parent.postMessage(message, '*');
+    });
+
+    window.addEventListener('message', ({ data }) => {
+      try {
+        const { event } = data;
+        if (event === 'DEV') {
+          chobitsu.sendRawMessage(data.data);
+        } else if (event === 'LOADED') {
+          // Re-enable all domains so DevTools picks up the new document
+          sendToDevtools({
+            method: 'Page.frameNavigated',
+            params: {
+              frame: {
+                id: '1',
+                mimeType: 'text/html',
+                securityOrigin: location.origin,
+                url: location.href,
+              },
+              type: 'Navigation',
+            },
+          });
+          sendToChobitsu({ method: 'Network.enable' });
+          sendToDevtools({ method: 'Runtime.executionContextsCleared' });
+          sendToChobitsu({ method: 'Runtime.enable' });
+          sendToChobitsu({ method: 'Debugger.enable' });
+          sendToChobitsu({ method: 'DOMStorage.enable' });
+          sendToChobitsu({ method: 'DOM.enable' });
+          sendToChobitsu({ method: 'CSS.enable' });
+          sendToChobitsu({ method: 'Overlay.enable' });
+          sendToDevtools({ method: 'DOM.documentUpdated' });
+        }
+      } catch (e) {
+        console.error(e);
       }
     });
     console.clear();
   `;
-  return {
+
+  const bridgeResource = {
     id: 'pen-debug-bridge',
     tagType: 'script',
     attrs: { id: 'pen-debug-bridge', type: 'module' },
-    srcString: debugScript,
+    srcString: bridgeScript,
     priority: 2,
     injectTo: 'head',
     injectPosition: 'afterbegin'
   };
+
+  return [chobitsuScript, bridgeResource];
 }
 
 function injectMarkup(document, rendered) {

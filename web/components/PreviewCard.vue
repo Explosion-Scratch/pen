@@ -124,6 +124,7 @@
             :src="devtoolsUrl"
             class="devtools-iframe"
             tabindex="-1"
+            @load="onDevtoolsLoad"
           ></iframe>
         </Pane>
       </Splitpanes>
@@ -172,6 +173,7 @@ import "splitpanes/dist/splitpanes.css";
 import ErrorPanel from "./ErrorPanel.vue";
 import { useFileSystem } from "../state_management.js";
 import { supportWorkers } from "../utils/patches.js";
+import { DevToolsManager } from "../utils/DevToolsManager.js";
 
 const props = defineProps({
   previewState: {
@@ -217,9 +219,12 @@ const currentPreviewUrl = ref(props.previewState?.contentURL || "about:blank");
 const isLoading = ref(false);
 const iframeKey = ref(0);
 const devtoolsKey = ref(0);
-const devtoolsMessageCache = new Map();
-let pendingDevtoolsResync = false;
+
+// DevTools Manager Instance
+let devtoolsManager = null;
+
 let loadingTimer = null;
+let previewDebounceTimer = null;
 
 function extractUrlSuffix(displayUrl) {
   try {
@@ -243,18 +248,24 @@ function buildIframeUrl(contentURL, displayUrl) {
 watch(
   () => props.previewState,
   (newState) => {
-    if (newState && newState.contentURL) {
-      const { search, hash } = extractUrlSuffix(tempUrl.value);
-      const baseDisplay = newState.displayURL || "http://preview.pen/";
-      tempUrl.value = baseDisplay.replace(/[?#].*$/, "") + search + hash;
-      currentPreviewUrl.value = buildIframeUrl(
-        newState.contentURL,
-        tempUrl.value,
-      );
-      iframeKey.value++;
-      triggerFlash();
-      refreshDevtoolsBridge();
-    }
+    if (previewDebounceTimer) clearTimeout(previewDebounceTimer);
+    
+    // Immediate update for initial load, debounce for subsequent ones
+    const delay = iframeKey.value === 0 ? 0 : 300;
+    
+    previewDebounceTimer = setTimeout(() => {
+        if (newState && newState.contentURL) {
+          const { search, hash } = extractUrlSuffix(tempUrl.value);
+          const baseDisplay = newState.displayURL || "http://preview.pen/";
+          tempUrl.value = baseDisplay.replace(/[?#].*$/, "") + search + hash;
+          currentPreviewUrl.value = buildIframeUrl(
+            newState.contentURL,
+            tempUrl.value,
+          );
+          iframeKey.value++;
+          triggerFlash();
+        }
+    }, delay);
   },
   { immediate: true, deep: true },
 );
@@ -270,27 +281,6 @@ function triggerFlash() {
   });
 }
 
-function refreshDevtoolsBridge() {
-  if (!showDevtools.value) return;
-  pendingDevtoolsResync = true;
-}
-
-function cacheDevtoolsMessage(message) {
-  try {
-    const parsed = JSON.parse(message);
-    if (parsed.id) return; // Never cache request/response pairs with IDs
-    const method = parsed && parsed.method;
-    if (!method) return;
-    if (method.endsWith(".enable") || method === "Target.setDiscoverTargets") {
-      devtoolsMessageCache.set(method, message);
-    }
-  } catch {}
-}
-
-function getResyncMessages() {
-  return [...devtoolsMessageCache.values()];
-}
-
 function handleUrlEnter() {
   urlInput.value?.blur();
   const contentURL = props.previewState?.contentURL;
@@ -299,7 +289,6 @@ function handleUrlEnter() {
   }
   iframeKey.value++;
   triggerFlash();
-  refreshDevtoolsBridge();
 }
 
 function handleUrlEsc() {
@@ -307,22 +296,13 @@ function handleUrlEsc() {
   urlInput.value?.blur();
 }
 
-let lastMessageTime = 0;
-
 function onIframeLoad() {
-  scriptIdToFilename.clear();
   if (!showDevtools.value) return;
-  
-  // Only resync if we haven't received anything from the new iframe context yet
-  // or if we have something critical to re-enable
-  if (pendingDevtoolsResync) {
-    pendingDevtoolsResync = false;
-    const target = iframe.value?.contentWindow;
-    if (!target) return;
-    for (const message of getResyncMessages()) {
-      target.postMessage({ event: "DEV", data: message }, "*");
-    }
-  }
+  devtoolsManager?.onIframeLoad();
+}
+
+function onDevtoolsLoad() {
+  devtoolsManager?.onDevtoolsLoad();
 }
 
 const devtoolsUrl = ref("");
@@ -334,12 +314,15 @@ watch(
     if (props.lastManualRender > 0) {
       iframeKey.value++;
       triggerFlash();
-      refreshDevtoolsBridge();
     }
   },
 );
 
 const urlParts = computed(() => {
+  // Safe parsing to prevent renderer crashes
+  if (!tempUrl.value) {
+      return { protocol: "", host: "", path: "" };
+  }
   try {
     const url = new URL(tempUrl.value);
     return {
@@ -350,7 +333,7 @@ const urlParts = computed(() => {
   } catch (e) {
     return {
       protocol: "",
-      host: tempUrl.value,
+      host: tempUrl.value || "",
       path: "",
     };
   }
@@ -393,6 +376,8 @@ function updateDevtoolsUrl() {
 watch(showDevtools, (val) => {
   if (val && !devtoolsUrl.value) {
     updateDevtoolsUrl();
+  } else if (!val) {
+    devtoolsManager?.clear();
   }
 });
 
@@ -437,51 +422,23 @@ function handleKeydown(event) {
   }
 }
 
-const scriptIdToFilename = new Map();
-
 function handleMessage(event) {
   if (event.data && event.data.type === "PEN_ERROR") {
     addError(event.data.error);
     return;
   }
-
-  if (event.source === iframe.value?.contentWindow) {
-    if (typeof event.data === "string") {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.method === "Debugger.scriptParsed") {
-          const { scriptId, url } = msg.params;
-          if (url && !url.startsWith("http") && !url.startsWith("blob:")) {
-            const filename = url;
-            scriptIdToFilename.set(scriptId, filename);
-          }
-        }
-      } catch (e) {}
-      devtoolsIframe.value?.contentWindow?.postMessage(event.data, "*");
-    }
-  } else if (event.source === devtoolsIframe.value?.contentWindow) {
-    if (typeof event.data === "string") {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.method === "Debugger.setScriptSource") {
-          const { scriptId, scriptSource } = msg.params;
-          const filename = scriptIdToFilename.get(scriptId);
-          if (filename) {
-            const { updateFile } = useFileSystem();
-            updateFile(filename, scriptSource);
-          }
-        }
-      } catch (e) {}
-      cacheDevtoolsMessage(event.data);
-      iframe.value?.contentWindow?.postMessage(
-        { event: "DEV", data: event.data },
-        "*",
-      );
-    }
-  }
+  // Delegate to manager
+  devtoolsManager?.handleMessage(event);
 }
 
 onMounted(() => {
+  // Initialize DevToolsManager
+  devtoolsManager = new DevToolsManager(
+    useFileSystem, 
+    () => iframe.value,
+    () => devtoolsIframe.value
+  );
+  
   window.addEventListener("message", handleMessage);
   window.addEventListener("keydown", handleKeydown);
 });
