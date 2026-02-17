@@ -9,13 +9,29 @@
         <i class="ph-duotone ph-x"></i>
       </button>
     </header>
+
+    <div class="search-bar">
+      <div class="search-container">
+        <i class="ph-duotone ph-magnifying-glass search-icon"></i>
+        <input 
+          ref="searchInput"
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="Search templates..." 
+          class="search-input"
+        />
+        <button v-if="searchQuery" class="clear-search" @click="searchQuery = ''">
+          <i class="ph-duotone ph-x-circle"></i>
+        </button>
+      </div>
+    </div>
     
     <div class="modal-body">
       <p class="modal-description">Choose a starter template for your project. Warning: This will overwrite your current configuration and files.</p>
       
-      <div class="template-grid">
+      <div v-if="filteredTemplates.length > 0" class="template-grid">
         <div 
-          v-for="tmpl in templates" 
+          v-for="tmpl in filteredTemplates" 
           :key="tmpl.id" 
           class="template-card"
           @click="selectTemplate(tmpl)"
@@ -26,24 +42,49 @@
             <p class="template-desc">{{ tmpl.description }}</p>
           </div>
           <div class="template-tags">
-            <span v-for="tag in tmpl.editors" :key="tag" class="tag">{{ tag }}</span>
+            <span v-for="tag in tmpl.tags" :key="tag" class="tag">{{ tag }}</span>
           </div>
         </div>
+      </div>
+      <div v-else class="empty-state">
+        <i class="ph-duotone ph-magnifying-glass"></i>
+        <p>No templates found matching "{{ searchQuery }}"</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { loadAllProjectTemplates } from '../../core/project_templates.js'
 
 const emit = defineEmits(['close', 'select'])
 const templates = ref([])
+const searchQuery = ref('')
+const searchInput = ref(null)
+
+const filteredTemplates = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim()
+  if (!query) return templates.value
+  
+  return templates.value.filter(tmpl => {
+    return tmpl.title.toLowerCase().includes(query) || 
+           tmpl.description.toLowerCase().includes(query) ||
+           (tmpl.tags || []).some(tag => tag.toLowerCase().includes(query))
+  })
+})
 
 onMounted(async () => {
   try {
-    templates.value = await loadAllProjectTemplates()
+    const rawTemplates = await loadAllProjectTemplates()
+    templates.value = rawTemplates.map(tmpl => ({
+      ...tmpl,
+      tags: tmpl.config?.editors?.map(e => e.type) || []
+    }))
+    
+    setTimeout(() => {
+      searchInput.value?.focus()
+    }, 100)
   } catch (err) {
     console.error('Failed to load templates:', err)
   }
@@ -110,6 +151,63 @@ function selectTemplate(tmpl) {
 
 .close-btn:hover {
   background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+.search-bar {
+  padding: 16px 24px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-light);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 20px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 40px 10px 44px;
+  background: var(--color-background-alt);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-text);
+  transition: all var(--transition-fast);
+}
+
+.search-input:focus {
+  outline: none;
+  background: var(--color-surface);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.1);
+}
+
+.clear-search {
+  position: absolute;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  transition: color var(--transition-fast);
+  padding: 0;
+}
+
+.clear-search:hover {
   color: var(--color-text);
 }
 
@@ -193,8 +291,26 @@ function selectTemplate(tmpl) {
   color: var(--color-text-muted);
 }
 
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.empty-state i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+  color: var(--color-accent);
+}
+
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 </style>
+

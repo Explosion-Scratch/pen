@@ -1,33 +1,50 @@
-@accent: #f9ab00;
+@bg: #f8f9fa;
+@text: #1a1a2e;
+@muted: #6c757d;
 
-body {
+* {
   margin: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: lighten(@accent, 45%);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  color: darken(@accent, 35%);
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.container {
-  padding: 2rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 25px rgba(0,0,0,0.04);
-  border: 1px solid lighten(@accent, 30%);
+body {
+  min-height: 100vh;
+  background: @bg;
+  font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+  color: @text;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 4rem 2rem 6rem;
+}
+
+header {
+  margin-bottom: 2rem;
 }
 
 h1 {
-  margin-top: 0;
-  color: @accent;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: @muted;
+  font-weight: 400;
 }
 
 #plot {
-  margin: 1.5rem 0;
-  border: 1px dashed lighten(@accent, 20%);
-  padding: 1rem;
-  border-radius: 8px;
+  width: 100%;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
 }

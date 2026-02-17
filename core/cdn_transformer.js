@@ -1,16 +1,18 @@
-const NPM_IMPORT_REGEX = /import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+)?['"]([^'"\.\/][^'"]*)['"];?/g
-const CSS_IMPORT_REGEX = /@import\s+(?:url\(\s*)?['"]([^'"]+)['"](?:\s*\))?[^;]*;?/g
+const NPM_IMPORT_REGEX =
+  /import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+)?['"]([^'"\.\/][^'"]*)['"];?/g;
+const CSS_IMPORT_REGEX =
+  /@import\s+(?:url\(\s*)?['"]([^'"]+)['"](?:\s*\))?[^;]*;?/g;
+
+const DEFAULT_CDN = "https://esm.sh";
 
 const IMPORT_OVERRIDES = {
-  'tailwindcss': 'https://cdn.tailwindcss.com',
-  'tailwindcss/preflight': 'https://cdn.jsdelivr.net/npm/tailwindcss@3/src/css/preflight.css',
-  'vue': 'https://unpkg.com/vue@3/dist/vue.esm-browser.js',
-  'three': 'https://unpkg.com/three@latest/build/three.module.js',
-  'solid-js': 'https://esm.sh/solid-js',
-  'solid-js/web': 'https://esm.sh/solid-js/web',
-  'solid-js/h': 'https://esm.sh/solid-js/h',
-  'd3': 'https://cdn.jsdelivr.net/npm/d3@7/+esm',
-}
+  tailwindcss: "https://cdn.tailwindcss.com",
+  "tailwindcss/preflight":
+    "https://cdn.jsdelivr.net/npm/tailwindcss@3/src/css/preflight.css",
+  vue: "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+  three: "https://unpkg.com/three@latest/build/three.module.js",
+  d3: "https://cdn.jsdelivr.net/npm/d3@7/+esm",
+};
 
 /**
  * @param {string} packageName
@@ -18,21 +20,24 @@ const IMPORT_OVERRIDES = {
  * @returns {string}
  */
 export function getCdnUrl(packageName, overrides = {}) {
-  const allOverrides = { ...IMPORT_OVERRIDES, ...overrides }
-  let baseName = packageName
-  const lastAt = packageName.lastIndexOf('@')
-  if (lastAt > 0) {
-    baseName = packageName.substring(0, lastAt)
+  const allOverrides = { ...IMPORT_OVERRIDES, ...overrides };
+
+  // Exact match (e.g., "preact/hooks", "solid-js/web")
+  if (allOverrides[packageName]) {
+    return allOverrides[packageName];
   }
 
-  if (allOverrides[baseName]) {
-    return allOverrides[baseName]
+  // Version-stripped match (e.g., "react@18" → check "react")
+  const lastAt = packageName.lastIndexOf("@");
+  if (lastAt > 0) {
+    const baseName = packageName.substring(0, lastAt);
+    if (allOverrides[baseName]) {
+      return allOverrides[baseName];
+    }
   }
-  
-  const cleanName = packageName.startsWith('@')
-    ? packageName.split('/').slice(0, 2).join('/')
-    : packageName.split('/')[0]
-  return `https://esm.run/${cleanName}`
+
+  // Preserve full path including subpaths (e.g., "preact/hooks" → "https://esm.sh/preact/hooks")
+  return `${DEFAULT_CDN}/${packageName}`;
 }
 
 /**
@@ -40,7 +45,7 @@ export function getCdnUrl(packageName, overrides = {}) {
  * @returns {boolean}
  */
 export function isRelativeImport(importPath) {
-  return importPath.startsWith('.') || importPath.startsWith('/')
+  return importPath.startsWith(".") || importPath.startsWith("/");
 }
 
 /**
@@ -49,20 +54,28 @@ export function isRelativeImport(importPath) {
  * @returns {string}
  */
 export function transformImportsToCdn(jsCode, overrides = {}) {
-  const allOverrides = { ...IMPORT_OVERRIDES, ...overrides }
+  const allOverrides = { ...IMPORT_OVERRIDES, ...overrides };
   return jsCode.replace(NPM_IMPORT_REGEX, (match, packageName) => {
     // Check for explicit override first, even if it's an absolute URL
     if (allOverrides[packageName]) {
-       const url = allOverrides[packageName]
-       return match.replace(`"${packageName}"`, `"${url}"`).replace(`'${packageName}'`, `'${url}'`)
+      const url = allOverrides[packageName];
+      return match
+        .replace(`"${packageName}"`, `"${url}"`)
+        .replace(`'${packageName}'`, `'${url}'`);
     }
 
-    if (isRelativeImport(packageName) || packageName.startsWith('http://') || packageName.startsWith('https://')) {
-      return match
+    if (
+      isRelativeImport(packageName) ||
+      packageName.startsWith("http://") ||
+      packageName.startsWith("https://")
+    ) {
+      return match;
     }
-    const url = getCdnUrl(packageName, overrides)
-    return match.replace(`"${packageName}"`, `"${url}"`).replace(`'${packageName}'`, `'${url}'`)
-  })
+    const url = getCdnUrl(packageName, overrides);
+    return match
+      .replace(`"${packageName}"`, `"${url}"`)
+      .replace(`'${packageName}'`, `'${url}'`);
+  });
 }
 
 /**
@@ -71,13 +84,14 @@ export function transformImportsToCdn(jsCode, overrides = {}) {
  * @returns {string}
  */
 export function transformCssImports(cssCode, overrides = {}) {
-  const allOverrides = { ...IMPORT_OVERRIDES, ...overrides }
+  const allOverrides = { ...IMPORT_OVERRIDES, ...overrides };
   return cssCode.replace(CSS_IMPORT_REGEX, (match, importPath) => {
-    if (isRelativeImport(importPath)) return match
-    if (importPath.startsWith('http://') || importPath.startsWith('https://')) return match
-    const url = allOverrides[importPath] || `https://esm.run/${importPath}`
-    return match.replace(importPath, url)
-  })
+    if (isRelativeImport(importPath)) return match;
+    if (importPath.startsWith("http://") || importPath.startsWith("https://"))
+      return match;
+    const url = allOverrides[importPath] || `${DEFAULT_CDN}/${importPath}`;
+    return match.replace(importPath, url);
+  });
 }
 
 /**
@@ -85,12 +99,16 @@ export function transformCssImports(cssCode, overrides = {}) {
  * @returns {string[]}
  */
 export function extractImports(jsCode) {
-  const imports = new Set()
+  const imports = new Set();
   for (const match of jsCode.matchAll(NPM_IMPORT_REGEX)) {
-    const packageName = match[1]
-    if (!isRelativeImport(packageName) && !packageName.startsWith('http://') && !packageName.startsWith('https://')) {
-      imports.add(packageName)
+    const packageName = match[1];
+    if (
+      !isRelativeImport(packageName) &&
+      !packageName.startsWith("http://") &&
+      !packageName.startsWith("https://")
+    ) {
+      imports.add(packageName);
     }
   }
-  return [...imports]
+  return [...imports];
 }

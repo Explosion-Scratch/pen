@@ -199,15 +199,7 @@ async function loadProjectTemplatesInBrowser() {
         'script.js': () => import('../project-templates/observable/script.js?raw'),
       }
     },
-    'htmx': {
-      config: () => import('../project-templates/htmx/.pen.config.json'),
-      icon: () => import('../project-templates/htmx/icon.svg?raw'),
-      files: {
-        'index.html': () => import('../project-templates/htmx/index.html?raw'),
-        'style.less': () => import('../project-templates/htmx/style.less?raw'),
-        'script.js': () => import('../project-templates/htmx/script.js?raw'),
-      }
-    },
+
 
     'unocss': {
       config: () => import('../project-templates/unocss/.pen.config.json'),
@@ -255,5 +247,5 @@ async function loadProjectTemplatesInBrowser() {
 }
 
 export function listProjectTemplateIds() {
-  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid', 'd3', 'threejs', 'lit', 'preact', 'observable', 'htmx', 'unocss']
+  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid', 'd3', 'threejs', 'lit', 'preact', 'observable', 'unocss']
 }

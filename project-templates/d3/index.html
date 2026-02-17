@@ -2,10 +2,20 @@
 <html>
 <body>
   <div class="container">
-    <h1>D3.js Visualization</h1>
+    <h1>Double Histogram</h1>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="dot" style="background: var(--accent-color, #E6B800)"></div>
+        <span>Variable A</span>
+      </div>
+      <div class="legend-item">
+        <div class="dot" style="background: #000000"></div>
+        <span>Variable B</span>
+      </div>
+    </div>
     <div id="viz"></div>
-    <p>Simple reactive bars</p>
-    <button class="accent-btn" id="randomize">Randomize Data</button>
+    <p>Comparing two distributions</p>
+    <button class="accent-btn" id="randomize">Regenerate Data</button>
   </div>
 </body>
 </html>

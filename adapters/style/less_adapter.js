@@ -2,6 +2,7 @@ import { CSSAdapter } from './css_adapter.js'
 import { loadAndRenderTemplate } from '../../core/template_engine.js'
 import { importModule } from '../import_module.js'
 import { CompileError } from '../../core/errors.js'
+import { SourceMapGenerator } from 'source-map-js'
 
 /**
  * @returns {Promise<object>}
@@ -54,10 +55,20 @@ export class LESSAdapter extends CSSAdapter {
   async compileToCSS(code) {
     try {
       const less = await getLess()
+      
+      // Fix: Some browser builds of Less lack the environment source map generator hook
+      if (less.environment && !less.environment.getSourceMapGenerator) {
+        less.environment.getSourceMapGenerator = () => SourceMapGenerator
+      }
+
       const filename = 'style.less'
       const result = await less.render(code, {
         filename,
-        sourceMap: { sourceMapFileInline: false, outputSourceFiles: true }
+        sourceMap: { 
+          sourceMapFileInline: false, 
+          outputSourceFiles: true,
+          sourceMapGenerator: SourceMapGenerator
+        }
       })
       // map is a string in result.map
       return { css: result.css, map: result.map }

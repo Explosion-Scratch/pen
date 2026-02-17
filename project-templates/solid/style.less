@@ -9,6 +9,7 @@
 @radius-sm: 4px;
 
 body {
+  background: linear-gradient(65deg, spin(lighten(@accent, 30), 70), lighten(spin(@accent, -10), 30));
   margin: 0;
   display: flex;
   align-items: center;
@@ -28,10 +29,16 @@ body {
 
 .container {
   padding: 32px;
-  border-radius: @radius-sm;
+  border-radius: @radius-sm * 9;
+  &:hover {
+    border-radius: @radius-sm * 5;
+    transform: translateY(-2px);
+  }
+  transition: border-radius .3s ease, transform .4s ease;
   background-color: #fff;
   border: 1px solid @border-color;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  corner-shape: squircle;
 }
 
 .logo-wrapper {

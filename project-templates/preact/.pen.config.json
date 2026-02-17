@@ -19,9 +19,8 @@
     {
       "type": "jsx",
       "filename": "script.jsx",
-      "settings": { 
-        "pragma": "h",
-        "pragmaFrag": "Fragment"
+      "settings": {
+        "compiler": "preact"
       }
     }
   ],

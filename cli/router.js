@@ -1,109 +1,125 @@
-import { existsSync } from 'fs'
-import { join } from 'path'
-import { initializeNewProjectFlow, interactiveConfigurationFlow, productionPreviewFlow, buildFlow } from './project_initializer.js'
-import { launchEditorFlow } from './server.js'
-import { loadAllProjectTemplates } from '../core/project_templates.js'
+import { existsSync } from "fs";
+import { join } from "path";
+import { Command } from "commander";
+import {
+  initializeNewProjectFlow,
+  interactiveConfigurationFlow,
+  productionPreviewFlow,
+  buildFlow,
+} from "./project_initializer.js";
+import { launchEditorFlow } from "./server.js";
+import { loadAllProjectTemplates } from "../core/project_templates.js";
 
-const CONFIG_FILENAME = '.pen.config.json'
+const CONFIG_FILENAME = ".pen.config.json";
 
 const LOGO = `
   ╭──────────────────────────────────╮
   │       ✒  \x1b[1mPen\x1b[0m  Editor              │
   │   Local CodePen-style editor     │
-  ╰──────────────────────────────────╯`
+  ╰──────────────────────────────────╯`;
 
 export async function handleCliInput(args) {
-  const isHelp = args.includes('--help') || args.includes('-h')
-  const isVersion = args.includes('--version') || args.includes('-v')
+  const program = new Command();
 
-  if (isHelp) {
-    printHelp()
-    return
-  }
+  program
+    .name("pen")
+    .description("Local CodePen-style editor")
+    .version("1.0.0");
 
-  if (isVersion) {
-    console.log('pen v1.0.0')
-    return
-  }
+  program
+    .command("init")
+    .alias("new")
+    .description("Create a new Pen project")
+    .action(async () => {
+      const cwd = process.cwd();
+      await initializeNewProjectFlow(cwd);
+    });
 
-  const flags = args.filter(a => a.startsWith('--'))
-  const cleanArgs = args.filter(a => !a.startsWith('--'))
-  
-  const command = cleanArgs[0]
-  const cwd = process.cwd()
-  const configPath = join(cwd, CONFIG_FILENAME)
-  const hasConfig = existsSync(configPath)
-
-  const options = {
-    headless: flags.includes('--headless')
-  }
-
-  switch (command) {
-    case 'init':
-    case 'new':
-      await initializeNewProjectFlow(cwd)
-      break
-
-    case 'configure':
-    case 'config':
-      if (!hasConfig) {
-        printNoProject()
-        process.exit(1)
+  program
+    .command("configure")
+    .alias("config")
+    .description("Interactively edit editors, settings, CDN links")
+    .action(async () => {
+      const cwd = process.cwd();
+      const configPath = join(cwd, CONFIG_FILENAME);
+      if (!existsSync(configPath)) {
+        printNoProject();
+        process.exit(1);
       }
-      await interactiveConfigurationFlow(cwd)
-      break
+      await interactiveConfigurationFlow(cwd);
+    });
 
-    case 'serve':
-    case 'preview':
-      if (!hasConfig) {
-        printNoProject()
-        process.exit(1)
+  program
+    .command("serve")
+    .alias("preview")
+    .description("Build and serve a production preview")
+    .action(async () => {
+      const cwd = process.cwd();
+      const configPath = join(cwd, CONFIG_FILENAME);
+      if (!existsSync(configPath)) {
+        printNoProject();
+        process.exit(1);
       }
-      await productionPreviewFlow(cwd)
-      break
+      await productionPreviewFlow(cwd);
+    });
 
-    case 'build':
-      if (!hasConfig) {
-        printNoProject()
-        process.exit(1)
+  program
+    .command("build [outputFile]")
+    .description("Build the project to a file")
+    .action(async (outputFile) => {
+      const cwd = process.cwd();
+      const configPath = join(cwd, CONFIG_FILENAME);
+      if (!existsSync(configPath)) {
+        printNoProject();
+        process.exit(1);
       }
-      const outputFile = cleanArgs[1]
-      await buildFlow(cwd, outputFile)
-      break
+      await buildFlow(cwd, outputFile);
+    });
 
-    case 'templates':
-    case 'list-templates':
-      await printTemplateList()
-      break
+  program
+    .command("templates")
+    .alias("list-templates")
+    .description("List available project templates")
+    .action(async () => {
+      await printTemplateList();
+    });
 
-    default:
+  program
+    .option("--headless", "Run in headless mode")
+    .action(async (options) => {
+      const cwd = process.cwd();
+      const configPath = join(cwd, CONFIG_FILENAME);
+      const hasConfig = existsSync(configPath);
+
       if (hasConfig) {
-        await launchEditorFlow(cwd, options)
+        await launchEditorFlow(cwd, options);
       } else {
-        await initializeNewProjectFlow(cwd)
+        await initializeNewProjectFlow(cwd);
       }
-  }
+    });
+
+  await program.parse(args, { from: "user" });
 }
 
 function printNoProject() {
-  console.log('\n\x1b[33m⚠\x1b[0m  No Pen project found in current directory.')
-  console.log('   Run \x1b[1mpen init\x1b[0m to create one.\n')
+  console.log("\n\x1b[33m⚠\x1b[0m  No Pen project found in current directory.");
+  console.log("   Run \x1b[1mpen init\x1b[0m to create one.\n");
 }
 
 async function printTemplateList() {
-  const templates = await loadAllProjectTemplates()
-  console.log(LOGO)
-  console.log('\n  \x1b[1mAvailable Templates\x1b[0m\n')
+  const templates = await loadAllProjectTemplates();
+  console.log(LOGO);
+  console.log("\n  \x1b[1mAvailable Templates\x1b[0m\n");
 
   if (templates.length === 0) {
-    console.log('  (no templates found)\n')
-    return
+    console.log("  (no templates found)\n");
+    return;
   }
 
   for (const t of templates) {
-    const editors = t.config.editors.map(e => e.type).join(', ')
-    console.log(`  \x1b[36m${t.title.padEnd(20)}\x1b[0m ${t.description}`)
-    console.log(`  ${''.padEnd(20)} \x1b[2m${editors}\x1b[0m\n`)
+    const editors = t.config.editors.map((e) => e.type).join(", ");
+    console.log(`  \x1b[36m${t.title.padEnd(20)}\x1b[0m ${t.description}`);
+    console.log(`  ${"".padEnd(20)} \x1b[2m${editors}\x1b[0m\n`);
   }
 }
 
@@ -132,5 +148,5 @@ function printHelp() {
     pen config             Modify project settings
     pen serve              Preview the production build
     pen templates          See all starter templates
-`)
+`);
 }
