@@ -13,15 +13,18 @@ import { fileURLToPath } from "url";
 import open from "open";
 import { getAdapter } from "../core/adapter_registry.js";
 import { loadAllProjectTemplates } from "../core/project_templates.js";
+import chalk from "chalk";
 
 const CONFIG_FILENAME = ".pen.config.json";
 
 export async function launchEditorFlow(projectPath, options = {}) {
   const configPath = join(projectPath, CONFIG_FILENAME);
   const config = JSON.parse(readFileSync(configPath, "utf-8"));
-  const httpPort = 3000,
-    wsPort = 3001,
-    previewPort = 3002;
+  
+  const httpPort = options.port ? parseInt(options.port) : 3000;
+  const wsPort = httpPort + 1;
+  const previewPort = httpPort + 2;
+  const host = options.host || 'localhost';
 
   const clients = new Set();
   let fileMap = {};
@@ -38,11 +41,11 @@ export async function launchEditorFlow(projectPath, options = {}) {
     for (const c of clients) if (c.readyState === 1) c.send(data);
   };
 
-  const wss = new WebSocketServer({ port: wsPort });
+  const wss = new WebSocketServer({ port: wsPort, host });
 
   wss.on("connection", (ws) => {
     clients.add(ws);
-    if (!options.headless) console.log("📡 Client connected");
+    if (!options.headless) console.log(" Client connected");
 
     // Send initial state to client
     const getAdaptersInfo = () =>
@@ -125,7 +128,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
           }
 
           console.log(
-            `🏷️  Renamed: ${oldFilename} → ${newFilename} (${newType})`,
+            `  Renamed: ${oldFilename} -> ${newFilename} (${newType})`,
           );
 
           broadcast({
@@ -154,7 +157,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
           }
           delete fileMap[filename];
 
-          console.log(`🗑️  Deleted: ${filename}`);
+          console.log(`  Deleted: ${filename}`);
 
           broadcast({
             type: "reinit",
@@ -172,7 +175,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
           if (editor) {
             editor.settings = msg.settings;
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log(`⚙️  Settings: ${msg.filename}`);
+            console.log(`  Settings: ${msg.filename}`);
           }
           break;
         }
@@ -220,7 +223,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
           }
 
           writeFileSync(configPath, JSON.stringify(config, null, 2));
-          console.log(`🚀 Project reset to template: ${msg.templateId}`);
+          console.log(`  Project reset to template: ${msg.templateId}`);
 
           broadcast({
             type: "reinit",
@@ -236,7 +239,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
           if (msg.config && typeof msg.config === "object") {
             Object.assign(config, msg.config);
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log("⚙️  Config saved");
+            console.log("  Config saved");
           }
           break;
         }
@@ -281,7 +284,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             Object.assign(config, newConfig);
             Object.assign(fileMap, newFileMap);
 
-            console.log(`📂 Imported folder: ${folderPath}`);
+            console.log(`  Imported folder: ${folderPath}`);
 
             broadcast({
               type: "reinit",
@@ -302,7 +305,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
 
     ws.on("close", () => {
       clients.delete(ws);
-      if (!options.headless) console.log("📡 Client disconnected");
+      if (!options.headless) console.log(" Client disconnected");
     });
   });
 
@@ -326,7 +329,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
         title,
         description,
         icon,
-        editors: c.editors.map((e) => e.type),
       }),
     );
     res.json(templates);
@@ -361,21 +363,21 @@ export async function launchEditorFlow(projectPath, options = {}) {
     );
   }
 
-  app.listen(httpPort, () => {
+  app.listen(httpPort, host, () => {
     if (options.headless) {
-      console.log(`\n\x1b[1m✨ Pen Services (Headless)\x1b[0m\n`);
-      console.log(`   📡 API:     http://localhost:${httpPort}`);
-      console.log(`   📡 WS:      ws://localhost:${wsPort}`);
+      console.log(`\n${chalk.bold("Pen Services (Headless)")}\n`);
+      console.log(`   API:     http://${host}:${httpPort}`);
+      console.log(`   WS:      ws://${host}:${wsPort}`);
       console.log(
-        `   📄 Preview: http://localhost:${previewPort} (Hosted by Client/Static)\n`,
+        `   Preview: http://${host}:${previewPort} (Hosted by Client/Static)\n`,
       );
     } else {
-      console.log(`\n\x1b[1m✨ Pen Editor\x1b[0m\n`);
-      console.log(`   🌐 Editor:  http://localhost:${httpPort}`);
-      console.log(`   📡 WS:      ws://localhost:${wsPort}`);
+      console.log(`\n${chalk.bold("Pen Editor")}\n`);
+      console.log(`   Editor:  http://${host}:${httpPort}`);
+      console.log(`   WS:      ws://${host}:${wsPort}`);
       console.log(`\n   Press Ctrl+C to stop.\n`);
 
-      open(`http://localhost:${httpPort}`);
+      open(`http://${host}:${httpPort}`);
     }
   });
 }

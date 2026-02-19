@@ -1,6 +1,6 @@
 # Pen
 
-A CodePen-like editor for local development with live preview and preprocessing support.
+A Rich programming playground for local development with live preview and preprocessing support.
 
 ## Features
 

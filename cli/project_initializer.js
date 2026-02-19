@@ -1,14 +1,54 @@
 import { input, select, confirm } from '@inquirer/prompts'
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs'
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from 'fs'
 import { join, basename } from 'path'
 import { getAdapter, getAdaptersByCategory, getAllAdapters } from '../core/adapter_registry.js'
 import { loadAllProjectTemplates } from '../core/project_templates.js'
 import { launchEditorFlow } from './server.js'
+import chalk from 'chalk'
 
 const CONFIG_FILENAME = '.pen.config.json'
 
 export async function initializeNewProjectFlow(projectPath) {
-  console.log('\n\x1b[1m✨ Create a new Pen project\x1b[0m\n')
+  console.log(`\n${chalk.bold("Create a new Pen project")}\n`)
+
+  const targetDirInput = await input({
+    message: 'Target directory',
+    default: '.'
+  })
+
+  const targetDir = targetDirInput === '.' ? projectPath : join(projectPath, targetDirInput)
+
+  if (!existsSync(targetDir)) {
+    mkdirSync(targetDir, { recursive: true })
+  } else {
+    if (existsSync(join(targetDir, CONFIG_FILENAME))) {
+      const overwrite = await confirm({ message: chalk.yellow('A Pen project already exists in this directory. Overwrite it?'), default: false })
+      if (!overwrite) {
+        console.log(chalk.red('Aborted.'))
+        process.exit(0)
+      }
+    } else {
+      const files = readdirSync(targetDir)
+      if (files.length > 0) {
+        const initAny = await confirm({ message: chalk.yellow('Target directory is not empty. Initialize Pen project here anyway?'), default: false })
+        if (!initAny) {
+          console.log(chalk.red('Aborted.'))
+          process.exit(0)
+        }
+      }
+    }
+  }
+
+  const defaultName = basename(targetDir) === '' || basename(targetDir) === '.' ? 'my-pen-project' : basename(targetDir)
+
+  const projectName = await input({
+    message: 'Project name',
+    default: defaultName,
+    validate: v => v.length > 0 || 'Required'
+  })
+
+  // Update projectPath to the new subfolder
+  projectPath = targetDir
 
   const templates = await loadAllProjectTemplates()
   const choices = [
@@ -16,28 +56,14 @@ export async function initializeNewProjectFlow(projectPath) {
       name: `${t.title} — ${t.description}`,
       value: t.id
     })),
-    { name: '\x1b[2mCustom... (pick each editor)\x1b[0m', value: '__custom__' }
+    { name: chalk.dim('Custom... (pick each editor)'), value: '__custom__' }
   ]
 
   const templateChoice = await select({
     message: 'Start from a template',
-    choices
+    choices,
+    default: 'vanilla'
   })
-
-  const projectName = await input({
-    message: 'Project name',
-    default: 'my-pen-project',
-    validate: v => v.length > 0 || 'Required'
-  })
-
-  // Create subfolder for project
-  const targetDir = join(projectPath, projectName)
-  if (!existsSync(targetDir)) {
-    mkdirSync(targetDir, { recursive: true })
-  }
-  
-  // Update projectPath to the new subfolder
-  projectPath = targetDir
 
   let config, files
 
@@ -54,9 +80,9 @@ export async function initializeNewProjectFlow(projectPath) {
     writeFileSync(join(projectPath, filename), content)
   }
 
-  console.log('\n\x1b[32m✅ Project created!\x1b[0m\n')
-  console.log(`   📁 ${projectName}`)
-  config.editors.forEach(e => console.log(`   📄 ${e.filename}`))
+  console.log(`\n${chalk.green("Project created!")}\n`)
+  console.log(`   ${projectName}`)
+  config.editors.forEach(e => console.log(`   ${e.filename}`))
   console.log('')
 
   const launchNow = await confirm({ message: 'Launch the editor?', default: true })
@@ -101,10 +127,10 @@ export async function interactiveConfigurationFlow(projectPath) {
   const configPath = join(projectPath, CONFIG_FILENAME)
   const config = JSON.parse(readFileSync(configPath, 'utf-8'))
 
-  console.log(`\n\x1b[1m⚙️  ${config.name}\x1b[0m\n`)
+  console.log(`\n${chalk.bold(config.name)}\n`)
   config.editors.forEach((e, i) => {
     const A = getAdapter(e.type)
-    console.log(`  ${i + 1}. \x1b[36m${A.name}\x1b[0m  ${e.filename}`)
+    console.log(`  ${i + 1}. ${chalk.cyan(A.name)}  ${e.filename}`)
   })
   console.log('')
 
@@ -128,7 +154,7 @@ export async function interactiveConfigurationFlow(projectPath) {
   else if (action === 'overrides') await manageImportOverrides(config)
 
   writeFileSync(configPath, JSON.stringify(config, null, 2))
-  console.log('\n\x1b[32m✅ Saved!\x1b[0m\n')
+  console.log(`\n${chalk.green("Saved!")}\n`)
 
   if (action !== 'exit') await interactiveConfigurationFlow(projectPath)
 }
@@ -210,9 +236,9 @@ async function manageImportOverrides(config) {
   config.importOverrides = config.importOverrides || {}
   const entries = Object.entries(config.importOverrides)
 
-  console.log('\n  \x1b[1mImport Overrides\x1b[0m')
+  console.log(`\n  ${chalk.bold("Import Overrides")}`)
   console.log('  Maps bare package names to custom URLs.\n')
-  if (entries.length) entries.forEach(([k, v]) => console.log(`  \x1b[36m${k}\x1b[0m → ${v}`))
+  if (entries.length) entries.forEach(([k, v]) => console.log(`  ${chalk.cyan(k)} -> ${v}`))
   else console.log('  (none)')
 
   const action = await select({
@@ -237,7 +263,7 @@ async function manageImportOverrides(config) {
   }
 }
 
-export async function productionPreviewFlow(projectPath) {
+export async function productionPreviewFlow(projectPath, options = {}) {
   const { executeSequentialRender } = await import('../core/pipeline_processor.js')
   const configPath = join(projectPath, CONFIG_FILENAME)
   const config = JSON.parse(readFileSync(configPath, 'utf-8'))
@@ -248,7 +274,7 @@ export async function productionPreviewFlow(projectPath) {
     if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
   }
 
-  console.log('\n\x1b[1m🔨 Building preview...\x1b[0m\n')
+  console.log(`\n${chalk.bold("Building preview...")}\n`)
 
   const { html: htmlBlob } = await executeSequentialRender(fileMap, config, { dev: false })
   writeFileSync(join(projectPath, '.pen-preview.html'), htmlBlob)
@@ -259,10 +285,13 @@ export async function productionPreviewFlow(projectPath) {
 
   app.get('/', (req, res) => res.send(htmlBlob))
 
-  const server = app.listen(0, () => {
+  const host = options.host || 'localhost'
+  const portToListen = options.port ? parseInt(options.port) : 0
+
+  const server = app.listen(portToListen, host, () => {
     const port = server.address().port
-    console.log(`  🌐 http://localhost:${port}\n`)
-    open(`http://localhost:${port}`)
+    console.log(`  http://${host}:${port}\n`)
+    open(`http://${host}:${port}`)
   })
 
   console.log('  Press Ctrl+C to stop.\n')

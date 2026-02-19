@@ -1,7 +1,7 @@
 {
   "name": "pen",
   "version": "1.0.0",
-  "description": "A CodePen-like editor with live preview and preprocessing support",
+  "description": "A Rich programming playground with live preview and preprocessing support",
   "type": "module",
   "bin": {
     "pen": "./cli/index.js"
@@ -31,6 +31,7 @@
     "@inquirer/prompts": "^7.4.0",
     "@lezer/highlight": "^1.2.1",
     "@uiw/codemirror-extensions-color": "^4.25.4",
+    "chalk": "^5.6.2",
     "chii": "^1.15.5",
     "chokidar": "^4.0.3",
     "codemirror": "^6.0.1",
@@ -57,7 +58,7 @@
     "vite-plugin-singlefile": "^2.3.0"
   },
   "keywords": [
-    "codepen",
+    "playground",
     "editor",
     "live-preview",
     "preprocessor",

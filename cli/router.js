@@ -9,13 +9,14 @@ import {
 } from "./project_initializer.js";
 import { launchEditorFlow } from "./server.js";
 import { loadAllProjectTemplates } from "../core/project_templates.js";
+import chalk from "chalk";
 
 const CONFIG_FILENAME = ".pen.config.json";
 
 const LOGO = `
   ╭──────────────────────────────────╮
-  │       ✒  \x1b[1mPen\x1b[0m  Editor              │
-  │   Local CodePen-style editor     │
+  │       ${chalk.bold("Pen")}  Editor              │
+  │   Local Rich programming playground │
   ╰──────────────────────────────────╯`;
 
 export async function handleCliInput(args) {
@@ -23,7 +24,7 @@ export async function handleCliInput(args) {
 
   program
     .name("pen")
-    .description("Local CodePen-style editor")
+    .description("Local Rich programming playground")
     .version("1.0.0");
 
   program
@@ -53,14 +54,16 @@ export async function handleCliInput(args) {
     .command("serve")
     .alias("preview")
     .description("Build and serve a production preview")
-    .action(async () => {
+    .option("-p, --port <number>", "Port for the server")
+    .option("-H, --host <string>", "Host for the server")
+    .action(async (options) => {
       const cwd = process.cwd();
       const configPath = join(cwd, CONFIG_FILENAME);
       if (!existsSync(configPath)) {
         printNoProject();
         process.exit(1);
       }
-      await productionPreviewFlow(cwd);
+      await productionPreviewFlow(cwd, options);
     });
 
   program
@@ -86,6 +89,8 @@ export async function handleCliInput(args) {
 
   program
     .option("--headless", "Run in headless mode")
+    .option("-p, --port <number>", "Port for the server")
+    .option("-H, --host <string>", "Host for the server")
     .action(async (options) => {
       const cwd = process.cwd();
       const configPath = join(cwd, CONFIG_FILENAME);
@@ -102,14 +107,14 @@ export async function handleCliInput(args) {
 }
 
 function printNoProject() {
-  console.log("\n\x1b[33m⚠\x1b[0m  No Pen project found in current directory.");
-  console.log("   Run \x1b[1mpen init\x1b[0m to create one.\n");
+  console.log(`\n${chalk.yellow("No Pen project found in current directory.")}`);
+  console.log(`   Run ${chalk.bold("pen init")} to create one.\n`);
 }
 
 async function printTemplateList() {
   const templates = await loadAllProjectTemplates();
   console.log(LOGO);
-  console.log("\n  \x1b[1mAvailable Templates\x1b[0m\n");
+  console.log(`\n  ${chalk.bold("Available Templates")}\n`);
 
   if (templates.length === 0) {
     console.log("  (no templates found)\n");
@@ -118,30 +123,30 @@ async function printTemplateList() {
 
   for (const t of templates) {
     const editors = t.config.editors.map((e) => e.type).join(", ");
-    console.log(`  \x1b[36m${t.title.padEnd(20)}\x1b[0m ${t.description}`);
-    console.log(`  ${"".padEnd(20)} \x1b[2m${editors}\x1b[0m\n`);
+    console.log(`  ${chalk.cyan(t.title.padEnd(20))} ${t.description}`);
+    console.log(`  ${"".padEnd(20)} ${chalk.dim(editors)}\n`);
   }
 }
 
 function printHelp() {
   console.log(`${LOGO}
 
-  \x1b[1mUsage:\x1b[0m pen [command] [options]
+  ${chalk.bold("Usage:")} pen [command] [options]
 
-  \x1b[1mCommands:\x1b[0m
+  ${chalk.bold("Commands:")}
 
-    \x1b[36m(none)\x1b[0m              Launch editor, or create project if none exists
-    \x1b[36minit\x1b[0m / \x1b[36mnew\x1b[0m          Create a new Pen project (with template picker)
-    \x1b[36mconfigure\x1b[0m / \x1b[36mconfig\x1b[0m  Interactively edit editors, settings, CDN links
-    \x1b[36mserve\x1b[0m / \x1b[36mbuild\x1b[0m       Build and serve a production preview
-    \x1b[36mtemplates\x1b[0m            List available project templates
+    ${chalk.cyan("(none)")}              Launch editor, or create project if none exists
+    ${chalk.cyan("init")} / ${chalk.cyan("new")}          Create a new Pen project (with template picker)
+    ${chalk.cyan("configure")} / ${chalk.cyan("config")}  Interactively edit editors, settings, CDN links
+    ${chalk.cyan("serve")} / ${chalk.cyan("build")}       Build and serve a production preview
+    ${chalk.cyan("templates")}            List available project templates
 
-  \x1b[1mOptions:\x1b[0m
+  ${chalk.bold("Options:")}
 
-    \x1b[36m-h\x1b[0m, \x1b[36m--help\x1b[0m          Show this help message
-    \x1b[36m-v\x1b[0m, \x1b[36m--version\x1b[0m       Show version number
+    ${chalk.cyan("-h")}, ${chalk.cyan("--help")}          Show this help message
+    ${chalk.cyan("-v")}, ${chalk.cyan("--version")}       Show version number
 
-  \x1b[1mExamples:\x1b[0m
+  ${chalk.bold("Examples:")}
 
     pen                    Launch or initialize
     pen init               Create from template

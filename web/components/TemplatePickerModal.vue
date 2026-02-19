@@ -41,9 +41,6 @@
             <span class="template-title">{{ tmpl.title }}</span>
             <p class="template-desc">{{ tmpl.description }}</p>
           </div>
-          <div class="template-tags">
-            <span v-for="tag in tmpl.tags" :key="tag" class="tag">{{ tag }}</span>
-          </div>
         </div>
       </div>
       <div v-else class="empty-state">
@@ -69,18 +66,14 @@ const filteredTemplates = computed(() => {
   
   return templates.value.filter(tmpl => {
     return tmpl.title.toLowerCase().includes(query) || 
-           tmpl.description.toLowerCase().includes(query) ||
-           (tmpl.tags || []).some(tag => tag.toLowerCase().includes(query))
+           tmpl.description.toLowerCase().includes(query)
   })
 })
 
 onMounted(async () => {
   try {
     const rawTemplates = await loadAllProjectTemplates()
-    templates.value = rawTemplates.map(tmpl => ({
-      ...tmpl,
-      tags: tmpl.config?.editors?.map(e => e.type) || []
-    }))
+    templates.value = rawTemplates
     
     setTimeout(() => {
       searchInput.value?.focus()
@@ -272,23 +265,6 @@ function selectTemplate(tmpl) {
   color: var(--color-text-muted);
   line-height: 1.5;
   margin-bottom: 16px;
-}
-
-.template-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: auto;
-}
-
-.tag {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  background: var(--color-background-alt);
-  border-radius: 4px;
-  color: var(--color-text-muted);
 }
 
 .empty-state {

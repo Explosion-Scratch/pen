@@ -1,6 +1,9 @@
 import { getAdapter } from './adapter_registry.js'
+import { bundledTemplates } from '../cli/bundled_assets.js'
 
 export async function loadAllProjectTemplates() {
+  if (bundledTemplates) return bundledTemplates;
+
   const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null
 
   if (isNode) {
