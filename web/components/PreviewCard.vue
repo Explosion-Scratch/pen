@@ -93,7 +93,8 @@
               <iframe
                 ref="iframe"
                 :key="iframeKey"
-                :src="currentPreviewUrl"
+                :src="iframeSrc"
+                :srcdoc="iframeSrcdoc"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
                 class="preview-iframe"
                 @load="onIframeLoad"
@@ -111,7 +112,8 @@
             v-else
             ref="iframe"
             :key="iframeKey"
-            :src="currentPreviewUrl"
+            :src="iframeSrc"
+            :srcdoc="iframeSrcdoc"
             sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
             class="preview-iframe"
             @load="onIframeLoad"
@@ -138,7 +140,8 @@
             <iframe
               ref="iframe"
               :key="iframeKey"
-              :src="currentPreviewUrl"
+              :src="iframeSrc"
+              :srcdoc="iframeSrcdoc"
               sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
               class="preview-iframe"
               @load="onIframeLoad"
@@ -156,7 +159,8 @@
           v-else
           ref="iframe"
           :key="iframeKey"
-          :src="currentPreviewUrl"
+          :src="iframeSrc"
+          :srcdoc="iframeSrcdoc"
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
           class="preview-iframe"
           @load="onIframeLoad"
@@ -239,11 +243,22 @@ function extractUrlSuffix(displayUrl) {
 
 function buildIframeUrl(contentURL, displayUrl) {
   if (!contentURL) return "about:blank";
+  if (contentURL.startsWith("srcdoc:")) return contentURL;
   const { search, hash } = extractUrlSuffix(displayUrl);
   if (!search && !hash) return contentURL;
   const payload = btoa(JSON.stringify({ s: search, h: hash }));
   return contentURL + "#__pen=" + payload;
 }
+
+const iframeSrc = computed(() => {
+  const url = currentPreviewUrl.value;
+  return url && !url.startsWith("srcdoc:") ? url : undefined;
+});
+
+const iframeSrcdoc = computed(() => {
+  const url = currentPreviewUrl.value;
+  return url && url.startsWith("srcdoc:") ? url.slice(7) : undefined;
+});
 
 watch(
   () => props.previewState,
@@ -370,7 +385,10 @@ function updateDevtoolsUrl() {
   devtoolsBlobUrl = URL.createObjectURL(
     new Blob([html], { type: "text/html" }),
   );
-  devtoolsUrl.value = `${devtoolsBlobUrl}#?embedded=${encodeURIComponent(window.location.origin)}`;
+  const embeddedOrigin = window.location.origin && window.location.origin !== "null"
+    ? window.location.origin
+    : "*";
+  devtoolsUrl.value = `${devtoolsBlobUrl}#?embedded=${encodeURIComponent(embeddedOrigin)}`;
 }
 
 watch(showDevtools, (val) => {

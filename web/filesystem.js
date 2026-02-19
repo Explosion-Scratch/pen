@@ -2,21 +2,47 @@ import { ref, reactive } from "vue";
 import { getAllAdapters } from "../core/adapter_registry.js";
 import { loadProjectTemplate } from "../core/project_templates.js";
 
+const memoryStore = new Map();
+
+function getBackingStore() {
+  try {
+    const testKey = "__pen_storage_test__";
+    localStorage.setItem(testKey, "1");
+    localStorage.removeItem(testKey);
+    return localStorage;
+  } catch {
+    try {
+      const testKey = "__pen_storage_test__";
+      sessionStorage.setItem(testKey, "1");
+      sessionStorage.removeItem(testKey);
+      return sessionStorage;
+    } catch {
+      return null;
+    }
+  }
+}
+
+const backingStore = getBackingStore();
+
 const Storage = {
   getItem(key, defaultValue = "{}") {
-    try {
-      return localStorage.getItem(key) || defaultValue;
-    } catch (e) {
-      console.warn(`Storage: Failed to get ${key}`, e);
-      return defaultValue;
+    if (backingStore) {
+      try {
+        return backingStore.getItem(key) || defaultValue;
+      } catch {
+        return defaultValue;
+      }
     }
+    return memoryStore.get(key) ?? defaultValue;
   },
   setItem(key, value) {
-    try {
-      localStorage.setItem(key, value);
-    } catch (e) {
-      console.warn(`Storage: Failed to set ${key}`, e);
+    if (backingStore) {
+      try {
+        backingStore.setItem(key, value);
+        return;
+      } catch {}
     }
+    memoryStore.set(key, value);
   },
 };
 
@@ -69,13 +95,56 @@ class BaseFileSystem {
   }
 
   async writePreview(html) {
-    if (this.previewUrl.value) {
+    if (this.previewUrl.value && this.previewUrl.value.startsWith("blob:")) {
       URL.revokeObjectURL(this.previewUrl.value);
     }
+
+    if (this._useSrcdoc) {
+      this.previewUrl.value = "srcdoc:" + html;
+      return this.getPreviewURL();
+    }
+
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
-    this.previewUrl.value = url;
 
+    if (!this._blobTestDone) {
+      this._blobTestDone = true;
+      const works = await new Promise((resolve) => {
+        const testFrame = document.createElement("iframe");
+        testFrame.style.display = "none";
+        testFrame.src = url;
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve(false);
+        }, 500);
+        const onLoad = () => {
+          cleanup();
+          resolve(true);
+        };
+        const onError = () => {
+          cleanup();
+          resolve(false);
+        };
+        const cleanup = () => {
+          clearTimeout(timer);
+          testFrame.removeEventListener("load", onLoad);
+          testFrame.removeEventListener("error", onError);
+          testFrame.remove();
+        };
+        testFrame.addEventListener("load", onLoad);
+        testFrame.addEventListener("error", onError);
+        document.body.appendChild(testFrame);
+      });
+
+      if (!works) {
+        this._useSrcdoc = true;
+        URL.revokeObjectURL(url);
+        this.previewUrl.value = "srcdoc:" + html;
+        return this.getPreviewURL();
+      }
+    }
+
+    this.previewUrl.value = url;
     return this.getPreviewURL();
   }
 
@@ -292,17 +361,24 @@ class WebSocketFS extends BaseFileSystem {
   }
 }
 
+function contentFingerprint(obj) {
+  const str = JSON.stringify(obj);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
 class VirtualFS extends BaseFileSystem {
-  constructor(projectName) {
+  constructor(projectName, initialFiles) {
     super();
     this.isVirtual.value = true;
     this.isConnected = ref(true);
-    this.storageKey = projectName
-      ? `pen-vfs-files-${projectName}`
-      : "pen-vfs-files";
-    this.configKey = projectName
-      ? `pen-vfs-config-${projectName}`
-      : "pen-vfs-config";
+    const fp = initialFiles ? contentFingerprint(initialFiles) : "default";
+    const base = projectName || "untitled";
+    this.storageKey = `pen-vfs-files-${base}-${fp}`;
+    this.configKey = `pen-vfs-config-${base}-${fp}`;
   }
 
   /**
@@ -314,28 +390,26 @@ class VirtualFS extends BaseFileSystem {
     const initialFiles = window.__initial_file_map__ || {};
     const initialConfig = window.__initial_config__ || {};
 
-    let storedFiles = {};
-    let storedConfig = {};
+    let storedFiles = null;
+    let storedConfig = null;
 
     try {
-      const storedConfigRaw = Storage.getItem(this.configKey);
-      const parsedConfig = JSON.parse(storedConfigRaw);
-
-      if (parsedConfig.name === initialConfig.name) {
-        storedConfig = parsedConfig;
-        const storedFilesRaw = Storage.getItem(this.storageKey);
-        storedFiles = JSON.parse(storedFilesRaw);
-      } else if (parsedConfig.name) {
-        console.warn(
-          `VFS: Discarding stale data for project "${parsedConfig.name}" (Current: "${initialConfig.name}")`,
-        );
+      const storedConfigRaw = Storage.getItem(this.configKey, null);
+      if (storedConfigRaw) {
+        storedConfig = JSON.parse(storedConfigRaw);
+        const storedFilesRaw = Storage.getItem(this.storageKey, null);
+        if (storedFilesRaw) storedFiles = JSON.parse(storedFilesRaw);
       }
     } catch (e) {
-      console.warn("VFS: Failed to restore state from local storage", e);
+      console.warn("VFS: Failed to restore state from storage", e);
     }
 
-    const finalFiles = { ...initialFiles, ...storedFiles };
-    const finalConfig = { ...initialConfig, ...storedConfig };
+    const finalFiles = storedFiles
+      ? { ...initialFiles, ...storedFiles }
+      : { ...initialFiles };
+    const finalConfig = storedConfig
+      ? { ...initialConfig, ...storedConfig }
+      : { ...initialConfig };
 
     this.updateConfig(finalConfig);
     this.updateFiles(finalFiles);
@@ -387,5 +461,5 @@ class VirtualFS extends BaseFileSystem {
 }
 
 export const fileSystem = window.__initial_file_map__
-  ? new VirtualFS(window.__initial_config__?.name)
+  ? new VirtualFS(window.__initial_config__?.name, window.__initial_file_map__)
   : new WebSocketFS();

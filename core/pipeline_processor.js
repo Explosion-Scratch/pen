@@ -345,6 +345,9 @@ function getDebugScriptResources() {
   // Bridge script: simple relay matching the Solid Playground pattern.
   // chobitsu is already globally available from the sync script above.
   const bridgeScript = `
+    if (typeof chobitsu === 'undefined') {
+      console.warn('Pen: Chobitsu not loaded (offline?). DevTools bridge disabled.');
+    } else {
     const sendToDevtools = (message) => {
       window.parent.postMessage(JSON.stringify(message), '*');
     };
@@ -365,7 +368,6 @@ function getDebugScriptResources() {
         if (event === 'DEV') {
           chobitsu.sendRawMessage(data.data);
         } else if (event === 'LOADED') {
-          // Re-enable all domains so DevTools picks up the new document
           sendToDevtools({
             method: 'Page.frameNavigated',
             params: {
@@ -393,6 +395,7 @@ function getDebugScriptResources() {
       }
     });
     console.clear();
+    }
   `;
 
   const bridgeResource = {

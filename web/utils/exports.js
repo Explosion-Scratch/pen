@@ -48,38 +48,55 @@ export async function exportProject(files, config) {
 
 export async function exportEditor(files, config) {
   try {
-    const response = await fetch(window.location.href)
-    let html = await response.text()
+    let html;
+    try {
+      const response = await fetch(window.location.href);
+      html = await response.text();
+    } catch {
+      html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    doc.querySelectorAll("script").forEach((s) => {
+      const text = s.textContent.trim();
+      if (
+        text.includes("window.__initial_file_map__") &&
+        text.includes("window.__initial_config__") &&
+        !s.src &&
+        !s.type
+      ) {
+        s.remove();
+      }
+    });
+    html = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
 
     const enc = (a) => JSON.stringify(encodeURIComponent(JSON.stringify(a)));
     const dec = (a) => `JSON.parse(decodeURIComponent(${a}))`;
-    
+
     const inject = `
   <script>
     window.__initial_file_map__ = ${dec(enc(files))};
     window.__initial_config__ = ${dec(enc(config))};
-  </script>`
-    
-    if (html.includes('<head>')) {
-      html = html.replace('<head>', '<head>' + inject)
+  <\/script>`;
+
+    if (html.includes("<head>")) {
+      html = html.replace("<head>", "<head>" + inject);
     } else {
-      html = inject + html
+      html = inject + html;
     }
 
-    const origin = window.location.origin
-    html = html.replace(/(src|href)="\/([^"]+)"/g, `$1="${origin}/$2"`)
-
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${config.name || 'pen-editor'}-portable.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${config.name || "pen-editor"}-portable.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   } catch (err) {
-    console.error('Export Editor error:', err)
-    throw err
+    console.error("Export Editor error:", err);
+    throw err;
   }
 }
