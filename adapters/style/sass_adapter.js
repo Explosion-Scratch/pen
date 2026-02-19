@@ -95,21 +95,14 @@ body {
   async compileToCSS(scssCode) {
     try {
       const sass = await getSass()
+      const wantMaps = !!this.settings._generateSourceMaps
       const result = sass.compileString(scssCode, {
         style: 'expanded',
-        sourceMap: true,
-        sourceMapIncludeSources: true
+        sourceMap: wantMaps,
+        ...(wantMaps ? { sourceMapIncludeSources: true } : {})
       })
       
-      // We return the raw map object/string, SourceMapBuilder will handle unification
-      let map = result.sourceMap
-      if (map) {
-         // Start with identity logic if needed, but Sass gives us a good map usually.
-         // We might need to ensure 'file' and 'sources' are set correctly?
-         // Sass output usually has "source.css" as file, but we will override in SourceMapBuilder
-      }
-
-      return { css: result.css, map }
+      return { css: result.css, map: wantMaps ? result.sourceMap : undefined }
     } catch (err) {
       // SASS error object has 'span' with start.line, start.column
       throw new CompileError(err.message, {

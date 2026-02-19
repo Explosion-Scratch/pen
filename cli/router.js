@@ -53,9 +53,10 @@ export async function handleCliInput(args) {
   program
     .command("serve")
     .alias("preview")
-    .description("Build and serve a production preview")
+    .description("Build and serve a preview")
     .option("-p, --port <number>", "Port for the server")
     .option("-H, --host <string>", "Host for the server")
+    .option("--prod", "Run in production mode (no source maps/dev features)")
     .action(async (options) => {
       const cwd = process.cwd();
       const configPath = join(cwd, CONFIG_FILENAME);

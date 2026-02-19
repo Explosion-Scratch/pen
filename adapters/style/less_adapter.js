@@ -55,23 +55,24 @@ export class LESSAdapter extends CSSAdapter {
   async compileToCSS(code) {
     try {
       const less = await getLess()
+      const wantMaps = !!this.settings._generateSourceMaps
       
-      // Fix: Some browser builds of Less lack the environment source map generator hook
-      if (less.environment && !less.environment.getSourceMapGenerator) {
+      if (wantMaps && less.environment && !less.environment.getSourceMapGenerator) {
         less.environment.getSourceMapGenerator = () => SourceMapGenerator
       }
 
       const filename = 'style.less'
       const result = await less.render(code, {
         filename,
-        sourceMap: { 
-          sourceMapFileInline: false, 
-          outputSourceFiles: true,
-          sourceMapGenerator: SourceMapGenerator
-        }
+        ...(wantMaps ? {
+          sourceMap: { 
+            sourceMapFileInline: false, 
+            outputSourceFiles: true,
+            sourceMapGenerator: SourceMapGenerator
+          }
+        } : {})
       })
-      // map is a string in result.map
-      return { css: result.css, map: result.map }
+      return { css: result.css, map: wantMaps ? result.map : undefined }
     } catch (err) {
       // LESS error object usually has line, column, message
       throw new CompileError(err.message, {

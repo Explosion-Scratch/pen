@@ -1,9 +1,10 @@
 import { input, select, confirm } from '@inquirer/prompts'
 import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from 'fs'
-import { join, basename } from 'path'
+import { join, basename, relative } from 'path'
 import { getAdapter, getAdaptersByCategory, getAllAdapters } from '../core/adapter_registry.js'
 import { loadAllProjectTemplates } from '../core/project_templates.js'
 import { launchEditorFlow } from './server.js'
+import { findAvailablePort } from './port_utils.js'
 import chalk from 'chalk'
 
 const CONFIG_FILENAME = '.pen.config.json'
@@ -263,36 +264,139 @@ async function manageImportOverrides(config) {
   }
 }
 
-export async function productionPreviewFlow(projectPath, options = {}) {
+export async function startPreviewServer(projectPath, options = {}) {
   const { executeSequentialRender } = await import('../core/pipeline_processor.js')
-  const configPath = join(projectPath, CONFIG_FILENAME)
-  const config = JSON.parse(readFileSync(configPath, 'utf-8'))
+  const isProd = !!options.prod;
+  
+  const express = (await import('express')).default;
+  const { WebSocketServer } = await import('ws');
+  
+  const app = express();
+  let currentHtml = "";
+  let renderCount = 0;
 
-  const fileMap = {}
-  for (const editor of config.editors) {
-    const filePath = join(projectPath, editor.filename)
-    if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
+  const render = async () => {
+    const configPath = join(projectPath, CONFIG_FILENAME);
+    let config;
+    try {
+      config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    } catch(e) {
+      console.error(chalk.red('  [Preview] Failed to read config:'), e.message);
+      return;
+    }
+    
+    const fileMap = {};
+    for (const editor of config.editors) {
+      const filePath = join(projectPath, editor.filename);
+      if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8');
+    }
+
+    const { html } = await executeSequentialRender(fileMap, config, { dev: !isProd, standalone: true });
+    
+    currentHtml = html;
+    
+    if (!isProd) {
+      const lrScript = `<script>
+(function() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = protocol + '//' + location.host + '/livereload';
+  function connect() {
+    const ws = new WebSocket(wsUrl);
+    ws.onmessage = (e) => { if (e.data === 'reload') location.reload(); };
+    ws.onclose = () => setTimeout(connect, 1000);
   }
+  connect();
+})();
+</script>`;
+      if (currentHtml.includes('</body>')) {
+        currentHtml = currentHtml.replace('</body>', lrScript + '</body>');
+      } else {
+        currentHtml += lrScript;
+      }
+    }
+    
+    renderCount++;
+  };
 
-  console.log(`\n${chalk.bold("Building preview...")}\n`)
+  await render();
 
-  const { html: htmlBlob } = await executeSequentialRender(fileMap, config, { dev: false })
-  writeFileSync(join(projectPath, '.pen-preview.html'), htmlBlob)
+  app.get('/', (req, res) => {
+    res.type('html').send(currentHtml);
+  });
 
-  const express = (await import('express')).default
-  const open = (await import('open')).default
-  const app = express()
+  const host = options.host || '127.0.0.1';
+  const preferredPort = options.port ? parseInt(options.port) : 3002;
+  const portToListen = await findAvailablePort(preferredPort, host);
+  
+  return new Promise((resolve) => {
+    const server = app.listen(portToListen, host, async () => {
+      const port = server.address().port;
+      
+      if (!isProd) {
+        const chokidar = (await import('chokidar')).default;
+        const wss = new WebSocketServer({ server, path: '/livereload' });
+        
+        const projectFiles = [];
+        try {
+          const config = JSON.parse(readFileSync(join(projectPath, CONFIG_FILENAME), 'utf-8'));
+          for (const editor of config.editors) {
+            projectFiles.push(join(projectPath, editor.filename));
+          }
+          projectFiles.push(join(projectPath, CONFIG_FILENAME));
+        } catch(e) {}
+        
+        const watcher = chokidar.watch(projectFiles, {
+          persistent: true,
+          ignoreInitial: true,
+          awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+        });
+        
+        let debounceTimer = null;
+        
+        watcher.on('all', (event, filePath) => {
+          const rel = relative(projectPath, filePath);
+          console.log(chalk.dim(`  [livereload] ${event}: ${rel}`));
+          
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(async () => {
+            try {
+              await render();
+              let notified = 0;
+              wss.clients.forEach(c => {
+                if (c.readyState === 1) {
+                  c.send('reload');
+                  notified++;
+                }
+              });
+              console.log(chalk.green(`  [livereload] Recompiled (#${renderCount}), notified ${notified} client(s)`));
+            } catch(e) {
+              console.error(chalk.red(`  [livereload] Error recompiling:`), e.message);
+            }
+          }, 150);
+        });
+        
+        wss.on('connection', () => {
+          console.log(chalk.dim('  [livereload] Client connected'));
+        });
+      }
+      
+      resolve({ port, host, server });
+    });
+  });
+}
 
-  app.get('/', (req, res) => res.send(htmlBlob))
+export async function productionPreviewFlow(projectPath, options = {}) {
+  const open = (await import('open')).default;
 
-  const host = options.host || 'localhost'
-  const portToListen = options.port ? parseInt(options.port) : 0
-
-  const server = app.listen(portToListen, host, () => {
-    const port = server.address().port
-    console.log(`  http://${host}:${port}\n`)
-    open(`http://${host}:${port}`)
-  })
+  console.log(`\n${chalk.bold("Starting preview...")}\n`)
+  const { port, host } = await startPreviewServer(projectPath, { 
+    prod: options.prod, 
+    port: options.port, 
+    host: options.host || 'localhost' 
+  });
+  
+  console.log(`  http://${host}:${port}\n`)
+  open(`http://${host}:${port}`)
 
   console.log('  Press Ctrl+C to stop.\n')
 }
@@ -308,10 +412,11 @@ export async function buildFlow(projectPath, outputFile) {
     if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
   }
 
-  const { html: htmlBlob } = await executeSequentialRender(fileMap, config, { dev: false })
+  const { html: htmlBlob } = await executeSequentialRender(fileMap, config, { dev: false, standalone: true })
 
   if (outputFile) {
     writeFileSync(join(projectPath, outputFile), htmlBlob)
+    console.log(chalk.green(`  Built to ${outputFile}`))
   } else {
     process.stdout.write(htmlBlob)
   }

@@ -178,7 +178,7 @@ import { DevToolsManager } from "../utils/DevToolsManager.js";
 const props = defineProps({
   previewState: {
     type: Object,
-    default: () => ({ displayURL: "", contentURL: "" }),
+    default: () => ({ displayURL: "", contentURL: "", externalURL: "" }),
   },
   settings: {
     type: Object,

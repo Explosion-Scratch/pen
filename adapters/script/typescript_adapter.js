@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
     try {
       const ts = await getTs()
       const filename = Object.keys(fileMap).find(k => fileMap[k] === content) || 'script.ts'
+      const wantMaps = !!this.settings._generateSourceMaps
       const result = ts.transpileModule(content, {
         fileName: filename,
         compilerOptions: {
@@ -125,9 +126,9 @@ document.addEventListener('DOMContentLoaded', (): void => {
           strict: this.settings.strict,
           esModuleInterop: true,
           skipLibCheck: true,
-          sourceMap: true,
+          sourceMap: wantMaps,
           inlineSourceMap: false,
-          inlineSources: true
+          inlineSources: wantMaps
         },
         reportDiagnostics: true
       })
@@ -155,7 +156,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
       return {
         ...fileMap,
         js: result.outputText,
-        map: result.sourceMapText
+        map: wantMaps ? result.sourceMapText : undefined
       }
     } catch (err) {
       let line = undefined

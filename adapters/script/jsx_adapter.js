@@ -90,10 +90,10 @@ async function transpileJsx(Babel, code, options = {}) {
     plugins,
     filename: options.filename || "script.jsx",
     sourceType: "module",
-    sourceMaps: true,
+    sourceMaps: options.sourceMaps !== false,
   });
 
-  return { code: result.code, map: result.map };
+  return { code: result.code, map: options.sourceMaps !== false ? result.map : undefined };
 }
 
 export class JSXAdapter extends JavaScriptAdapter {
@@ -201,6 +201,7 @@ export class JSXAdapter extends JavaScriptAdapter {
         pragma: this.settings.pragma,
         pragmaFrag: this.settings.pragmaFrag,
         filename: filename,
+        sourceMaps: this.settings._generateSourceMaps,
       });
       return {
         ...fileMap,

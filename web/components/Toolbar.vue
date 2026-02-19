@@ -55,7 +55,7 @@ const props = defineProps({
   },
   previewState: {
     type: Object,
-    default: () => ({ displayURL: "", contentURL: "" }),
+    default: () => ({ displayURL: "", contentURL: "", externalURL: "" }),
   },
   isVirtual: {
     type: Boolean,
@@ -103,7 +103,7 @@ function cancelEditing() {
 }
 
 function openPreviewTab() {
-  const url = props.previewState?.contentURL || "http://localhost:3002";
+  const url = props.previewState?.externalURL || props.previewState?.contentURL || "http://localhost:3002";
   window.open(url, "_blank");
 }
 

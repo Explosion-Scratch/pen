@@ -37,7 +37,7 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
   injectGlobalResources(resourceManager, config);
 
   // Register System Resources (Dev tools, etc)
-  if (injectDev) {
+  if (injectDev && !options.standalone) {
     resourceManager.add(getLocationShimResource());
     resourceManager.add(getErrorListenerResource());
     for (const res of getDebugScriptResources()) {
@@ -49,7 +49,7 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
     try {
       const Adapter = getAdapter(editor.type);
       const adapter = new Adapter();
-      adapter.setSettings({ ...(editor.settings || {}), importOverrides });
+      adapter.setSettings({ ...(editor.settings || {}), importOverrides, _generateSourceMaps: !!injectDev });
 
       const content = fileMap[editor.filename] || "";
       const rendered = await adapter.render(content, fileMap);
@@ -95,14 +95,13 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
         let cssCode = rendered.css || "";
         
         if (editor.filename && cssCode) {
-           // Source Maps only in Dev
            if (injectDev) {
+               cssCode = cssCode.replace(/\/\*#\s*sourceMappingURL=.*?\*\//g, '').trimEnd();
                if (rendered.map) {
                  cssBuilder.addWithMap(cssCode, rendered.map, editor.filename, content);
                } else {
                  cssBuilder.add(cssCode, editor.filename, content);
                }
-               // Add source map comment
                cssCode += `\n/*# sourceMappingURL=${cssBuilder.toDataURL()} */`;
            }
         }
@@ -133,8 +132,8 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
 
         let jsBuilder = new SourceMapBuilder('script.js');
         if (editor.filename && js) {
-          // Source Maps only in Dev
           if (injectDev) {
+              js = js.replace(/\/\/# sourceMappingURL=.*/g, '').trimEnd();
               if (rendered.map) {
                 jsBuilder.addWithMap(js, rendered.map, editor.filename, content);
               } else {

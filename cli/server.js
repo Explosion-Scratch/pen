@@ -13,6 +13,8 @@ import { fileURLToPath } from "url";
 import open from "open";
 import { getAdapter } from "../core/adapter_registry.js";
 import { loadAllProjectTemplates } from "../core/project_templates.js";
+import { startPreviewServer } from "./project_initializer.js";
+import { findAvailablePorts } from "./port_utils.js";
 import chalk from "chalk";
 
 const CONFIG_FILENAME = ".pen.config.json";
@@ -21,10 +23,13 @@ export async function launchEditorFlow(projectPath, options = {}) {
   const configPath = join(projectPath, CONFIG_FILENAME);
   const config = JSON.parse(readFileSync(configPath, "utf-8"));
   
-  const httpPort = options.port ? parseInt(options.port) : 3000;
-  const wsPort = httpPort + 1;
-  const previewPort = httpPort + 2;
+  const preferredHttp = options.port ? parseInt(options.port) : 3000;
   const host = options.host || 'localhost';
+
+  const [httpPort, wsPort, previewPort] = await findAvailablePorts(
+    [preferredHttp, preferredHttp + 1, preferredHttp + 2],
+    host
+  );
 
   const clients = new Set();
   let fileMap = {};
@@ -40,6 +45,18 @@ export async function launchEditorFlow(projectPath, options = {}) {
     const data = JSON.stringify(msg);
     for (const c of clients) if (c.readyState === 1) c.send(data);
   };
+
+  let previewDisplayUrl = "";
+  try {
+    const { port, host: previewHost } = await startPreviewServer(projectPath, { 
+      prod: false, 
+      port: previewPort,
+      host
+    });
+    previewDisplayUrl = `http://${previewHost}:${port}/`;
+  } catch (e) {
+    console.error("Failed to start preview server:", e);
+  }
 
   const wss = new WebSocketServer({ port: wsPort, host });
 
@@ -72,6 +89,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
         rootPath: displayPath,
         files: fileMap,
         adapters: getAdaptersInfo(),
+        previewServerUrl: previewDisplayUrl,
       }),
     );
 
@@ -136,6 +154,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             config,
             files: fileMap,
             adapters: getAdaptersInfo(),
+            previewServerUrl: previewDisplayUrl,
           });
           break;
         }
@@ -164,6 +183,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             config,
             files: fileMap,
             adapters: getAdaptersInfo(),
+            previewServerUrl: previewDisplayUrl,
           });
           break;
         }
@@ -231,6 +251,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             rootPath: projectPath.replace(process.env.HOME, "~"),
             files: fileMap,
             adapters: getAdaptersInfo(),
+            previewServerUrl: previewDisplayUrl,
           });
           break;
         }
@@ -292,6 +313,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
               rootPath: folderPath.replace(process.env.HOME, "~"),
               files: fileMap,
               adapters: getAdaptersInfo(),
+              previewServerUrl: previewDisplayUrl,
             });
           } catch (err) {
             ws.send(
@@ -319,6 +341,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
     res.json({
       ...config,
       rootPath: projectPath.replace(process.env.HOME, "~"),
+      previewServerUrl: previewDisplayUrl,
     }),
   );
   app.get("/api/files", (_, res) => res.json(fileMap));

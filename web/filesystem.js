@@ -28,6 +28,7 @@ class BaseFileSystem {
     this.onMessageCallbacks = new Set();
     this.isVirtual = ref(false);
     this.hasUnsavedChanges = ref(false);
+    this.previewServerUrl = ref("");
   }
 
   on(callback) {
@@ -52,8 +53,17 @@ class BaseFileSystem {
   }
 
   getPreviewURL() {
+    let display = "http://preview.pen/";
+    let external = this.previewUrl.value;
+    
+    if (this.previewServerUrl.value && !this.isVirtual.value && !this.fallbackMode) {
+      display = this.previewServerUrl.value;
+      external = this.previewServerUrl.value;
+    }
+
     return {
-      displayURL: "http://preview.pen/",
+      displayURL: display,
+      externalURL: external,
       contentURL: this.previewUrl.value,
     };
   }
@@ -207,6 +217,10 @@ class WebSocketFS extends BaseFileSystem {
   }
 
   handleMessage(message) {
+    if (message.previewServerUrl !== undefined) {
+      this.previewServerUrl.value = message.previewServerUrl;
+    }
+    
     if (message.type === "init") {
       this.updateConfig(message.config);
       this.updateFiles(message.files);
