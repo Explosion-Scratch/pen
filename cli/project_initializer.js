@@ -129,17 +129,13 @@ export async function interactiveConfigurationFlow(projectPath) {
   const config = JSON.parse(readFileSync(configPath, 'utf-8'))
 
   console.log(`\n${chalk.bold(config.name)}\n`)
-  config.editors.forEach((e, i) => {
-    const A = getAdapter(e.type)
-    console.log(`  ${i + 1}. ${chalk.cyan(A.name)}  ${e.filename}`)
-  })
-  console.log('')
 
   const actions = [
     { name: 'Add editor', value: 'add' },
-    { name: 'Remove editor', value: 'remove' },
-    { name: 'Rename file', value: 'rename' },
-    { name: 'Toggle Normalize.css', value: 'normalize' },
+    ...config.editors.map((e, i) => {
+      const A = getAdapter(e.type)
+      return { name: `Configure ${A.name} (${e.filename})`, value: `editor_${i}` }
+    }),
     { name: 'Manage CDN links', value: 'cdn' },
     { name: 'Manage import overrides', value: 'overrides' },
     { name: 'Done', value: 'exit' }
@@ -147,12 +143,16 @@ export async function interactiveConfigurationFlow(projectPath) {
 
   const action = await select({ message: 'Action', choices: actions })
 
-  if (action === 'add') await addEditor(config, projectPath)
-  else if (action === 'remove') await removeEditor(config)
-  else if (action === 'rename') await renameEditor(config)
-  else if (action === 'normalize') toggleNormalize(config)
-  else if (action === 'cdn') await manageCdn(config)
-  else if (action === 'overrides') await manageImportOverrides(config)
+  if (action === 'add') {
+    await addEditor(config, projectPath)
+  } else if (action.startsWith('editor_')) {
+    const idx = parseInt(action.replace('editor_', ''), 10)
+    await configureEditorFlow(config, idx)
+  } else if (action === 'cdn') {
+    await manageCdn(config)
+  } else if (action === 'overrides') {
+    await manageImportOverrides(config)
+  }
 
   writeFileSync(configPath, JSON.stringify(config, null, 2))
   console.log(`\n${chalk.green("Saved!")}\n`)
@@ -181,29 +181,103 @@ async function addEditor(config, projectPath) {
   writeFileSync(join(projectPath, filename), await A.getDefaultTemplate({ projectName: config.name }))
 }
 
-async function removeEditor(config) {
-  if (config.editors.length <= 1) { console.log('  Cannot remove last editor.'); return }
-  const idx = await select({
-    message: 'Remove',
-    choices: config.editors.map((e, i) => ({ name: `${getAdapter(e.type).name} (${e.filename})`, value: i }))
-  })
-  config.editors.splice(idx, 1)
-}
+async function configureEditorFlow(config, editorIndex) {
+  const editor = config.editors[editorIndex]
+  const A = getAdapter(editor.type)
+  const schema = A.getSchema ? A.getSchema() : {}
+  // Ensure we have defaults instantiated
+  editor.settings = editor.settings || A.getDefaultSettings?.() || {}
+  
+  // Base editor options
+  if (editor.settings.tabSize === undefined) editor.settings.tabSize = 2
+  if (editor.settings.lineWrapping === undefined) editor.settings.lineWrapping = true
+  if (editor.settings.lineNumbers === undefined) editor.settings.lineNumbers = true
+  if (editor.settings.emmet === undefined) editor.settings.emmet = true
 
-async function renameEditor(config) {
-  const idx = await select({
-    message: 'Rename',
-    choices: config.editors.map((e, i) => ({ name: `${getAdapter(e.type).name} (${e.filename})`, value: i }))
-  })
-  config.editors[idx].filename = await input({ message: 'New filename', default: config.editors[idx].filename })
-}
+  const booleanOnOff = (val) => val ? chalk.green('ON') : chalk.red('OFF')
 
-function toggleNormalize(config) {
-  const style = config.editors.find(e => getAdapter(e.type).type === 'style')
-  if (!style) { console.log('  No style editor.'); return }
-  style.settings = style.settings || {}
-  style.settings.normalize = !style.settings.normalize
-  console.log(`  Normalize.css: ${style.settings.normalize ? 'ON' : 'OFF'}`)
+  const actions = [
+    { name: `Rename file ${chalk.dim(`(${editor.filename})`)}`, value: 'rename' },
+    { name: 'Remove editor', value: 'remove' },
+    { name: `Tab Size ${chalk.dim(`(${editor.settings.tabSize})`)}`, value: 'tabSize' },
+    { name: `Line Wrapping ${chalk.dim(`(${booleanOnOff(editor.settings.lineWrapping)})`)}`, value: 'lineWrapping' },
+    { name: `Line Numbers ${chalk.dim(`(${booleanOnOff(editor.settings.lineNumbers)})`)}`, value: 'lineNumbers' },
+    { name: `Emmet Abbreviations ${chalk.dim(`(${booleanOnOff(editor.settings.emmet)})`)}`, value: 'emmet' }
+  ]
+
+  for (const [key, field] of Object.entries(schema)) {
+    let displayVal = editor.settings[key]
+    if (field.type === 'boolean') {
+      displayVal = booleanOnOff(editor.settings[key])
+    }
+    actions.push({ name: `${field.name} ${chalk.dim(`(${displayVal})`)}`, value: `schema_${key}` })
+  }
+
+  actions.push({ name: 'Back', value: 'back' })
+
+  const action = await select({ message: `Configure ${A.name}`, choices: actions })
+
+  if (action === 'back') return
+
+  if (action === 'rename') {
+    config.editors[editorIndex].filename = await input({ message: 'New filename', default: config.editors[editorIndex].filename })
+  } else if (action === 'remove') {
+    if (config.editors.length <= 1) {
+      console.log('  Cannot remove last editor.')
+    } else {
+      const confirmRemove = await confirm({ message: `Are you sure you want to remove ${editor.filename}?`, default: false })
+      if (confirmRemove) {
+        config.editors.splice(editorIndex, 1)
+        return // removed, so exit the flow
+      }
+    }
+  } else if (action === 'tabSize') {
+    const size = await select({
+      message: 'Tab Size',
+      choices: [
+        { name: '2 spaces', value: 2 },
+        { name: '4 spaces', value: 4 },
+        { name: '8 spaces', value: 8 }
+      ],
+      default: editor.settings.tabSize
+    })
+    editor.settings.tabSize = size
+  } else if (['lineWrapping', 'lineNumbers', 'emmet'].includes(action)) {
+    editor.settings[action] = !editor.settings[action]
+  } else if (action.startsWith('schema_')) {
+    const key = action.replace('schema_', '')
+    const field = schema[key]
+    
+    if (field.type === 'boolean') {
+      editor.settings[key] = !editor.settings[key]
+    } else if (field.type === 'select') {
+      const val = await select({
+        message: field.name,
+        choices: field.options.map(opt => ({
+          name: typeof opt === 'object' ? opt.label : opt,
+          value: typeof opt === 'object' ? opt.value : opt
+        })),
+        default: editor.settings[key]
+      })
+      editor.settings[key] = val
+    } else if (field.type === 'number') {
+      const val = await input({
+        message: field.name,
+        default: editor.settings[key].toString(),
+        validate: (v) => !isNaN(parseInt(v, 10)) || 'Must be a number'
+      })
+      editor.settings[key] = parseInt(val, 10)
+    } else {
+      const val = await input({
+        message: field.name,
+        default: editor.settings[key] || ''
+      })
+      editor.settings[key] = val
+    }
+  }
+
+  // Continue configuring this editor unless removed
+  await configureEditorFlow(config, editorIndex)
 }
 
 async function manageCdn(config) {
@@ -401,7 +475,7 @@ export async function productionPreviewFlow(projectPath, options = {}) {
   console.log('  Press Ctrl+C to stop.\n')
 }
 
-export async function buildFlow(projectPath, outputFile) {
+export async function buildFlow(projectPath, outputFile, options = {}) {
   const { executeSequentialRender } = await import('../core/pipeline_processor.js')
   const configPath = join(projectPath, CONFIG_FILENAME)
   const config = JSON.parse(readFileSync(configPath, 'utf-8'))
@@ -412,11 +486,11 @@ export async function buildFlow(projectPath, outputFile) {
     if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
   }
 
-  const { html: htmlBlob } = await executeSequentialRender(fileMap, config, { dev: false, standalone: true })
+  const { html: htmlBlob } = await executeSequentialRender(fileMap, config, { dev: !!options.dev, standalone: true })
 
   if (outputFile) {
     writeFileSync(join(projectPath, outputFile), htmlBlob)
-    console.log(chalk.green(`  Built to ${outputFile}`))
+    console.log(chalk.green(`  Built to ${outputFile}${options.dev ? ' (Development Mode)' : ''}`))
   } else {
     process.stdout.write(htmlBlob)
   }

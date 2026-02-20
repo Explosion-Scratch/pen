@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
 import { join } from "path";
-import { Command } from "commander";
+import meow from "meow";
 import {
   initializeNewProjectFlow,
   interactiveConfigurationFlow,
@@ -8,103 +8,192 @@ import {
   buildFlow,
 } from "./project_initializer.js";
 import { launchEditorFlow } from "./server.js";
+import { createBox } from "./box_util.js";
 import { loadAllProjectTemplates } from "../core/project_templates.js";
 import chalk from "chalk";
 
 const CONFIG_FILENAME = ".pen.config.json";
 
-const LOGO = `
-  ╭──────────────────────────────────╮
-  │       ${chalk.bold("Pen")}  Editor              │
-  │   Local Rich programming playground │
-  ╰──────────────────────────────────╯`;
+const logoText = `${chalk.bold("Pen Editor!")}\nLocal, rich programming playground!`;
+const LOGO = createBox(logoText, 2);
+
+const baseHelpText = `${LOGO}
+
+    ${chalk.bold("Usage")}
+      ${chalk.dim("$")} ${chalk.cyan("pen")} ${chalk.dim("[command] [options]")}
+
+    ${chalk.bold("Commands")}
+      ${chalk.cyan("(none)")}                   Launch editor, or create project if none exists
+      ${chalk.cyan("init")}, ${chalk.cyan("new")}                Create a new Pen project (with template picker)
+      ${chalk.cyan("configure")}, ${chalk.cyan("config")}        Interactively edit editors, settings, CDN links
+      ${chalk.cyan("serve")}, ${chalk.cyan("preview")}           Build and serve a production preview
+      ${chalk.cyan("build")} ${chalk.dim("[outputFile]")}       Build the project to a single file
+      ${chalk.cyan("templates")}                List available project templates
+
+    ${chalk.bold("Options")}
+      ${chalk.cyan("--headless")}               Run in headless mode
+      ${chalk.cyan("-p, --port")}               Port for the server
+      ${chalk.cyan("-H, --host")}               Host for the server
+      ${chalk.cyan("--dev")}                    Run build in development mode (retain source maps/dev features)
+      ${chalk.cyan("--prod")}                   Run serve in production mode (no source maps/dev features)
+      ${chalk.cyan("-h, --help")}               Show this help message or subcommand help
+      ${chalk.cyan("-v, --version")}            Show version number
+
+    ${chalk.bold("Examples")}
+      ${chalk.dim("$")} ${chalk.cyan("pen")}                    Launch or initialize
+      ${chalk.dim("$")} ${chalk.cyan("pen init")}               Create from template
+      ${chalk.dim("$")} ${chalk.cyan("pen config")}             Modify project settings
+      ${chalk.dim("$")} ${chalk.cyan("pen serve")}              Preview the production build
+      ${chalk.dim("$")} ${chalk.cyan("pen build --dev")}        Compile with dev features
+`;
+
+const subcommandHelp = {
+  init: `${chalk.bold("Usage")}
+    ${chalk.dim("$")} ${chalk.cyan("pen init")}`,
+  configure: `${chalk.bold("Usage")}
+    ${chalk.dim("$")} ${chalk.cyan("pen configure")}`,
+  serve: `${chalk.bold("Usage")}
+    ${chalk.dim("$")} ${chalk.cyan("pen serve")} ${chalk.dim("[options]")}
+
+  ${chalk.bold("Options")}
+    ${chalk.cyan("-p, --port")}          Port for the server
+    ${chalk.cyan("-H, --host")}          Host for the server
+    ${chalk.cyan("--prod")}              Run in production mode (no source maps/dev features)`,
+  build: `${chalk.bold("Usage")}
+    ${chalk.dim("$")} ${chalk.cyan("pen build")} ${chalk.dim("[outputFile] [options]")}
+
+  ${chalk.bold("Options")}
+    ${chalk.cyan("--dev")}               Run build in development mode (retain source maps/dev features)`,
+  templates: `${chalk.bold("Usage")}
+    ${chalk.dim("$")} ${chalk.cyan("pen templates")}`
+};
 
 export async function handleCliInput(args) {
-  const program = new Command();
+  const cli = meow(baseHelpText, {
+    importMeta: import.meta,
+    argv: args,
+    autoHelp: false, // We will handle help routing manually per command
+    description: false, // Prevents printing package.json description above our custom help string
+    flags: {
+      headless: {
+        type: "boolean",
+        default: false,
+      },
+      dev: {
+        type: "boolean",
+        default: false,
+      },
+      port: {
+        type: "number",
+        shortFlag: "p",
+      },
+      host: {
+        type: "string",
+        shortFlag: "H",
+      },
+      prod: {
+        type: "boolean",
+        default: false,
+      },
+      help: {
+        type: "boolean",
+        shortFlag: "h",
+      },
+    },
+  });
 
-  program
-    .name("pen")
-    .description("Local Rich programming playground")
-    .version("1.0.0");
+  const command = cli.input[0];
 
-  program
-    .command("init")
-    .alias("new")
-    .description("Create a new Pen project")
-    .action(async () => {
-      const cwd = process.cwd();
-      await initializeNewProjectFlow(cwd);
-    });
+  // If help flag is passed, route it to subcommand help or base help
+  if (cli.flags.help) {
+    if (command && ["init", "new"].includes(command)) {
+      console.log(`\n${subcommandHelp.init}\n`);
+    } else if (command && ["configure", "config"].includes(command)) {
+      console.log(`\n${subcommandHelp.configure}\n`);
+    } else if (command && ["serve", "preview"].includes(command)) {
+      console.log(`\n${subcommandHelp.serve}\n`);
+    } else if (command === "build") {
+      console.log(`\n${subcommandHelp.build}\n`);
+    } else if (command && ["templates", "list-templates"].includes(command)) {
+      console.log(`\n${subcommandHelp.templates}\n`);
+    } else {
+      cli.showHelp(0);
+    }
+    process.exit(0);
+  }
 
-  program
-    .command("configure")
-    .alias("config")
-    .description("Interactively edit editors, settings, CDN links")
-    .action(async () => {
-      const cwd = process.cwd();
-      const configPath = join(cwd, CONFIG_FILENAME);
-      if (!existsSync(configPath)) {
-        printNoProject();
-        process.exit(1);
-      }
-      await interactiveConfigurationFlow(cwd);
-    });
+  const cwd = process.cwd();
+  const configPath = join(cwd, CONFIG_FILENAME);
 
-  program
-    .command("serve")
-    .alias("preview")
-    .description("Build and serve a preview")
-    .option("-p, --port <number>", "Port for the server")
-    .option("-H, --host <string>", "Host for the server")
-    .option("--prod", "Run in production mode (no source maps/dev features)")
-    .action(async (options) => {
-      const cwd = process.cwd();
-      const configPath = join(cwd, CONFIG_FILENAME);
-      if (!existsSync(configPath)) {
-        printNoProject();
-        process.exit(1);
-      }
-      await productionPreviewFlow(cwd, options);
-    });
-
-  program
-    .command("build [outputFile]")
-    .description("Build the project to a file")
-    .action(async (outputFile) => {
-      const cwd = process.cwd();
-      const configPath = join(cwd, CONFIG_FILENAME);
-      if (!existsSync(configPath)) {
-        printNoProject();
-        process.exit(1);
-      }
-      await buildFlow(cwd, outputFile);
-    });
-
-  program
-    .command("templates")
-    .alias("list-templates")
-    .description("List available project templates")
-    .action(async () => {
-      await printTemplateList();
-    });
-
-  program
-    .option("--headless", "Run in headless mode")
-    .option("-p, --port <number>", "Port for the server")
-    .option("-H, --host <string>", "Host for the server")
-    .action(async (options) => {
-      const cwd = process.cwd();
-      const configPath = join(cwd, CONFIG_FILENAME);
-      const hasConfig = existsSync(configPath);
-
-      if (hasConfig) {
-        await launchEditorFlow(cwd, options);
-      } else {
+  try {
+    switch (command) {
+      case "init":
+      case "new": {
         await initializeNewProjectFlow(cwd);
+        break;
       }
-    });
 
-  await program.parse(args, { from: "user" });
+      case "configure":
+      case "config": {
+        if (!existsSync(configPath)) {
+          printNoProject();
+          process.exit(1);
+        }
+        await interactiveConfigurationFlow(cwd);
+        break;
+      }
+
+      case "serve":
+      case "preview": {
+        if (!existsSync(configPath)) {
+          printNoProject();
+          process.exit(1);
+        }
+        await productionPreviewFlow(cwd, cli.flags);
+        break;
+      }
+
+      case "build": {
+        if (!existsSync(configPath)) {
+          printNoProject();
+          process.exit(1);
+        }
+        const outputFile = cli.input[1];
+        await buildFlow(cwd, outputFile, cli.flags);
+        break;
+      }
+
+      case "templates":
+      case "list-templates": {
+        await printTemplateList();
+        break;
+      }
+
+      case undefined: {
+        // No command provided, default behavior
+        const hasConfig = existsSync(configPath);
+        if (hasConfig) {
+          await launchEditorFlow(cwd, cli.flags);
+        } else {
+          await initializeNewProjectFlow(cwd);
+        }
+        break;
+      }
+
+      default: {
+        console.error(
+          `\n  ${chalk.red("Error:")} Unknown command ${chalk.bold(command)}.\n`
+        );
+        cli.showHelp(1);
+      }
+    }
+  } catch (error) {
+    console.error(`\n  ${chalk.red.bold("Error")} ${chalk.red(error.message)}`);
+    if (process.env.DEBUG) {
+      console.error(error);
+    }
+    process.exit(1);
+  }
 }
 
 function printNoProject() {
@@ -127,32 +216,4 @@ async function printTemplateList() {
     console.log(`  ${chalk.cyan(t.title.padEnd(20))} ${t.description}`);
     console.log(`  ${"".padEnd(20)} ${chalk.dim(editors)}\n`);
   }
-}
-
-function printHelp() {
-  console.log(`${LOGO}
-
-  ${chalk.bold("Usage:")} pen [command] [options]
-
-  ${chalk.bold("Commands:")}
-
-    ${chalk.cyan("(none)")}              Launch editor, or create project if none exists
-    ${chalk.cyan("init")} / ${chalk.cyan("new")}          Create a new Pen project (with template picker)
-    ${chalk.cyan("configure")} / ${chalk.cyan("config")}  Interactively edit editors, settings, CDN links
-    ${chalk.cyan("serve")} / ${chalk.cyan("build")}       Build and serve a production preview
-    ${chalk.cyan("templates")}            List available project templates
-
-  ${chalk.bold("Options:")}
-
-    ${chalk.cyan("-h")}, ${chalk.cyan("--help")}          Show this help message
-    ${chalk.cyan("-v")}, ${chalk.cyan("--version")}       Show version number
-
-  ${chalk.bold("Examples:")}
-
-    pen                    Launch or initialize
-    pen init               Create from template
-    pen config             Modify project settings
-    pen serve              Preview the production build
-    pen templates          See all starter templates
-`);
 }

@@ -16,6 +16,7 @@ import { loadAllProjectTemplates } from "../core/project_templates.js";
 import { startPreviewServer } from "./project_initializer.js";
 import { findAvailablePorts } from "./port_utils.js";
 import { detectInstalledEditors, openProjectInEditor } from "./editor_utils.js";
+import { createBox } from "./box_util.js";
 import chalk from "chalk";
 
 const CONFIG_FILENAME = ".pen.config.json";
@@ -327,7 +328,9 @@ export async function launchEditorFlow(projectPath, options = {}) {
         case "detect-editors": {
           const editors = detectInstalledEditors();
           ws.send(JSON.stringify({ type: "editors-detected", editors }));
-          console.log(`  Detected editors: ${editors.join(", ") || "none"}`);
+          if (process.env.DEBUG) {
+            console.log(`  Detected editors: ${editors.join(", ") || "none"}`);
+          }
           break;
         }
 
@@ -418,12 +421,16 @@ export async function launchEditorFlow(projectPath, options = {}) {
         `   Preview: http://${host}:${previewPort} (Hosted by Client/Static)\n`,
       );
     } else {
-      console.log(`\n${chalk.bold("Pen Editor")}\n`);
-      console.log(`   Editor:  http://${host}:${httpPort}`);
-      console.log(`   WS:      ws://${host}:${wsPort}`);
-      console.log(`\n   Press Ctrl+C to stop.\n`);
+      const editorUrl = `http://${host}:${httpPort}`;
+      const wsUrl = `ws://${host}:${wsPort}`;
+      
+      const serverInfo = `Editor:  ${chalk.cyan(editorUrl)}\nWS:      ${chalk.cyan(wsUrl)}`;
+      
+      console.log(`\n${chalk.bold("  Pen Editor")}\n`);
+      console.log(createBox(serverInfo, 2));
+      console.log(`\n  Press Ctrl+C to stop.\n`);
 
-      open(`http://${host}:${httpPort}`);
+      open(editorUrl);
     }
   });
 }
