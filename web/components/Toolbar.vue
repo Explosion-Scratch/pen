@@ -41,8 +41,16 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onMounted } from "vue";
 import DropdownMenu from "./DropdownMenu.vue";
+import {
+  detectEditors,
+  openInEditor,
+  availableEditors,
+  editorsLoading,
+  editorsDetected,
+  getAllEditorDefs,
+} from "../utils/editor_registry.js";
 
 const props = defineProps({
   projectName: {
@@ -107,75 +115,121 @@ function openPreviewTab() {
   window.open(url, "_blank");
 }
 
-const menuItems = computed(() => [
-  {
-    label: "New Project",
-    icon: "ph-duotone ph-plus",
-    action: () => emit("new-project"),
-  },
-  {
-    label: "Import Pen",
-    icon: "ph-duotone ph-folder-open",
-    children: [
-      {
-        label: "Import Folder",
-        icon: "ph-duotone ph-folder",
-        action: () => emit("import"),
-      },
-      {
-        label: "Import File (ZIP/HTML)",
-        icon: "ph-duotone ph-file-zip",
-        action: () => emit("import-file"),
-      },
-    ],
-  },
-  {
-    label: "Open preview",
-    icon: "ph-duotone ph-arrow-square-out",
-    action: () => openPreviewTab(),
-  },
-  {
-    label: "Export",
-    icon: "ph-duotone ph-export",
-    children: [
-      {
-        label: "Export HTML",
-        icon: "ph-duotone ph-download-simple",
-        action: () => emit("export"),
-      },
-      {
-        label: "Export ZIP",
-        icon: "ph-duotone ph-file-zip",
-        action: () => emit("export-zip"),
-      },
-      {
-        label: "Export Editor",
-        icon: "ph-duotone ph-grid-four",
-        action: () => emit("export-editor"),
-      },
-    ],
-  },
-  {
-    label: "Switch orientations",
-    icon:
-      props.settings.layoutMode === "columns"
-        ? "ph-duotone ph-rows"
-        : "ph-duotone ph-columns",
-    action: () =>
-      emit("update-settings", {
-        layoutMode:
-          props.settings.layoutMode === "columns" ? "rows" : "columns",
-      }),
-  },
-  {
-    divider: true,
-  },
-  {
-    label: "Settings",
-    icon: "ph-duotone ph-gear",
-    action: () => emit("settings"),
-  },
-]);
+// computed(() => {
+// return document.documentElement.getAttribute('data-theme') !== 'light'
+// })
+const isDark = ref(false)
+
+function buildEditorChildren() {
+  if (editorsLoading.value || !editorsDetected.value) {
+    return [{ label: "Detecting...", icon: "ph-duotone ph-spinner", disabled: true }]
+  }
+
+  const dark = isDark.value
+  const defs = getAllEditorDefs(dark)
+  const installed = defs.filter(d => availableEditors.value.includes(d.id))
+
+  if (installed.length === 0) {
+    return [{ label: "No editors found", icon: "ph-duotone ph-warning", disabled: true }]
+  }
+
+  return installed.map(ed => ({
+    label: ed.name,
+    iconSrc: ed.iconSrc,
+    action: () => openInEditor(ed.id),
+  }))
+}
+
+onMounted(() => {
+  if (!props.isVirtual) {
+    detectEditors()
+  }
+})
+
+const menuItems = computed(() => {
+  const items = [
+    {
+      label: "New Project",
+      icon: "ph-duotone ph-plus",
+      action: () => emit("new-project"),
+    },
+    {
+      label: "Import Pen",
+      icon: "ph-duotone ph-folder-open",
+      children: [
+        {
+          label: "Import Folder",
+          icon: "ph-duotone ph-folder",
+          action: () => emit("import"),
+        },
+        {
+          label: "Import File (ZIP/HTML)",
+          icon: "ph-duotone ph-file-zip",
+          action: () => emit("import-file"),
+        },
+      ],
+    },
+    {
+      label: "Open preview",
+      icon: "ph-duotone ph-arrow-square-out",
+      action: () => openPreviewTab(),
+    },
+  ]
+
+  if (!props.isVirtual) {
+    items.push({
+      label: "Open in...",
+      icon: "ph-duotone ph-app-window",
+      children: buildEditorChildren(),
+    })
+  }
+
+  items.push(
+    {
+      label: "Export",
+      icon: "ph-duotone ph-export",
+      children: [
+        {
+          label: "Export HTML",
+          icon: "ph-duotone ph-download-simple",
+          action: () => emit("export"),
+        },
+        {
+          label: "Export ZIP",
+          icon: "ph-duotone ph-file-zip",
+          action: () => emit("export-zip"),
+        },
+        {
+          label: "Export Editor",
+          icon: "ph-duotone ph-grid-four",
+          action: () => emit("export-editor"),
+        },
+      ],
+    },
+    {
+      label: "Switch orientations",
+      icon:
+        props.settings.layoutMode === "columns"
+          ? "ph-duotone ph-rows"
+          : "ph-duotone ph-columns",
+      action: () =>
+        emit("update-settings", {
+          layoutMode:
+            props.settings.layoutMode === "columns" ? "rows" : "columns",
+        }),
+    },
+    {
+      divider: true,
+    },
+    {
+      label: "Settings",
+      icon: "ph-duotone ph-gear",
+      action: () => emit("settings"),
+    },
+  )
+
+  return items
+});
 </script>
 
 <style scoped>

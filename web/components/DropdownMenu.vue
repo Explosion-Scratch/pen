@@ -22,7 +22,8 @@
               @mouseleave="hoveredItem = null"
             >
               <div class="item-content">
-                <i v-if="item.icon" :class="[item.icon, 'item-icon']"></i>
+                <img v-if="item.iconSrc" :src="item.iconSrc" class="item-icon-img" />
+                <i v-else-if="item.icon" :class="[item.icon, 'item-icon']"></i>
                 <span class="item-label">{{ item.label }}</span>
               </div>
               
@@ -245,6 +246,13 @@ export default {
 
 .dropdown-item:hover .item-icon {
   color: var(--color-accent);
+}
+
+.item-icon-img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .item-label {

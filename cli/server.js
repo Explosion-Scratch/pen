@@ -15,6 +15,7 @@ import { getAdapter } from "../core/adapter_registry.js";
 import { loadAllProjectTemplates } from "../core/project_templates.js";
 import { startPreviewServer } from "./project_initializer.js";
 import { findAvailablePorts } from "./port_utils.js";
+import { detectInstalledEditors, openProjectInEditor } from "./editor_utils.js";
 import chalk from "chalk";
 
 const CONFIG_FILENAME = ".pen.config.json";
@@ -319,6 +320,28 @@ export async function launchEditorFlow(projectPath, options = {}) {
             ws.send(
               JSON.stringify({ type: "import-error", message: err.message }),
             );
+          }
+          break;
+        }
+
+        case "detect-editors": {
+          const editors = detectInstalledEditors();
+          ws.send(JSON.stringify({ type: "editors-detected", editors }));
+          console.log(`  Detected editors: ${editors.join(", ") || "none"}`);
+          break;
+        }
+
+        case "open-in-editor": {
+          const result = openProjectInEditor(msg.editorId, projectPath);
+          if (result.success) {
+            console.log(`  Opened project in: ${msg.editorId}`);
+          } else {
+            console.error(`  Failed to open in ${msg.editorId}: ${result.error}`);
+            ws.send(JSON.stringify({
+              type: "toast-error",
+              name: "Open in Editor",
+              message: result.error,
+            }));
           }
           break;
         }
