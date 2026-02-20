@@ -267,6 +267,48 @@ export async function launchEditorFlow(projectPath, options = {}) {
           break;
         }
 
+        case "publish-gist":
+        case "update-gist": {
+          try {
+            const { publishGist, updateGist } = await import("./gist_utils.js");
+            // Include config in the files published so we can reconstruct the project
+            const fileMapWithConfig = { ...fileMap, [CONFIG_FILENAME]: readFileSync(configPath, 'utf-8') };
+            let result;
+
+            if (msg.type === "update-gist") {
+              if (!config.gistId) throw new Error("No gist ID found in config.");
+              result = await updateGist(config.gistId, fileMapWithConfig, config.name, msg.token);
+              console.log("  Successfully updated gist!");
+              ws.send(JSON.stringify({ type: "toast-success", title: "Gist Updated", message: "Successfully updated gist!" }));
+            } else {
+              result = await publishGist(fileMapWithConfig, config.name, msg.isPublic || false, msg.token);
+              config.gistId = result.id;
+              writeFileSync(configPath, JSON.stringify(config, null, 2));
+              console.log("  Successfully created gist!");
+              
+              broadcast({
+                type: "reinit",
+                config,
+                files: fileMap,
+                adapters: getAdaptersInfo(),
+                previewServerUrl: previewDisplayUrl,
+              });
+              
+              ws.send(JSON.stringify({ type: "toast-success", title: "Gist Published", message: "Successfully published gist!" }));
+            }
+            
+            ws.send(JSON.stringify({ type: "gist-published", gistId: result.id, url: result.html_url }));
+          } catch (error) {
+            if (error.name === "AuthRequiredError" || error.message.includes("authentication token is required")) {
+              ws.send(JSON.stringify({ type: "prompt-auth-token", action: msg.type }));
+            } else {
+              console.error(`  Gist error: ${error.message}`);
+              ws.send(JSON.stringify({ type: "toast-error", name: "Gist Error", message: error.message }));
+            }
+          }
+          break;
+        }
+
         case "import-folder": {
           const folderPath = msg.folderPath;
           if (!folderPath || !existsSync(folderPath)) {

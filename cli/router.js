@@ -28,6 +28,7 @@ const baseHelpText = `${LOGO}
       ${chalk.cyan("configure")}, ${chalk.cyan("config")}        Interactively edit editors, settings, CDN links
       ${chalk.cyan("serve")}, ${chalk.cyan("preview")}           Build and serve a production preview
       ${chalk.cyan("build")} ${chalk.dim("[outputFile]")}       Build the project to a single file
+      ${chalk.cyan("publish")}                  Publish the current project to a GitHub Gist
       ${chalk.cyan("templates")}                List available project templates
 
     ${chalk.bold("Options")}
@@ -64,6 +65,8 @@ const subcommandHelp = {
 
   ${chalk.bold("Options")}
     ${chalk.cyan("--dev")}               Run build in development mode (retain source maps/dev features)`,
+  publish: `${chalk.bold("Usage")}
+    ${chalk.dim("$")} ${chalk.cyan("pen publish")}`,
   templates: `${chalk.bold("Usage")}
     ${chalk.dim("$")} ${chalk.cyan("pen templates")}`
 };
@@ -114,6 +117,8 @@ export async function handleCliInput(args) {
       console.log(`\n${subcommandHelp.serve}\n`);
     } else if (command === "build") {
       console.log(`\n${subcommandHelp.build}\n`);
+    } else if (command === "publish") {
+      console.log(`\n${subcommandHelp.publish}\n`);
     } else if (command && ["templates", "list-templates"].includes(command)) {
       console.log(`\n${subcommandHelp.templates}\n`);
     } else {
@@ -160,6 +165,16 @@ export async function handleCliInput(args) {
         }
         const outputFile = cli.input[1];
         await buildFlow(cwd, outputFile, cli.flags);
+        break;
+      }
+
+      case "publish": {
+        if (!existsSync(configPath)) {
+          printNoProject();
+          process.exit(1);
+        }
+        const { publishFlow } = await import("./project_initializer.js");
+        await publishFlow(cwd);
         break;
       }
 

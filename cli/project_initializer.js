@@ -497,3 +497,70 @@ export async function buildFlow(projectPath, outputFile, options = {}) {
     process.stdout.write(htmlBlob)
   }
 }
+
+export async function publishFlow(projectPath) {
+  const { publishGist, updateGist, AuthRequiredError, getGistAuthToken } = await import('./gist_utils.js')
+  const { password } = await import('@inquirer/prompts')
+  const configPath = join(projectPath, CONFIG_FILENAME)
+  const config = JSON.parse(readFileSync(configPath, 'utf-8'))
+
+  console.log(`\n${chalk.bold("Publishing to GitHub Gist")}\n`)
+
+  const fileMap = {}
+  for (const editor of config.editors) {
+    const filePath = join(projectPath, editor.filename)
+    if (existsSync(filePath)) fileMap[editor.filename] = readFileSync(filePath, 'utf-8')
+  }
+  fileMap[CONFIG_FILENAME] = readFileSync(configPath, 'utf-8')
+
+  let token = await getGistAuthToken()
+  if (!token) {
+    console.log(chalk.yellow("GitHub CLI (gh) not authenticated or not installed."))
+    token = await password({
+      message: 'Enter a GitHub Personal Access Token (classic with "gist" scope)',
+      validate: v => v.length > 0 || 'Token is required'
+    })
+  }
+
+  try {
+    let result
+    if (config.gistId) {
+      console.log(chalk.dim("  Updating existing gist..."))
+      result = await updateGist(config.gistId, fileMap, config.name, token)
+      console.log(chalk.green("  Successfully updated gist!"))
+    } else {
+      const action = await select({
+        message: 'Gist options',
+        choices: [
+          { name: 'Create a new gist', value: 'new' },
+          { name: 'Update an existing gist', value: 'existing' }
+        ]
+      })
+
+      if (action === 'new') {
+        const isPublic = await confirm({ message: 'Make it public?', default: false })
+        console.log(chalk.dim("  Creating new gist..."))
+        result = await publishGist(fileMap, config.name, isPublic, token)
+        config.gistId = result.id
+        writeFileSync(configPath, JSON.stringify(config, null, 2))
+        console.log(chalk.green("  Successfully created gist!"))
+      } else {
+        const gistIdInput = await input({
+          message: 'Enter existing Gist ID',
+          validate: v => v.length > 0 || 'Required'
+        })
+        console.log(chalk.dim("  Updating gist..."))
+        result = await updateGist(gistIdInput, fileMap, config.name, token)
+        config.gistId = result.id
+        writeFileSync(configPath, JSON.stringify(config, null, 2))
+        console.log(chalk.green("  Successfully updated gist!"))
+      }
+    }
+
+    console.log(`\n  ${chalk.bold("View Gist:")}   ${chalk.cyan(result.html_url)}`)
+    console.log(`  ${chalk.bold("Open Editor:")} ${chalk.cyan(`https://explosion-scratch.github.io/pen?gistId=${result.id}`)}\n`)
+
+  } catch (error) {
+    console.error(chalk.red(`\n  Failed to publish gist: ${error.message}\n`))
+  }
+}

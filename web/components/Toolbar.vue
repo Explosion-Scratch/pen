@@ -51,6 +51,9 @@ import {
   editorsDetected,
   getAllEditorDefs,
 } from "../utils/editor_registry.js";
+import { useGist } from "../composables/useGist.js";
+
+const { publishGist, updateGist, revertGist } = useGist();
 
 const props = defineProps({
   projectName: {
@@ -73,6 +76,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  config: {
+    type: Object,
+    default: () => ({}),
+  }
 });
 
 const emit = defineEmits([
@@ -176,12 +183,58 @@ const menuItems = computed(() => {
     },
   ]
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const gistIdParam = urlParams.get('gistId');
+  const activeGistId = props.config.gistId || gistIdParam;
+
   if (!props.isVirtual) {
+    const editorChildren = buildEditorChildren();
+    
+    if (activeGistId) {
+      editorChildren.unshift({
+        label: "GitHub Gist (Portable Editor)",
+        icon: "ph-duotone ph-github-logo",
+        action: () => window.open(`https://explosion-scratch.github.io/pen?gistId=${activeGistId}`, '_blank')
+      });
+    }
+
     items.push({
       label: "Open in...",
       icon: "ph-duotone ph-app-window",
-      children: buildEditorChildren(),
+      children: editorChildren,
     })
+  }
+
+  const gistChildren = [];
+
+  if (props.config.gistId) {
+    gistChildren.push({
+      label: "Update Gist",
+      icon: "ph-duotone ph-cloud-arrow-up",
+      action: () => updateGist(),
+    });
+  } else if (!props.isVirtual) {
+    gistChildren.push({
+      label: "Publish to Gist",
+      icon: "ph-duotone ph-github-logo",
+      action: () => publishGist(),
+    });
+  }
+
+  if (gistIdParam) {
+    gistChildren.push({
+      label: "Revert to Gist",
+      icon: "ph-duotone ph-arrow-counter-clockwise",
+      action: () => revertGist(),
+    });
+  }
+
+  if (gistChildren.length > 0) {
+    items.push({
+      label: "GitHub Gist",
+      icon: "ph-duotone ph-github-logo",
+      children: gistChildren
+    });
   }
 
   items.push(

@@ -15,6 +15,7 @@
       @export-zip="handleExportZip"
       @import="handleImportFolder"
       @import-file="handleImportFile"
+      :config="config"
     />
     <PaneManager
       :editors="editors"
@@ -66,6 +67,9 @@
         <p>Loading Pen...</p>
       </div>
     </div>
+
+    <!-- GitHub Token Prompt -->
+    <GistAuthModal />
   </div>
 </template>
 
@@ -76,6 +80,7 @@ import SettingsModal from "./components/SettingsModal.vue";
 import TemplatePickerModal from "./components/TemplatePickerModal.vue";
 import Toolbar from "./components/Toolbar.vue";
 import Toast from "./components/Toast.vue";
+import GistAuthModal from "./components/GistAuthModal.vue";
 import {
   editorStateManager,
   fileSystemMirror,
@@ -86,6 +91,7 @@ import {
   exportAsZip,
 } from "./state_management.js";
 import { fileSystem } from "./filesystem.js";
+import { useGist } from "./composables/useGist.js";
 import { importer } from "./utils/importer.js";
 import JSZip from "jszip";
 
@@ -126,6 +132,9 @@ const IDLE_THRESHOLD = 2000; // 2 seconds
 const isLoading = ref(true);
 let saveDebounceTimer = null;
 
+const { initGist, setupGistListeners } = useGist();
+setupGistListeners();
+
 onMounted(async () => {
   // Listen for preview updates from state manager (which gets them from FS writePreview)
   window.addEventListener("pen-preview-update", (e) => {
@@ -135,6 +144,7 @@ onMounted(async () => {
   // Connect to FS
   try {
     await fileSystem.connect();
+    await initGist();
   } catch (err) {
     console.error("Failed to connect to FS", err);
     addToast({
@@ -185,6 +195,10 @@ fileSystem.on((message) => {
         column: message.column,
       },
     });
+  }
+  
+  if (message.type === "toast-success") {
+    addToast({ type: "success", title: message.title, message: message.message });
   }
 });
 

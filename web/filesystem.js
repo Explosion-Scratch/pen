@@ -2,6 +2,12 @@ import { ref, reactive } from "vue";
 import { getAllAdapters } from "../core/adapter_registry.js";
 import { loadProjectTemplate } from "../core/project_templates.js";
 
+export async function fetchRemoteGist(gistId) {
+  const response = await fetch(`https://api.github.com/gists/${gistId}`);
+  if (!response.ok) throw new Error(`Failed to fetch gist ${gistId}: ${response.statusText}`);
+  return response.json();
+}
+
 const memoryStore = new Map();
 
 function getBackingStore() {
@@ -371,14 +377,20 @@ function contentFingerprint(obj) {
 }
 
 class VirtualFS extends BaseFileSystem {
-  constructor(projectName, initialFiles) {
+  constructor(projectName, initialFiles, gistId = null) {
     super();
     this.isVirtual.value = true;
     this.isConnected = ref(true);
-    const fp = initialFiles ? contentFingerprint(initialFiles) : "default";
-    const base = projectName || "untitled";
-    this.storageKey = `pen-vfs-files-${base}-${fp}`;
-    this.configKey = `pen-vfs-config-${base}-${fp}`;
+    this.gistId = gistId;
+    if (gistId) {
+      this.storageKey = `pen-vfs-files-gist-${gistId}`;
+      this.configKey = `pen-vfs-config-gist-${gistId}`;
+    } else {
+      const fp = initialFiles ? contentFingerprint(initialFiles) : "default";
+      const base = projectName || "untitled";
+      this.storageKey = `pen-vfs-files-${base}-${fp}`;
+      this.configKey = `pen-vfs-config-${base}-${fp}`;
+    }
   }
 
   /**
@@ -460,6 +472,16 @@ class VirtualFS extends BaseFileSystem {
   }
 }
 
-export const fileSystem = window.__initial_file_map__
-  ? new VirtualFS(window.__initial_config__?.name, window.__initial_file_map__)
-  : new WebSocketFS();
+export let fileSystem;
+
+const urlParams = new URLSearchParams(window.location?.search || '');
+const gistId = urlParams.get('gistId');
+
+if (window.__initial_file_map__) {
+  fileSystem = new VirtualFS(window.__initial_config__?.name, window.__initial_file_map__, gistId);
+} else if (gistId) {
+  // If no initial map but we have gistId, default to VirtualFS to load the gist
+  fileSystem = new VirtualFS(null, null, gistId);
+} else {
+  fileSystem = new WebSocketFS();
+}
