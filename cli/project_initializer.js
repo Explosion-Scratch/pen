@@ -141,7 +141,7 @@ export async function interactiveConfigurationFlow(projectPath) {
     { name: 'Done', value: 'exit' }
   ]
 
-  const action = await select({ message: 'Action', choices: actions })
+  const action = await select({ message: 'Action', choices: actions, loop: false })
 
   if (action === 'add') {
     await addEditor(config, projectPath)
@@ -215,7 +215,7 @@ async function configureEditorFlow(config, editorIndex) {
 
   actions.push({ name: 'Back', value: 'back' })
 
-  const action = await select({ message: `Configure ${A.name}`, choices: actions })
+  const action = await select({ message: `Configure ${A.name}`, choices: actions, loop: false })
 
   if (action === 'back') return
 
@@ -239,7 +239,8 @@ async function configureEditorFlow(config, editorIndex) {
         { name: '4 spaces', value: 4 },
         { name: '8 spaces', value: 8 }
       ],
-      default: editor.settings.tabSize
+      default: editor.settings.tabSize,
+      loop: false
     })
     editor.settings.tabSize = size
   } else if (['lineWrapping', 'lineNumbers', 'emmet'].includes(action)) {
@@ -257,7 +258,8 @@ async function configureEditorFlow(config, editorIndex) {
           name: typeof opt === 'object' ? opt.label : opt,
           value: typeof opt === 'object' ? opt.value : opt
         })),
-        default: editor.settings[key]
+        default: editor.settings[key],
+        loop: false
       })
       editor.settings[key] = val
     } else if (field.type === 'number') {
