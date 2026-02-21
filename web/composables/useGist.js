@@ -1,5 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { fileSystem } from '../filesystem.js';
+import { fileSystem, hasGistLocalData } from '../filesystem.js';
 import { useFileSystem } from '../state_management.js';
 import { publishGistApi, updateGistApi, fetchGistApi, normalizeGistPayload, restoreMissingGistFiles } from '../../core/gist_api.js';
 
@@ -108,6 +108,10 @@ export function useGist() {
     const gistId = urlParams.get('gistId');
     if (!gistId) return;
 
+    if (fileSystem.isVirtual.value && hasGistLocalData(gistId)) {
+      return;
+    }
+
     try {
       const gist = await fetchGistApi(gistId);
       let gistFiles = {};
@@ -126,10 +130,8 @@ export function useGist() {
       gistConfig.gistId = gistId;
 
       if (fileSystem.isVirtual.value) {
-        if (Object.keys(fileSystem.files).length === 0 || (Object.keys(fileSystem.files).length === 1 && Object.keys(fileSystem.files)[0] === 'index.html')) {
-           setConfig(gistConfig, true);
-           setAllFiles(gistFiles);
-        }
+        setConfig(gistConfig, true);
+        setAllFiles(gistFiles);
       } else {
         const shouldReplace = confirm("A gist ID is present. Overwrite current project with gist contents? (This cannot be undone)");
         if (shouldReplace) {

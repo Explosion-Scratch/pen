@@ -472,6 +472,21 @@ class VirtualFS extends BaseFileSystem {
   }
 }
 
+/**
+ * @param {string} gistId
+ * @returns {boolean} true if localStorage has meaningful file data for this gist
+ */
+export function hasGistLocalData(gistId) {
+  try {
+    const raw = Storage.getItem(`pen-vfs-files-gist-${gistId}`, null);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export let fileSystem;
 
 const urlParams = new URLSearchParams(window.location?.search || '');
@@ -480,7 +495,6 @@ const gistId = urlParams.get('gistId');
 if (window.__initial_file_map__) {
   fileSystem = new VirtualFS(window.__initial_config__?.name, window.__initial_file_map__, gistId);
 } else if (gistId) {
-  // If no initial map but we have gistId, default to VirtualFS to load the gist
   fileSystem = new VirtualFS(null, null, gistId);
 } else {
   fileSystem = new WebSocketFS();
