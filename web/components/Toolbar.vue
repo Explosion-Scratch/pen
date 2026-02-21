@@ -213,7 +213,7 @@ const menuItems = computed(() => {
       icon: "ph-duotone ph-cloud-arrow-up",
       action: () => updateGist(),
     });
-  } else if (!props.isVirtual) {
+  } else {
     gistChildren.push({
       label: "Publish to Gist",
       icon: "ph-duotone ph-github-logo",
