@@ -2,11 +2,10 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { fileSystem, fetchRemoteGist } from '../filesystem.js';
 import { useFileSystem } from '../state_management.js';
 
-// Global state for Gist UI
 export const showAuthPrompt = ref(false);
 export const githubToken = ref("");
 export const isPublishingGist = ref(false);
-export const publishedGistData = ref(null); // { id, url }
+export const publishedGistData = ref(null);
 let pendingAuthAction = null;
 
 export function submitAuthToken() {
@@ -28,37 +27,23 @@ export function submitAuthToken() {
 async function handlePortableGistAction(action, token) {
   try {
     isPublishingGist.value = true;
-    const filesPayload = {};
-    const { files, config, isVirtual, hasUnsavedChanges, persist, notify } = fileSystem;
-    
-    for (const [filename, content] of Object.entries(files)) {
-      filesPayload[filename] = { content: content || " " }; // Gist API requires non-empty content
-    }
-    
-    const configData = config.value || config;
-    if (configData && Object.keys(configData).length > 0) {
-      filesPayload['.pen.config.json'] = { content: JSON.stringify(configData, null, 2) };
-    }
-
-    let url = 'https://api.github.com/gists';
-    let method = 'POST';
-
-    let description = configData?.name || "Pen Project";
     const payload = {
-      description,
+      description: configData?.name || "Pen Project",
       public: true,
-      files: filesPayload
+      files: Object.fromEntries(
+        Object.entries(files).map(([k, v]) => [k, { content: v || " " }])
+      )
     };
-
-    if (action === 'update-gist') {
-      const gistId = configData?.gistId || new URLSearchParams(window.location.search).get('gistId');
-      if (!gistId) throw new Error("No Gist ID found to update.");
-      url = `https://api.github.com/gists/${gistId}`;
-      method = 'PATCH';
+    
+    if (configData && Object.keys(configData).length > 0) {
+      payload.files['.pen.config.json'] = { content: JSON.stringify(configData, null, 2) };
     }
 
-    const response = await fetch(url, {
-      method,
+    const gistId = action === 'update-gist' ? (configData?.gistId || new URLSearchParams(window.location.search).get('gistId')) : null;
+    if (action === 'update-gist' && !gistId) throw new Error("No Gist ID found to update.");
+
+    const response = await fetch(`https://api.github.com/gists${gistId ? `/${gistId}` : ''}`, {
+      method: gistId ? 'PATCH' : 'POST',
       headers: {
         'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github.v3+json',
@@ -74,16 +59,12 @@ async function handlePortableGistAction(action, token) {
     const data = await response.json();
     
     if (action === 'publish-gist') {
-      if (config.value) {
-        config.value.gistId = data.id;
-      } else if (config) {
-        config.gistId = data.id;
-      }
+      configData.gistId = data.id;
     }
     
-    if (isVirtual?.value) {
-        hasUnsavedChanges.value = false;
-        if (persist) persist();
+    if (fileSystem.isVirtual?.value) {
+      fileSystem.hasUnsavedChanges.value = false;
+      fileSystem.persist?.();
     }
 
     publishedGistData.value = {
@@ -219,34 +200,30 @@ export function useGist() {
   }
 
   async function revertGist() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const gistId = urlParams.get('gistId');
-    if (!gistId) return;
+    const gistId = new URLSearchParams(window.location.search).get('gistId');
+    if (!gistId || !confirm("Revert to the original gist files? Unsaved changes will be lost.")) return;
     
-    if (confirm("Are you sure you want to revert to the original gist files? Unsaved local changes will be lost.")) {
-      try {
-        const gist = await fetchRemoteGist(gistId);
-        const gistFiles = {};
-        for (const [filename, fileObj] of Object.entries(gist.files)) {
-          gistFiles[filename] = fileObj.content;
-        }
-        
-        let gistConfig = { name: "Gist " + gistId, editors: [] };
-        if (gistFiles['.pen.config.json']) {
-          try { gistConfig = JSON.parse(gistFiles['.pen.config.json']); delete gistFiles['.pen.config.json']; } catch(e) {}
-        }
-        gistConfig.gistId = gistId;
-        
-        setConfig(gistConfig, true);
-        setAllFiles(gistFiles);
-        if (fileSystem.isVirtual.value) {
-          fileSystem.hasUnsavedChanges.value = false;
-          fileSystem.persist();
-        }
-        triggerToast('success', 'Reverted', 'Successfully reverted to gist.');
-      } catch(err) {
-        triggerToast('error', 'Revert Failed', err.message);
+    try {
+      const gist = await fetchRemoteGist(gistId);
+      const gistFiles = Object.fromEntries(
+        Object.entries(gist.files).map(([k, v]) => [k, v.content])
+      );
+      
+      let gistConfig = { name: `Gist ${gistId}`, editors: [], gistId };
+      if (gistFiles['.pen.config.json']) {
+        try { Object.assign(gistConfig, JSON.parse(gistFiles['.pen.config.json'])); } catch (e) {}
+        delete gistFiles['.pen.config.json'];
       }
+      
+      setConfig(gistConfig, true);
+      setAllFiles(gistFiles);
+      if (fileSystem.isVirtual.value) {
+        fileSystem.hasUnsavedChanges.value = false;
+        fileSystem.persist();
+      }
+      triggerToast('success', 'Reverted', 'Successfully reverted to gist.');
+    } catch(err) {
+      triggerToast('error', 'Revert Failed', err.message);
     }
   }
 

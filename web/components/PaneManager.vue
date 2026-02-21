@@ -142,43 +142,30 @@ function handleEditorRun() { emit('render', true) }
 let initialMaximizedRestored = false;
 
 watch(() => props.editors.length, (len) => {
-  if (len > 0) {
-    pm.init(len);
-    if (!initialMaximizedRestored) {
-      initialMaximizedRestored = true;
-      const initialMaximized = new URLSearchParams(window.location.search).get('maximized');
-      if (initialMaximized === 'preview') {
-        previewMaximized.value = true;
-      } else if (initialMaximized) {
-        const idx = props.editors.findIndex(e => e.filename === initialMaximized);
-        if (idx !== -1) {
-          // Add a small delay for DOM to render first
-          setTimeout(() => pm.setMaximized(idx), 50);
-        }
-      }
+  if (len <= 0) return;
+  pm.init(len);
+  
+  if (!initialMaximizedRestored) {
+    initialMaximizedRestored = true;
+    const maximized = new URLSearchParams(window.location.search).get('maximized');
+    if (maximized === 'preview') {
+      previewMaximized.value = true;
+    } else if (maximized) {
+      const idx = props.editors.findIndex(e => e.filename === maximized);
+      if (idx !== -1) setTimeout(() => pm.setMaximized(idx), 50);
     }
   }
-})
+});
 
 watch([pm.maximizedIdx, previewMaximized], ([maxIdx, prevMax]) => {
   const url = new URL(window.location);
-  let targetVal = null;
-  if (prevMax) {
-    targetVal = 'preview';
-  } else if (maxIdx !== null && props.editors[maxIdx]) {
-    targetVal = props.editors[maxIdx].filename;
-  }
+  const targetVal = prevMax ? 'preview' : (maxIdx !== null && props.editors[maxIdx]) ? props.editors[maxIdx].filename : null;
   
-  const currentVal = url.searchParams.get('maximized');
-  if (targetVal !== currentVal) {
-    if (targetVal) {
-      url.searchParams.set('maximized', targetVal);
-    } else {
-      url.searchParams.delete('maximized');
-    }
+  if (targetVal !== url.searchParams.get('maximized')) {
+    targetVal ? url.searchParams.set('maximized', targetVal) : url.searchParams.delete('maximized');
     window.history.pushState({}, '', url);
   }
-})
+});
 
 function onMouseDown(e) {
   const splitter = e.target.closest('.splitpanes__splitter')
