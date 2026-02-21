@@ -46,12 +46,14 @@
     <!-- Auth Prompt -->
     <div v-else-if="showAuthPrompt" class="modal-overlay" @click.self="closeAuthPrompt">
       <div class="modal auth-modal">
-        <h2>GitHub Authentication Required</h2>
-        <p>Please enter a GitHub Personal Access Token with the "gist" scope to publish or update.</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0; font-size: 16px;">GitHub Authentication</h2>
+          <button class="icon-btn" @click="closeAuthPrompt" style="padding: 4px; margin-right: -4px;"><i class="ph-bold ph-x"></i></button>
+        </div>
+        <p style="margin-bottom: 16px;">Enter a Personal Access Token with the "gist" scope.</p>
         <input type="password" v-model="githubToken" placeholder="ghp_..." autofocus />
-        <div class="modal-actions">
-          <button @click="closeAuthPrompt">Cancel</button>
-          <button class="primary" @click="submitAuthToken" :disabled="!githubToken">Submit</button>
+        <div class="modal-actions" style="margin-top: 0; margin-bottom: 4px;">
+          <button class="primary" @click="submitAuthToken" :disabled="!githubToken" style="width: 100%; justify-content: center;">Submit Token</button>
         </div>
       </div>
     </div>
@@ -158,13 +160,14 @@ const copyToClipboard = async (text, type) => {
 
 .auth-modal input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   font-family: var(--font-mono);
+  font-size: 13px;
 }
 
 .auth-modal input:focus {

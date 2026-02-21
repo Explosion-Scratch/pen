@@ -27,6 +27,8 @@ export function submitAuthToken() {
 async function handlePortableGistAction(action, token) {
   try {
     isPublishingGist.value = true;
+    const configData = config.value || config;
+    
     const payload = {
       description: configData?.name || "Pen Project",
       public: true,
@@ -59,7 +61,8 @@ async function handlePortableGistAction(action, token) {
     const data = await response.json();
     
     if (action === 'publish-gist') {
-      configData.gistId = data.id;
+      if (config.value) config.value.gistId = data.id;
+      else config.gistId = data.id;
     }
     
     if (fileSystem.isVirtual?.value) {
