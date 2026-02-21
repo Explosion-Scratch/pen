@@ -121,13 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return {
       moduleType: {
         type: 'select',
-        name: 'Module Type',
-        description: 'JavaScript module system to use',
-        default: 'module',
+        name: 'Type',
+        description: 'Script type attribute (module vs classic)',
         options: [
-          { label: 'Module', value: 'module' },
-          { label: 'Classic', value: 'classic' }
-        ]
+          { value: 'module', label: 'Module (import/export)' },
+          { value: 'classic', label: 'Classic Text/Javascript' }
+        ],
+        default: 'module'
       },
       strictMode: {
         type: 'boolean',

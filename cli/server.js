@@ -11,7 +11,7 @@ import {
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
 import open from "open";
-import { getAdapter } from "../core/adapter_registry.js";
+import { getAdapter, getAllAdapters } from "../core/adapter_registry.js";
 import { loadAllProjectTemplates } from "../core/project_templates.js";
 import { startPreviewServer } from "./project_initializer.js";
 import { findAvailablePorts } from "./port_utils.js";
@@ -67,21 +67,6 @@ export async function launchEditorFlow(projectPath, options = {}) {
     if (!options.headless) console.log(" Client connected");
 
     // Send initial state to client
-    const getAdaptersInfo = () =>
-      config.editors.map((e) => {
-        const A = getAdapter(e.type);
-        return {
-          id: A.id,
-          type: e.type,
-          name: A.name,
-          description: A.description,
-          fileExtension: A.fileExtension,
-          compileTargets: A.compileTargets || [],
-          canMinify: A.canMinify || false,
-          schema: A.getSchema?.() || {},
-        };
-      });
-
     const displayPath = projectPath.replace(process.env.HOME, "~");
 
     ws.send(
@@ -90,7 +75,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
         config,
         rootPath: displayPath,
         files: fileMap,
-        adapters: getAdaptersInfo(),
+        adapters: getAllAdapters(),
         previewServerUrl: previewDisplayUrl,
       }),
     );
@@ -155,7 +140,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             type: "reinit",
             config,
             files: fileMap,
-            adapters: getAdaptersInfo(),
+            adapters: getAllAdapters(),
             previewServerUrl: previewDisplayUrl,
           });
           break;
@@ -184,7 +169,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             type: "reinit",
             config,
             files: fileMap,
-            adapters: getAdaptersInfo(),
+            adapters: getAllAdapters(),
             previewServerUrl: previewDisplayUrl,
           });
           break;
@@ -252,7 +237,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
             config,
             rootPath: projectPath.replace(process.env.HOME, "~"),
             files: fileMap,
-            adapters: getAdaptersInfo(),
+            adapters: getAllAdapters(),
             previewServerUrl: previewDisplayUrl,
           });
           break;
@@ -290,7 +275,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
                 type: "reinit",
                 config,
                 files: fileMap,
-                adapters: getAdaptersInfo(),
+                adapters: getAllAdapters(),
                 previewServerUrl: previewDisplayUrl,
               });
               
@@ -356,7 +341,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
               config,
               rootPath: folderPath.replace(process.env.HOME, "~"),
               files: fileMap,
-              adapters: getAdaptersInfo(),
+              adapters: getAllAdapters(),
               previewServerUrl: previewDisplayUrl,
             });
           } catch (err) {
@@ -425,21 +410,7 @@ export async function launchEditorFlow(projectPath, options = {}) {
     res.json(templates);
   });
   app.get("/api/adapters", (_, res) => {
-    res.json(
-      config.editors.map((e) => {
-        const A = getAdapter(e.type);
-        return {
-          id: A.id,
-          type: e.type,
-          name: A.name,
-          description: A.description,
-          fileExtension: A.fileExtension,
-          compileTargets: A.compileTargets || [],
-          canMinify: A.canMinify || false,
-          schema: A.getSchema?.() || {},
-        };
-      }),
-    );
+    res.json(getAllAdapters());
   });
 
   if (existsSync(distPath)) {

@@ -1,0 +1,44 @@
+{
+  "template": {
+    "title": "Brython (Python)",
+    "description": "Python in the browser using Brython"
+  },
+  "name": "brython-project",
+  "version": "1.0.0",
+  "editors": [
+    {
+      "type": "html",
+      "filename": "index.html",
+      "settings": { "doctype": "html5", "lang": "en" }
+    },
+    {
+      "type": "css",
+      "filename": "style.css",
+      "settings": { "normalize": true, "autoprefixer": false }
+    },
+    {
+      "type": "python",
+      "filename": "script.py",
+      "settings": { "moduleType": "text/python" }
+    }
+  ],
+  "globalResources": {
+    "scripts": [
+      {
+        "src": "https://cdn.jsdelivr.net/npm/brython@3.12.0/brython.min.js",
+        "type": "text/javascript",
+        "injectTo": "head",
+        "injectPosition": "beforeend",
+        "priority": 10
+      },
+      {
+        "src": "https://cdn.jsdelivr.net/npm/brython@3.12.0/brython_stdlib.js",
+        "type": "text/javascript",
+        "injectTo": "head",
+        "injectPosition": "beforeend",
+        "priority": 11
+      }
+    ],
+    "styles": []
+  }
+}

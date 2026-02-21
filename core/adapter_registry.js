@@ -5,6 +5,7 @@ import { LESSAdapter } from '../adapters/style/less_adapter.js'
 import { JavaScriptAdapter } from '../adapters/script/javascript_adapter.js'
 import { TypeScriptAdapter } from '../adapters/script/typescript_adapter.js'
 import { JSXAdapter } from '../adapters/script/jsx_adapter.js'
+import { PythonAdapter } from '../adapters/script/python_adapter.js'
 
 const adapters = new Map([
   ['html', HTMLAdapter],
@@ -14,6 +15,7 @@ const adapters = new Map([
   ['javascript', JavaScriptAdapter],
   ['typescript', TypeScriptAdapter],
   ['jsx', JSXAdapter],
+  ['python', PythonAdapter],
 ])
 
 export function getAdapter(adapterId) {

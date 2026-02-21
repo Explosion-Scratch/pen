@@ -34,7 +34,7 @@
           >
             <EditorCard
               :editor="editor"
-              :adapter="adapters[idx]"
+              :adapter="adapters.find(a => a.id === editor.type)"
               :content="files[editor.filename] || ''"
               :is-collapsed="pm.isCollapsed(idx)"
               :is-maximized="pm.maximizedIdx.value === idx"

@@ -127,8 +127,22 @@ export async function executeSequentialRender(fileMap, config, options = {}) {
         
         js = transformImportsToCdn(js, importOverrides);
         
-        const scriptType = editor.settings?.moduleType === "classic" ? "text/javascript" : "module";
+        let scriptType = editor.settings?.moduleType || "text/javascript";
+        if (scriptType === "classic") scriptType = "text/javascript";
         const scriptId = `pen-script-${editor.type}`;
+
+        // Disable JS source mapping for Python as it uses non-JS syntax and will crash Acorn
+        if (scriptType === 'text/python') {
+            resourceManager.add({
+               tagType: 'script',
+               attrs: { type: scriptType },
+               srcString: js,
+               priority: (editor.settings?.priority || 30),
+               injectTo: editor.settings?.injectTo || 'body',
+               injectPosition: editor.settings?.injectPosition || 'beforeend'
+             });
+             continue;
+        }
 
         let jsBuilder = new SourceMapBuilder('script.js');
         if (editor.filename && js) {

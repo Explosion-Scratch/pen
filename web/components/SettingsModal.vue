@@ -102,9 +102,8 @@
                   <div class="settings-field">
                     <label>Type</label>
                     <select v-model="script.type">
-                      <option :value="undefined">Default</option>
-                      <option value="module">Module</option>
-                      <option value="text/javascript">Classic</option>
+                      <option value="module">Module (import/export)</option>
+                      <option value="classic">Classic (text/javascript)</option>
                     </select>
                   </div>
                 </div>

@@ -1,0 +1,37 @@
+<div class="main-wrapper">
+    <!-- Left Panel -->
+    <div class="overtones-panel">
+        <div class="canvas-container">
+            <canvas id="spectrograph" width="280" height="480"></canvas>
+        </div>
+        <div class="instructions">
+            <b>Click and hold</b> to strengthen an overtone.<br>
+            <b>Shift + Click</b> to weaken it.<br>
+            Play the synth using your keyboard!
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="synth-panel">
+        <div>
+            <h1>Neumorphic Synth</h1>
+            <p style="color: var(--text-muted); margin-top: 5px;">Shape the timber with overtones, play with realistic keys.</p>
+        </div>
+
+        <div class="controls">
+            <select id="preset-select">
+                <option value="sine">Pure Sine</option>
+                <option value="sawtooth">Sawtooth (Brass/Strings)</option>
+                <option value="square">Square (Hollow/Woodwind)</option>
+                <option value="clarinet">Clarinet</option>
+                <option value="organ">Hammond Organ</option>
+                <option value="bell">Soft Bell</option>
+            </select>
+            <button id="clear-btn">Clear Overtones</button>
+        </div>
+
+        <div class="piano-container" id="piano-container">
+            <!-- Rendered by Brython -->
+        </div>
+    </div>
+</div>

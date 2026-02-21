@@ -390,20 +390,8 @@ async function handleTemplateSelect(templateId) {
     setConfig(newConfig, true);
     if (template.files) setAllFiles(template.files);
 
-    const { getAdapter } = await import("../core/adapter_registry.js");
-    adapters.value = (newConfig.editors || []).map((e) => {
-      const A = getAdapter(e.type);
-      return {
-        id: A.id,
-        type: e.type,
-        name: A.name,
-        description: A.description,
-        fileExtension: A.fileExtension,
-        compileTargets: A.compileTargets || [],
-        canMinify: A.canMinify || false,
-        schema: A.getSchema?.() || {},
-      };
-    });
+    const { getAllAdapters } = await import("../core/adapter_registry.js");
+    adapters.value = getAllAdapters();
   } else if (
     fileSystem.socket &&
     fileSystem.socket.readyState === WebSocket.OPEN

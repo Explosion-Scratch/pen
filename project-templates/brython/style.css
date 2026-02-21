@@ -1,0 +1,175 @@
+:root {
+            --bg: #e0e5ec;
+            --shadow-light: rgba(255, 255, 255, 0.9);
+            --shadow-dark: rgba(163, 177, 198, 0.6);
+            --accent: #6b8cce;
+            --accent-glow: #8fa9df;
+            --text-main: #4a5568;
+            --text-muted: #8392a5;
+            
+            --black-key-bg: #2d3748;
+            --black-key-shadow-dark: #1a202c;
+            --black-key-shadow-light: #4a5568;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+
+        .main-wrapper {
+            display: flex;
+            gap: 40px;
+            padding: 40px;
+            border-radius: 30px;
+            background: var(--bg);
+            box-shadow: 12px 12px 24px var(--shadow-dark), -12px -12px 24px var(--shadow-light);
+            max-width: 1200px;
+            align-items: flex-start;
+        }
+
+        /* --- Left Side: Overtones --- */
+        .overtones-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .canvas-container {
+            position: relative;
+            padding: 15px;
+            border-radius: 20px;
+            background: var(--bg);
+            box-shadow: inset 8px 8px 16px var(--shadow-dark), inset -8px -8px 16px var(--shadow-light);
+        }
+
+        canvas {
+            display: block;
+            border-radius: 10px;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .instructions {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-align: center;
+            max-width: 260px;
+            line-height: 1.4;
+        }
+
+        /* --- Right Side: Piano & Controls --- */
+        .synth-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            min-width: 600px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--text-main);
+            text-shadow: 2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light);
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        select, button {
+            appearance: none;
+            border: none;
+            outline: none;
+            background: var(--bg);
+            color: var(--text-main);
+            font-size: 15px;
+            font-weight: 600;
+            padding: 12px 20px;
+            border-radius: 12px;
+            box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        select:active, button:active {
+            box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+            color: var(--accent);
+        }
+
+        /* --- Realistic Neumorphic Piano --- */
+        .piano-container {
+            position: relative;
+            height: 240px;
+            display: flex;
+            border-radius: 10px;
+            padding: 10px;
+            background: var(--bg);
+            box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
+            margin-top: 20px;
+        }
+
+        .white-key {
+            width: 50px;
+            height: 220px;
+            margin: 0 2px;
+            border-radius: 0 0 8px 8px;
+            background: var(--bg);
+            box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 15px;
+            box-sizing: border-box;
+            cursor: pointer;
+            z-index: 1;
+            transition: all 0.1s;
+            position: relative;
+        }
+
+        .white-key span.note { font-weight: bold; font-size: 14px; color: var(--text-main); }
+        .white-key span.bind { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+        .white-key.active {
+            box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+            color: var(--accent);
+        }
+
+        .black-key {
+            width: 32px;
+            height: 130px;
+            position: absolute;
+            top: 10px;
+            border-radius: 0 0 6px 6px;
+            background: var(--black-key-bg);
+            box-shadow: 3px 3px 6px var(--black-key-shadow-dark), -2px -2px 4px var(--black-key-shadow-light);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 10px;
+            box-sizing: border-box;
+            cursor: pointer;
+            z-index: 2;
+            transition: all 0.1s;
+        }
+
+        .black-key span.bind { font-size: 11px; color: #a0aec0; }
+
+        .black-key.active {
+            box-shadow: inset 3px 3px 6px var(--black-key-shadow-dark), inset -2px -2px 4px var(--black-key-shadow-light);
+        }

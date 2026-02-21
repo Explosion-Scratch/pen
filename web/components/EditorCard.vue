@@ -82,6 +82,7 @@ import {
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { lintKeymap } from '@codemirror/lint'
 import { javascript } from '@codemirror/lang-javascript'
+import { python } from '@codemirror/lang-python'
 import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
 import { sass } from '@codemirror/lang-sass'
@@ -247,6 +248,9 @@ function getLanguageExtension(type) {
   }
   if (type_ === 'typescript') {
     return javascript({ typescript: true, jsx: true })
+  }
+  if (type_ === 'python') {
+    return python()
   }
   return javascript({ jsx: true })
 }

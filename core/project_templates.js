@@ -212,6 +212,15 @@ async function loadProjectTemplatesInBrowser() {
         'style.css': () => import('../project-templates/unocss/style.css?raw'),
         'script.js': () => import('../project-templates/unocss/script.js?raw'),
       }
+    },
+    'brython': {
+      config: () => import('../project-templates/brython/.pen.config.json'),
+      icon: () => import('../project-templates/brython/icon.svg?raw'),
+      files: {
+        'index.html': () => import('../project-templates/brython/index.html?raw'),
+        'style.css': () => import('../project-templates/brython/style.css?raw'),
+        'script.py': () => import('../project-templates/brython/script.py?raw'),
+      }
     }
   }
 
@@ -250,5 +259,5 @@ async function loadProjectTemplatesInBrowser() {
 }
 
 export function listProjectTemplateIds() {
-  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid', 'd3', 'threejs', 'lit', 'preact', 'observable', 'unocss']
+  return ['canvas', 'scss-ts', 'tailwind', 'vanilla', 'vue', 'react', 'solid', 'd3', 'threejs', 'lit', 'preact', 'observable', 'unocss', 'brython']
 }
