@@ -29,7 +29,11 @@ export function getAllAdapters() {
     id: Adapter.id,
     type: Adapter.type,
     name: Adapter.name,
-    description: Adapter.description
+    description: Adapter.description,
+    fileExtension: Adapter.fileExtension,
+    compileTargets: Adapter.compileTargets || [],
+    canMinify: Adapter.canMinify || false,
+    schema: Adapter.getSchema?.() || {}
   }))
 }
 
@@ -40,7 +44,11 @@ export function getAdaptersByCategory(category) {
       id: Adapter.id,
       type: Adapter.type,
       name: Adapter.name,
-      description: Adapter.description
+      description: Adapter.description,
+      fileExtension: Adapter.fileExtension,
+      compileTargets: Adapter.compileTargets || [],
+      canMinify: Adapter.canMinify || false,
+      schema: Adapter.getSchema?.() || {}
     }))
 }
 
@@ -53,6 +61,9 @@ export function getAdapterMetadata(adapterId) {
     description: Adapter.description,
     extends: Adapter.extends,
     fileExtension: Adapter.fileExtension,
-    mimeType: Adapter.mimeType
+    mimeType: Adapter.mimeType,
+    compileTargets: Adapter.compileTargets || [],
+    canMinify: Adapter.canMinify || false,
+    schema: Adapter.getSchema?.() || {}
   }
-}
+} 

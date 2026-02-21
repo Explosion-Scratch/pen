@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { fileSystem, fetchRemoteGist } from '../filesystem.js';
+import { fileSystem } from '../filesystem.js';
 import { useFileSystem } from '../state_management.js';
+import { publishGistApi, updateGistApi, fetchGistApi, normalizeGistPayload, restoreMissingGistFiles } from '../../core/gist_api.js';
 
 export const showAuthPrompt = ref(false);
 export const githubToken = ref("");
@@ -11,12 +12,13 @@ let pendingAuthAction = null;
 export function submitAuthToken() {
   if (!githubToken.value || !pendingAuthAction) return;
   isPublishingGist.value = true;
+  const token = githubToken.value.trim();
   if (fileSystem.isVirtual.value) {
-    handlePortableGistAction(pendingAuthAction, githubToken.value);
+    handlePortableGistAction(pendingAuthAction, token);
   } else {
     fileSystem.socket.send(JSON.stringify({ 
       type: pendingAuthAction, 
-      token: githubToken.value 
+      token
     }));
   }
   showAuthPrompt.value = false;
@@ -30,36 +32,22 @@ async function handlePortableGistAction(action, token) {
     const { files, config } = fileSystem;
     const configData = config.value || config;
     
-    const payload = {
-      description: configData?.name || "Pen Project",
-      public: true,
-      files: Object.fromEntries(
-        Object.entries(files).map(([k, v]) => [k, { content: v || " " }])
-      )
-    };
-    
+    const filesToUpload = { ...files };
     if (configData && Object.keys(configData).length > 0) {
-      payload.files['.pen.config.json'] = { content: JSON.stringify(configData, null, 2) };
+      filesToUpload['.pen.config.json'] = JSON.stringify(configData, null, 2);
     }
+    
+    const payload = normalizeGistPayload(filesToUpload, configData?.name, action === 'publish-gist');
 
     const gistId = action === 'update-gist' ? (configData?.gistId || new URLSearchParams(window.location.search).get('gistId')) : null;
     if (action === 'update-gist' && !gistId) throw new Error("No Gist ID found to update.");
 
-    const response = await fetch(`https://api.github.com/gists${gistId ? `/${gistId}` : ''}`, {
-      method: gistId ? 'PATCH' : 'POST',
-      headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`GitHub API Error: ${response.status} ${response.statusText}`);
+    let data;
+    if (action === 'update-gist') {
+      data = await updateGistApi(token, gistId, payload);
+    } else {
+      data = await publishGistApi(token, payload);
     }
-
-    const data = await response.json();
     
     if (action === 'publish-gist') {
       if (config.value) config.value.gistId = data.id;
@@ -120,8 +108,8 @@ export function useGist() {
     if (!gistId) return;
 
     try {
-      const gist = await fetchRemoteGist(gistId);
-      const gistFiles = {};
+      const gist = await fetchGistApi(gistId);
+      let gistFiles = {};
       for (const [filename, fileObj] of Object.entries(gist.files)) {
         gistFiles[filename] = fileObj.content;
       }
@@ -131,6 +119,7 @@ export function useGist() {
         try {
           gistConfig = JSON.parse(gistFiles['.pen.config.json']);
           delete gistFiles['.pen.config.json'];
+          gistFiles = restoreMissingGistFiles(gistConfig, gistFiles);
         } catch(e) {}
       }
       gistConfig.gistId = gistId;
@@ -208,15 +197,18 @@ export function useGist() {
     if (!gistId || !confirm("Revert to the original gist files? Unsaved changes will be lost.")) return;
     
     try {
-      const gist = await fetchRemoteGist(gistId);
-      const gistFiles = Object.fromEntries(
+      const gist = await fetchGistApi(gistId);
+      let gistFiles = Object.fromEntries(
         Object.entries(gist.files).map(([k, v]) => [k, v.content])
       );
       
       let gistConfig = { name: `Gist ${gistId}`, editors: [], gistId };
       if (gistFiles['.pen.config.json']) {
-        try { Object.assign(gistConfig, JSON.parse(gistFiles['.pen.config.json'])); } catch (e) {}
-        delete gistFiles['.pen.config.json'];
+        try { 
+          Object.assign(gistConfig, JSON.parse(gistFiles['.pen.config.json'])); 
+          delete gistFiles['.pen.config.json'];
+          gistFiles = restoreMissingGistFiles(gistConfig, gistFiles);
+        } catch (e) {}
       }
       
       setConfig(gistConfig, true);

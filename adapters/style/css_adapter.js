@@ -70,7 +70,7 @@ p {
 
   static getDefaultSettings() {
     return {
-      normalize: true,
+      normalize: false,
       autoprefixer: false,
       tailwind: false,
       injectTo: 'head',
@@ -118,7 +118,7 @@ p {
         type: 'boolean',
         name: 'Include Normalize.css',
         description: 'Include Normalize.css for consistent cross-browser styling',
-        default: true
+        default: false
       },
       autoprefixer: {
         type: 'boolean',
@@ -135,4 +135,4 @@ p {
       ...super.getSchema()
     }
   }
-}
+} 
