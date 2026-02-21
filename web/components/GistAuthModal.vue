@@ -51,7 +51,7 @@
           <button class="icon-btn" @click="closeAuthPrompt" style="padding: 4px; margin-right: -4px;"><i class="ph-bold ph-x"></i></button>
         </div>
         <p style="margin-bottom: 16px;">Enter a Personal Access Token with the "gist" scope.</p>
-        <input type="password" v-model="githubToken" placeholder="ghp_..." autofocus />
+        <input type="password" v-model="githubToken" @input="validateToken" placeholder="ghp_..." autofocus />
         <div class="modal-actions" style="margin-top: 0; margin-bottom: 4px;">
           <button class="primary" @click="submitAuthToken" :disabled="!githubToken" style="width: 100%; justify-content: center;">Submit Token</button>
         </div>
@@ -71,6 +71,13 @@ import {
   publishedGistData,
   closeSuccessModal
 } from "../composables/useGist.js";
+
+const validateToken = () => {
+  const match = githubToken.value.match(/(gh[po]_[A-Za-z0-9_]{36,251})/);
+  if (match) {
+    githubToken.value = match[1];
+  }
+};
 
 const copied = ref(null);
 

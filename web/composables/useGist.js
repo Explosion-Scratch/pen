@@ -27,6 +27,7 @@ export function submitAuthToken() {
 async function handlePortableGistAction(action, token) {
   try {
     isPublishingGist.value = true;
+    const { files, config } = fileSystem;
     const configData = config.value || config;
     
     const payload = {
