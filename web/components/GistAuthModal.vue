@@ -52,6 +52,12 @@
         </div>
         <p style="margin-bottom: 16px;">Enter a Personal Access Token with the "gist" scope.</p>
         <input type="password" v-model="githubToken" placeholder="ghp_..." autofocus />
+        <div class="checkbox-group" style="margin-bottom: 16px;">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--color-text-muted); font-size: 13px;">
+            <input type="checkbox" v-model="isPublicGist" style="width: auto; margin: 0;" />
+            Public Gist
+          </label>
+        </div>
         <div class="modal-actions" style="margin-top: 0; margin-bottom: 4px;">
           <button class="primary" @click="submitAuthToken" :disabled="!isValidToken" style="width: 100%; justify-content: center;">Submit Token</button>
         </div>
@@ -65,6 +71,7 @@ import { ref, computed } from "vue";
 import { 
   showAuthPrompt, 
   githubToken, 
+  isPublicGist,
   submitAuthToken, 
   closeAuthPrompt,
   isPublishingGist,

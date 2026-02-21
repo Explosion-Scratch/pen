@@ -6,6 +6,7 @@ import { publishGistApi, updateGistApi, fetchGistApi, normalizeGistPayload, rest
 export const showAuthPrompt = ref(false);
 export const githubToken = ref("");
 export const isPublishingGist = ref(false);
+export const isPublicGist = ref(false);
 export const publishedGistData = ref(null);
 let pendingAuthAction = null;
 
@@ -37,7 +38,7 @@ async function handlePortableGistAction(action, token) {
       filesToUpload['.pen.config.json'] = JSON.stringify(configData, null, 2);
     }
     
-    const payload = normalizeGistPayload(filesToUpload, configData?.name, action === 'publish-gist');
+    const payload = normalizeGistPayload(filesToUpload, configData?.name, action === 'publish-gist', isPublicGist.value);
 
     const gistId = action === 'update-gist' ? (configData?.gistId || new URLSearchParams(window.location.search).get('gistId')) : null;
     if (action === 'update-gist' && !gistId) throw new Error("No Gist ID found to update.");
@@ -178,7 +179,7 @@ export function useGist() {
        showAuthPrompt.value = true;
     } else {
        isPublishingGist.value = true;
-       fileSystem.socket.send(JSON.stringify({ type: "publish-gist", isPublic: true }));
+       fileSystem.socket.send(JSON.stringify({ type: "publish-gist", isPublic: isPublicGist.value }));
     }
   }
 

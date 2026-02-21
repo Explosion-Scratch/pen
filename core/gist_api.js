@@ -17,7 +17,7 @@ export function restoreMissingGistFiles(gistConfig, gistFiles) {
  * Creates the GitHub Gists JSON POST/PATCH payload format.
  * Skips files containing strictly empty strings or zero lengths (as GitHub throws a 422 if contents are blank).
  */
-export function normalizeGistPayload(files, description = "Pen Project", isPublish = false) {
+export function normalizeGistPayload(files, description = "Pen Project", isPublish = false, isPublic = false) {
   const payload = {
     description: description,
     files: Object.fromEntries(
@@ -27,7 +27,7 @@ export function normalizeGistPayload(files, description = "Pen Project", isPubli
     ),
   };
   if (isPublish) {
-    payload.public = true;
+    payload.public = isPublic;
   }
   return payload;
 }

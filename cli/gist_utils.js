@@ -30,7 +30,7 @@ export async function publishGist(files, description, isPublic = false, customTo
     throw new AuthRequiredError();
   }
 
-  const payload = normalizeGistPayload(files, description, isPublic);
+  const payload = normalizeGistPayload(files, description, true, isPublic);
   return await publishGistApi(token, payload);
 }
 
@@ -51,7 +51,7 @@ export async function updateGist(gistId, files, description, customToken = null)
     }
   }
 
-  const payload = normalizeGistPayload(gistFiles, description);
+  const payload = normalizeGistPayload(gistFiles, description, false);
   return await updateGistApi(token, gistId, payload);
 }
 
