@@ -139,8 +139,45 @@ function toggleMaximize(idx) {
 
 function handleEditorRun() { emit('render', true) }
 
+let initialMaximizedRestored = false;
+
 watch(() => props.editors.length, (len) => {
-  if (len > 0) pm.init(len)
+  if (len > 0) {
+    pm.init(len);
+    if (!initialMaximizedRestored) {
+      initialMaximizedRestored = true;
+      const initialMaximized = new URLSearchParams(window.location.search).get('maximized');
+      if (initialMaximized === 'preview') {
+        previewMaximized.value = true;
+      } else if (initialMaximized) {
+        const idx = props.editors.findIndex(e => e.filename === initialMaximized);
+        if (idx !== -1) {
+          // Add a small delay for DOM to render first
+          setTimeout(() => pm.setMaximized(idx), 50);
+        }
+      }
+    }
+  }
+})
+
+watch([pm.maximizedIdx, previewMaximized], ([maxIdx, prevMax]) => {
+  const url = new URL(window.location);
+  let targetVal = null;
+  if (prevMax) {
+    targetVal = 'preview';
+  } else if (maxIdx !== null && props.editors[maxIdx]) {
+    targetVal = props.editors[maxIdx].filename;
+  }
+  
+  const currentVal = url.searchParams.get('maximized');
+  if (targetVal !== currentVal) {
+    if (targetVal) {
+      url.searchParams.set('maximized', targetVal);
+    } else {
+      url.searchParams.delete('maximized');
+    }
+    window.history.pushState({}, '', url);
+  }
 })
 
 function onMouseDown(e) {

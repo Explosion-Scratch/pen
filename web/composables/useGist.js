@@ -12,13 +12,100 @@ let pendingAuthAction = null;
 export function submitAuthToken() {
   if (!githubToken.value || !pendingAuthAction) return;
   isPublishingGist.value = true;
-  fileSystem.socket.send(JSON.stringify({ 
-    type: pendingAuthAction, 
-    token: githubToken.value 
-  }));
+  if (fileSystem.isVirtual.value) {
+    handlePortableGistAction(pendingAuthAction, githubToken.value);
+  } else {
+    fileSystem.socket.send(JSON.stringify({ 
+      type: pendingAuthAction, 
+      token: githubToken.value 
+    }));
+  }
   showAuthPrompt.value = false;
   githubToken.value = "";
   pendingAuthAction = null;
+}
+
+async function handlePortableGistAction(action, token) {
+  try {
+    isPublishingGist.value = true;
+    const filesPayload = {};
+    const { files, config, isVirtual, hasUnsavedChanges, persist, notify } = fileSystem;
+    
+    for (const [filename, content] of Object.entries(files)) {
+      filesPayload[filename] = { content: content || " " }; // Gist API requires non-empty content
+    }
+    
+    const configData = config.value || config;
+    if (configData && Object.keys(configData).length > 0) {
+      filesPayload['.pen.config.json'] = { content: JSON.stringify(configData, null, 2) };
+    }
+
+    let url = 'https://api.github.com/gists';
+    let method = 'POST';
+
+    let description = configData?.name || "Pen Project";
+    const payload = {
+      description,
+      public: true,
+      files: filesPayload
+    };
+
+    if (action === 'update-gist') {
+      const gistId = configData?.gistId || new URLSearchParams(window.location.search).get('gistId');
+      if (!gistId) throw new Error("No Gist ID found to update.");
+      url = `https://api.github.com/gists/${gistId}`;
+      method = 'PATCH';
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (action === 'publish-gist') {
+      if (config.value) {
+        config.value.gistId = data.id;
+      } else if (config) {
+        config.gistId = data.id;
+      }
+    }
+    
+    if (isVirtual?.value) {
+        hasUnsavedChanges.value = false;
+        if (persist) persist();
+    }
+
+    publishedGistData.value = {
+      id: data.id,
+      url: data.html_url,
+      editorUrl: `https://explosion-scratch.github.io/pen?gistId=${data.id}`
+    };
+  } catch (err) {
+    if (fileSystem.notify) {
+      fileSystem.notify({
+        type: 'toast-error',
+        name: 'Gist Error',
+        title: 'Gist Error',
+        message: err.message
+      });
+    } else {
+      console.error(err);
+      alert(err.message);
+    }
+  } finally {
+    isPublishingGist.value = false;
+  }
 }
 
 export function closeAuthPrompt() {
@@ -113,7 +200,8 @@ export function useGist() {
 
   function publishGist() {
     if (fileSystem.isVirtual.value) {
-       triggerToast('error', 'Unsupported', 'Publishing is only supported when connected to the backend.');
+       pendingAuthAction = 'publish-gist';
+       showAuthPrompt.value = true;
     } else {
        isPublishingGist.value = true;
        fileSystem.socket.send(JSON.stringify({ type: "publish-gist", isPublic: true }));
@@ -122,7 +210,8 @@ export function useGist() {
 
   function updateGist() {
     if (fileSystem.isVirtual.value) {
-       triggerToast('error', 'Unsupported', 'Updating is only supported when connected to the backend.');
+       pendingAuthAction = 'update-gist';
+       showAuthPrompt.value = true;
     } else {
        isPublishingGist.value = true;
        fileSystem.socket.send(JSON.stringify({ type: "update-gist" }));
