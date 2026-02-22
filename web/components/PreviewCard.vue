@@ -506,7 +506,7 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 280px;
+  min-width: 0;
   background: transparent;
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -760,8 +760,40 @@ onUnmounted(() => {
 }
 
 .action-btn.error-btn.active .error-badge {
-  border-color: var(--color-error); /* Blend in when active */
+  border-color: var(--color-error);
   background: white;
   color: var(--color-error);
+}
+
+@media (max-width: 768px) {
+  .preview-header {
+    gap: 8px;
+    padding: 0 6px;
+  }
+
+  .url-input,
+  .url-highlight-overlay {
+    font-size: 11px;
+  }
+
+  .action-btn {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .url-highlight-overlay {
+    display: none;
+  }
+
+  .url-input {
+    color: var(--color-text-muted) !important;
+    font-size: 11px;
+  }
+
+  .preview-actions {
+    gap: 2px;
+  }
 }
 </style>

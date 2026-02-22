@@ -191,6 +191,28 @@ function save() {
   animation: slideUp 200ms ease;
 }
 
+@media (max-width: 768px) {
+  .editor-settings-modal {
+    max-width: calc(100% - 16px);
+    max-height: 90vh;
+    margin: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .editor-settings-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    height: 100%;
+  }
+
+  .settings-overlay {
+    align-items: stretch;
+  }
+}
+
 .settings-header {
   display: flex;
   align-items: center;

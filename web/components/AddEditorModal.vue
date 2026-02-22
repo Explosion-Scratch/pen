@@ -145,6 +145,37 @@ function addEditor() {
   animation: slideUp 300ms ease;
 }
 
+@media (max-width: 768px) {
+  .modal {
+    max-width: calc(100% - 16px);
+    max-height: 90vh;
+    margin: 8px;
+  }
+
+  .adapter-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .adapter-card {
+    padding: 12px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal {
+    max-width: 100%;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    height: 100%;
+  }
+
+  .modal-overlay {
+    align-items: stretch;
+  }
+}
+
 .modal-header {
   display: flex;
   align-items: center;

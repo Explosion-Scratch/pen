@@ -104,6 +104,41 @@ function selectTemplate(tmpl) {
   overflow: hidden;
 }
 
+@media (max-width: 768px) {
+  .template-picker-modal {
+    max-width: calc(100% - 16px);
+    max-height: 90vh;
+    margin: 8px;
+  }
+
+  .template-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .modal-header {
+    padding: 16px 16px;
+  }
+
+  .search-bar {
+    padding: 12px 16px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .template-picker-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    height: 100%;
+  }
+}
+
 .modal-header {
   display: flex;
   align-items: center;

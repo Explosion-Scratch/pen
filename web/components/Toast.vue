@@ -64,6 +64,20 @@ function handleClick(toast) {
   pointer-events: none;
 }
 
+@media (max-width: 768px) {
+  .toast-container {
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+  }
+
+  .toast-main {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
 .toast-item {
   pointer-events: auto;
   display: flex;

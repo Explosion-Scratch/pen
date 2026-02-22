@@ -1,93 +1,157 @@
 <template>
-  <div class="pane-manager" :class="[settings.layoutMode, { 'is-any-dragging': isAnyDragging }]">
+  <div class="pane-manager" :class="[settings.layoutMode, { 'is-any-dragging': isAnyDragging, 'is-mobile': isMobile }]">
     <div v-show="isAnyDragging" class="drag-overlay"></div>
 
-    <Splitpanes 
-      :key="`main-${settings.layoutMode}`"
-      class="default-theme main-split" 
-      :horizontal="settings.layoutMode === 'rows'"
-      @resize="handleMainResize"
-    >
-      <Pane 
-        :size="previewMaximized ? 2 : (100 - previewSize)" 
-        class="editors-container-pane"
-        :class="{ 'is-preview-maximized': previewMaximized }"
-      >
-        <div v-if="previewMaximized" class="editors-collapsed-rail" @click="previewMaximized = false">
-          <button class="expand-rail-btn" title="Restore Editors">
-            <i :class="settings.layoutMode === 'rows' ? 'ph-bold ph-caret-down' : 'ph-bold ph-caret-right'"></i>
-          </button>
-        </div>
-        <Splitpanes 
-          v-else
-          :key="`editors-${settings.layoutMode}-${editors.length}`"
-          class="editors-split"
-          :horizontal="settings.layoutMode === 'columns'"
-          @ready="() => pm.init(editors.length)"
-          @resize="(p) => pm.updateFromSplitpanes(p)"
+    <!-- Mobile tabbed layout -->
+    <template v-if="isMobile">
+      <div class="mobile-tabs">
+        <button 
+          v-for="(editor, idx) in editors" 
+          :key="editor.id || editor.filename"
+          class="mobile-tab"
+          :class="{ active: mobileActiveTab === `editor-${idx}` }"
+          @click="mobileActiveTab = `editor-${idx}`"
         >
-          <Pane 
-            :size="pm.getSize(idx)"
-            v-for="(editor, idx) in editors" 
-            :key="editor.id || editor.filename"
-            :min-size="pm.getMinSize(idx)"
-          >
+          <i :class="getEditorIcon(editor.type)"></i>
+          <span>{{ editor.filename }}</span>
+        </button>
+        <button 
+          class="mobile-tab preview-tab"
+          :class="{ active: mobileActiveTab === 'preview' }"
+          @click="mobileActiveTab = 'preview'"
+        >
+          <i class="ph-duotone ph-eye"></i>
+          <span>Preview</span>
+        </button>
+      </div>
+      <div class="mobile-content">
+        <template v-for="(editor, idx) in editors" :key="editor.id || editor.filename">
+          <div v-show="mobileActiveTab === `editor-${idx}`" class="mobile-editor-pane">
             <EditorCard
               :editor="editor"
               :adapter="adapters.find(a => a.id === editor.type)"
               :content="files[editor.filename] || ''"
-              :is-collapsed="pm.isCollapsed(idx)"
-              :is-maximized="pm.maximizedIdx.value === idx"
-              :layout-mode="settings.layoutMode"
+              :is-collapsed="false"
+              :is-maximized="false"
+              :layout-mode="'columns'"
               @update="(content) => $emit('update', editor.filename, content)"
               @rename="handleRename"
               @settings-update="handleSettingsUpdate"
-              @toggle-collapse="pm.setCollapsed(idx)"
+              @toggle-collapse="() => {}"
               @format="(filename) => $emit('format', filename)"
               @minify="(filename) => $emit('minify', filename)"
               @compile="(filename, target) => $emit('compile', filename, target)"
               @run="handleEditorRun"
-              @dblclick-header="toggleMaximize(idx)"
+              @dblclick-header="() => {}"
             />
-          </Pane>
-        </Splitpanes>
-      </Pane>
-      <Pane :size="previewMaximized ? 98 : previewSize" :min-size="15" class="preview-pane">
-        <PreviewCard 
-          :preview-state="previewState" 
-          :settings="settings"
-          :last-manual-render="lastManualRender"
-          :is-maximized="previewMaximized"
-          :errors="errors"
-          @refresh="$emit('render', true)" 
-          @settings="$emit('settings')"
-          @toggle-maximize="previewMaximized = !previewMaximized"
-          @jump="(details) => $emit('jump', details)"
-          @clear-errors="$emit('clear-errors')"
-        />
-        <div v-show="isAnyDragging || altPressed" class="iframe-blocker"></div>
-      </Pane>
-    </Splitpanes>
-
-    <!-- Alt-hover maximize overlay -->
-    <Teleport to="body">
-      <div 
-        v-if="altHoveredPane !== null"
-        class="maximize-overlay"
-        :style="overlayStyle"
-        @click="toggleMaximize(altHoveredPane)"
-      >
-        <div class="maximize-overlay-content">
-          <i :class="['ph-duotone', (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
-          <span>{{ (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
+          </div>
+        </template>
+        <div v-show="mobileActiveTab === 'preview'" class="mobile-preview-pane">
+          <PreviewCard 
+            :preview-state="previewState" 
+            :settings="settings"
+            :last-manual-render="lastManualRender"
+            :is-maximized="false"
+            :errors="errors"
+            @refresh="$emit('render', true)" 
+            @settings="$emit('settings')"
+            @toggle-maximize="() => {}"
+            @jump="(details) => $emit('jump', details)"
+            @clear-errors="$emit('clear-errors')"
+          />
         </div>
       </div>
-    </Teleport>
+    </template>
+
+    <!-- Desktop splitpane layout -->
+    <template v-else>
+      <Splitpanes 
+        :key="`main-${settings.layoutMode}`"
+        class="default-theme main-split" 
+        :horizontal="settings.layoutMode === 'rows'"
+        @resize="handleMainResize"
+      >
+        <Pane 
+          :size="previewMaximized ? 2 : (100 - previewSize)" 
+          class="editors-container-pane"
+          :class="{ 'is-preview-maximized': previewMaximized }"
+        >
+          <div v-if="previewMaximized" class="editors-collapsed-rail" @click="previewMaximized = false">
+            <button class="expand-rail-btn" title="Restore Editors">
+              <i :class="settings.layoutMode === 'rows' ? 'ph-bold ph-caret-down' : 'ph-bold ph-caret-right'"></i>
+            </button>
+          </div>
+          <Splitpanes 
+            v-else
+            :key="`editors-${settings.layoutMode}-${editors.length}`"
+            class="editors-split"
+            :horizontal="settings.layoutMode === 'columns'"
+            @ready="() => pm.init(editors.length)"
+            @resize="(p) => pm.updateFromSplitpanes(p)"
+          >
+            <Pane 
+              :size="pm.getSize(idx)"
+              v-for="(editor, idx) in editors" 
+              :key="editor.id || editor.filename"
+              :min-size="pm.getMinSize(idx)"
+            >
+              <EditorCard
+                :editor="editor"
+                :adapter="adapters.find(a => a.id === editor.type)"
+                :content="files[editor.filename] || ''"
+                :is-collapsed="pm.isCollapsed(idx)"
+                :is-maximized="pm.maximizedIdx.value === idx"
+                :layout-mode="settings.layoutMode"
+                @update="(content) => $emit('update', editor.filename, content)"
+                @rename="handleRename"
+                @settings-update="handleSettingsUpdate"
+                @toggle-collapse="pm.setCollapsed(idx)"
+                @format="(filename) => $emit('format', filename)"
+                @minify="(filename) => $emit('minify', filename)"
+                @compile="(filename, target) => $emit('compile', filename, target)"
+                @run="handleEditorRun"
+                @dblclick-header="toggleMaximize(idx)"
+              />
+            </Pane>
+          </Splitpanes>
+        </Pane>
+        <Pane :size="previewMaximized ? 98 : previewSize" :min-size="15" class="preview-pane">
+          <PreviewCard 
+            :preview-state="previewState" 
+            :settings="settings"
+            :last-manual-render="lastManualRender"
+            :is-maximized="previewMaximized"
+            :errors="errors"
+            @refresh="$emit('render', true)" 
+            @settings="$emit('settings')"
+            @toggle-maximize="previewMaximized = !previewMaximized"
+            @jump="(details) => $emit('jump', details)"
+            @clear-errors="$emit('clear-errors')"
+          />
+          <div v-show="isAnyDragging || altPressed" class="iframe-blocker"></div>
+        </Pane>
+      </Splitpanes>
+
+      <!-- Alt-hover maximize overlay -->
+      <Teleport to="body">
+        <div 
+          v-if="altHoveredPane !== null"
+          class="maximize-overlay"
+          :style="overlayStyle"
+          @click="toggleMaximize(altHoveredPane)"
+        >
+          <div class="maximize-overlay-content">
+            <i :class="['ph-duotone', (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'ph-arrows-in' : 'ph-arrows-out']" style="font-size: 32px;"></i>
+            <span>{{ (altHoveredPane === 'preview' ? previewMaximized : pm.maximizedIdx.value === altHoveredPane) ? 'Restore' : 'Maximize' }}</span>
+          </div>
+        </div>
+      </Teleport>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import EditorCard from './EditorCard.vue'
@@ -97,6 +161,25 @@ import { usePanesManager } from '../composables/usePanesManager.js'
 const pm = usePanesManager()
 
 const previewMaximized = ref(false)
+const isMobile = ref(false)
+const mobileActiveTab = ref('editor-0')
+
+const editorIcons = {
+  html: 'ph-duotone ph-file-html',
+  css: 'ph-duotone ph-file-css',
+  sass: 'ph-duotone ph-file-css',
+  less: 'ph-duotone ph-file-css',
+  javascript: 'ph-duotone ph-file-js',
+  typescript: 'ph-duotone ph-file-ts'
+}
+
+function getEditorIcon(type) {
+  return editorIcons[type] || 'ph-duotone ph-file'
+}
+
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
 const previewSize = ref(60)
 
 const altHoveredPane = ref(null)
@@ -287,6 +370,8 @@ function onBlur() {
 }
 
 onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
   window.addEventListener('mousedown', onMouseDown)
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -295,6 +380,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
   window.removeEventListener('mousedown', onMouseDown)
   window.removeEventListener('mouseup', onMouseUp)
   window.removeEventListener('keydown', onKeyDown)
@@ -310,6 +396,8 @@ onUnmounted(() => {
   overflow: hidden;
   position: relative;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .drag-overlay {
@@ -445,5 +533,72 @@ onUnmounted(() => {
   color: var(--color-accent);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* Mobile tab layout */
+.mobile-tabs {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--color-background-alt);
+  border-bottom: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.mobile-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.mobile-tab i {
+  font-size: 14px;
+}
+
+.mobile-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+  background: var(--color-surface);
+}
+
+.mobile-tab:not(.active):hover {
+  color: var(--color-text);
+  background: rgba(0,0,0,0.02);
+}
+
+.mobile-tab.preview-tab {
+  margin-left: auto;
+}
+
+.mobile-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.mobile-editor-pane,
+.mobile-preview-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

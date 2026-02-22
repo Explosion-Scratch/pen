@@ -620,4 +620,20 @@ onUnmounted(() => {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+@media (max-width: 768px) {
+  .editor-header {
+    padding: 0 6px;
+  }
+
+  .editor-filename-input {
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+
+  .action-btn {
+    width: 28px;
+    height: 28px;
+  }
+}
 </style>

@@ -422,4 +422,44 @@ const menuItems = computed(() => {
   border-radius: 50%;
   margin-left: 2px;
 }
+
+@media (max-width: 768px) {
+  .toolbar {
+    padding: 0 10px;
+  }
+
+  .title-input {
+    font-size: 14px;
+    min-width: 80px;
+    padding: 4px 6px;
+  }
+
+  .toolbar-center {
+    display: none;
+  }
+
+  .toolbar-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .toolbar-right {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .toolbar {
+    padding: 0 8px;
+  }
+
+  .title-input {
+    font-size: 13px;
+    min-width: 60px;
+  }
+
+  .logo i {
+    font-size: 18px;
+  }
+}
 </style>

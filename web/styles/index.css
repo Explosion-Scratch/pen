@@ -80,6 +80,7 @@ body {
 
 #app {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -274,4 +275,45 @@ body.is-pen-dragging *::after {
 .writing-mode-vertical {
   writing-mode: vertical-rl;
   text-orientation: mixed;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+
+@media (max-width: 768px) {
+  :root {
+    --header-height: 42px;
+    --pane-header-height: 32px;
+  }
+
+  .cm-editor {
+    font-size: 13px;
+  }
+
+  .cm-line {
+    padding: 0 10px;
+  }
+
+  .cm-gutters {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --header-height: 40px;
+    --pane-header-height: 30px;
+  }
+
+  .cm-editor {
+    font-size: 12px;
+  }
 }

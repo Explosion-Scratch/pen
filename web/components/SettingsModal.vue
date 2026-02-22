@@ -435,6 +435,44 @@ watch(() => props.settings, (newSettings) => {
   animation: slideUp 300ms ease;
 }
 
+@media (max-width: 768px) {
+  .modal {
+    max-width: calc(100% - 16px);
+    max-height: 90vh;
+    margin: 8px;
+  }
+
+  .modal-header {
+    padding: 12px 16px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal {
+    max-width: 100%;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    height: 100%;
+  }
+
+  .modal-overlay {
+    align-items: stretch;
+  }
+}
+
 .modal-header {
   display: flex;
   align-items: center;
