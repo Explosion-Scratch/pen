@@ -44,6 +44,7 @@
       @close="showSettings = false"
       @save="handleSettingsSave"
       @toast="addToast"
+      @restore-snapshot="handleRestoreSnapshot"
     />
     <Toast :toasts="toasts" @remove="removeToast" @jump="handleJump" />
 
@@ -90,7 +91,7 @@ import {
   exportEditor,
   exportAsZip,
 } from "./state_management.js";
-import { fileSystem } from "./filesystem.js";
+import { fileSystem, hasPersistentBackingStore } from "./filesystem.js";
 import { useGist } from "./composables/useGist.js";
 import { importer } from "./utils/importer.js";
 import JSZip from "jszip";
@@ -128,9 +129,12 @@ const lastActivity = ref({});
 const toasts = ref([]);
 const lastManualRender = ref(0);
 const previewState = ref({ displayURL: "", contentURL: "", externalURL: "" });
-const IDLE_THRESHOLD = 2000; // 2 seconds
+const EXTERNAL_SYNC_IDLE_MS = 10000;
 const isLoading = ref(true);
 let saveDebounceTimer = null;
+let externalApplyTimer = null;
+const lastUserEditAt = ref(Date.now());
+const pendingExternalReinit = ref(null);
 
 const { initGist, setupGistListeners } = useGist();
 setupGistListeners();
@@ -145,6 +149,14 @@ onMounted(async () => {
   try {
     await fileSystem.connect();
     await initGist();
+    if (fileSystem.isVirtual.value && !hasPersistentBackingStore) {
+      addToast({
+        type: "error",
+        title: "Persistent Storage Unavailable",
+        message:
+          "Browser storage is unavailable. Export your work to avoid losing changes on refresh.",
+      });
+    }
   } catch (err) {
     console.error("Failed to connect to FS", err);
     addToast({
@@ -157,12 +169,57 @@ onMounted(async () => {
   }
 
   window.addEventListener("keydown", handleKeydown);
+  window.addEventListener("beforeunload", handleBeforeUnload);
 });
 
 onUnmounted(() => {
   if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  if (externalApplyTimer) clearTimeout(externalApplyTimer);
   window.removeEventListener("keydown", handleKeydown);
+  window.removeEventListener("beforeunload", handleBeforeUnload);
 });
+
+function applyReinitMessage(message) {
+  if (message.config) setConfig(message.config);
+  if (message.files) setAllFiles(message.files);
+  applyInitMessage(message);
+}
+
+function scheduleExternalReinitApply() {
+  if (!pendingExternalReinit.value) return;
+  if (externalApplyTimer) clearTimeout(externalApplyTimer);
+  const idleFor = Date.now() - lastUserEditAt.value;
+  const waitMs = Math.max(0, EXTERNAL_SYNC_IDLE_MS - idleFor);
+  externalApplyTimer = setTimeout(applyQueuedExternalReinit, waitMs);
+}
+
+function applyQueuedExternalReinit() {
+  if (!pendingExternalReinit.value) return;
+  const idleFor = Date.now() - lastUserEditAt.value;
+  if (idleFor < EXTERNAL_SYNC_IDLE_MS) {
+    scheduleExternalReinitApply();
+    return;
+  }
+  const shouldApply = confirm(
+    "Local project files changed outside the editor. Apply those filesystem changes to open editors now?",
+  );
+  if (!shouldApply) {
+    addToast({
+      type: "info",
+      title: "External Changes Pending",
+      message: "Keeping current editor state. You can apply external file changes later by reloading.",
+    });
+    pendingExternalReinit.value = null;
+    return;
+  }
+  applyReinitMessage(pendingExternalReinit.value);
+  pendingExternalReinit.value = null;
+  addToast({
+    type: "success",
+    title: "External Changes Applied",
+    message: "Updated editors from local filesystem changes.",
+  });
+}
 
 function applyInitMessage(message) {
   adapters.value = message.adapters || [];
@@ -179,9 +236,19 @@ fileSystem.on((message) => {
   }
 
   if (message.type === "reinit") {
-    if (message.config) setConfig(message.config);
-    if (message.files) setAllFiles(message.files);
-    applyInitMessage(message);
+    if (message.origin === "external-fs") {
+      pendingExternalReinit.value = message;
+      addToast({
+        type: "info",
+        title: "External Change Detected",
+        message: "Will prompt to apply local filesystem changes after 10s of inactivity.",
+      });
+      scheduleExternalReinitApply();
+      return;
+    }
+    pendingExternalReinit.value = null;
+    if (externalApplyTimer) clearTimeout(externalApplyTimer);
+    applyReinitMessage(message);
   }
 
   if (message.type === "toast-error") {
@@ -206,6 +273,8 @@ function handleFileUpdate(filename, content) {
   // Update state (triggers render if autoRun)
   updateFile(filename, content);
   lastActivity.value[filename] = Date.now();
+  lastUserEditAt.value = Date.now();
+  if (pendingExternalReinit.value) scheduleExternalReinitApply();
 }
 
 function handleRender(isManual = false) {
@@ -216,12 +285,42 @@ function handleRender(isManual = false) {
 }
 
 function handleRename(oldFilename, newFilename, newType) {
+  const hasConflict =
+    oldFilename !== newFilename &&
+    Object.prototype.hasOwnProperty.call(files, newFilename);
+  let allowOverwrite = false;
+  if (hasConflict) {
+    allowOverwrite = confirm(
+      `A file named "${newFilename}" already exists. Overwrite it?`,
+    );
+    if (!allowOverwrite) return;
+  }
+
+  const isServerMode =
+    !fileSystem.isVirtual.value &&
+    !fileSystem.fallbackMode &&
+    fileSystem.socket &&
+    fileSystem.socket.readyState === WebSocket.OPEN;
+
+  if (isServerMode) {
+    fileSystem.renameFile(oldFilename, newFilename, newType, allowOverwrite);
+    return;
+  }
+
   const editor = config.editors?.find((e) => e.filename === oldFilename);
   if (editor) {
     editor.filename = newFilename;
     editor.type = newType;
   }
-  fileSystem.renameFile(oldFilename, newFilename, newType);
+  const renamed = fileSystem.renameFile(
+    oldFilename,
+    newFilename,
+    newType,
+    allowOverwrite,
+  );
+  if (renamed) {
+    fileSystem.saveConfig(config);
+  }
 }
 
 function handleAppSettingsUpdate(newSettings) {
@@ -328,10 +427,28 @@ async function handleImportFile() {
 
 async function processImportResult(files) {
   try {
+    const importConfirmMessage = hasUnsavedChanges.value
+      ? "You have unsaved changes. Replace the current project with imported files?"
+      : "Importing will replace the current project files. Continue?";
+    if (!confirm(importConfirmMessage)) return;
     const result = await importer.processFiles(files);
     if (result) {
       setConfig(result.config);
       setAllFiles(result.files);
+      if (fileSystem.isVirtual.value || fileSystem.fallbackMode) {
+        fileSystem.saveConfig(result.config);
+      } else if (
+        fileSystem.socket &&
+        fileSystem.socket.readyState === WebSocket.OPEN
+      ) {
+        fileSystem.socket.send(
+          JSON.stringify({
+            type: "replace-project",
+            config: result.config,
+            files: result.files,
+          }),
+        );
+      }
       addToast({
         type: "success",
         title: "Import Successful",
@@ -379,6 +496,11 @@ async function handleGlobalDrop(e) {
 
 async function handleTemplateSelect(templateId) {
   showTemplatePicker.value = false;
+
+  const templateConfirmMessage = hasUnsavedChanges.value
+    ? "You have unsaved changes. Continue and replace the current project?"
+    : "Starting a new template will replace current files. Continue?";
+  if (!confirm(templateConfirmMessage)) return;
 
   if (fileSystem.isVirtual.value) {
     const { loadProjectTemplate } =
@@ -436,6 +558,55 @@ function handleKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     event.preventDefault();
     handleRender(true);
+  }
+}
+
+function handleBeforeUnload(event) {
+  if (!hasUnsavedChanges.value) return;
+  event.preventDefault();
+  event.returnValue = "";
+}
+
+async function handleRestoreSnapshot(snapshot) {
+  if (!snapshot?.config || !snapshot?.files) {
+    addToast({
+      type: "error",
+      title: "Restore Failed",
+      message: "Draft data is unavailable.",
+    });
+    return;
+  }
+  const overwriteMessage = hasUnsavedChanges.value
+    ? "You have unsaved changes. Importing this saved draft will overwrite the current project. Continue?"
+    : "Importing this saved draft will overwrite the current project. Continue?";
+  if (!confirm(overwriteMessage)) return;
+
+  setConfig(snapshot.config);
+  setAllFiles(snapshot.files);
+
+  if (fileSystem.isVirtual.value || fileSystem.fallbackMode) {
+    fileSystem.saveConfig(snapshot.config);
+    addToast({
+      type: "success",
+      title: "Draft Imported",
+      message: `Loaded "${snapshot.meta?.title || snapshot.config.name || "Untitled"}" from local storage.`,
+    });
+    return;
+  }
+
+  if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
+    fileSystem.socket.send(
+      JSON.stringify({
+        type: "replace-project",
+        config: snapshot.config,
+        files: snapshot.files,
+      }),
+    );
+    addToast({
+      type: "success",
+      title: "Draft Imported",
+      message: `Applied "${snapshot.meta?.title || snapshot.config.name || "Untitled"}" to the current project.`,
+    });
   }
 }
 </script>

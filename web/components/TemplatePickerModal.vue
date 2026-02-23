@@ -84,9 +84,7 @@ onMounted(async () => {
 })
 
 function selectTemplate(tmpl) {
-  if (confirm(`Start new project with "${tmpl.title}" template? This will replace your current files.`)) {
-    emit('select', tmpl.id)
-  }
+  emit('select', tmpl.id)
 }
 </script>
 

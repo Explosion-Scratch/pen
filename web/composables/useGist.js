@@ -10,6 +10,19 @@ export const isPublicGist = ref(false);
 export const publishedGistData = ref(null);
 let pendingAuthAction = null;
 
+function toTimestamp(value) {
+  const t = Date.parse(value || "");
+  return Number.isFinite(t) ? t : 0;
+}
+
+function stampGistMetadata(configObj, gistMeta) {
+  const next = { ...(configObj || {}) };
+  if (gistMeta?.id) next.gistId = gistMeta.id;
+  if (gistMeta?.updatedAt) next.gistUpdatedAt = gistMeta.updatedAt;
+  if (gistMeta?.fetchedAt) next.gistFetchedAt = gistMeta.fetchedAt;
+  return next;
+}
+
 export function submitAuthToken() {
   if (!githubToken.value || !pendingAuthAction) return;
   isPublishingGist.value = true;
@@ -50,14 +63,15 @@ async function handlePortableGistAction(action, token) {
       data = await publishGistApi(token, payload);
     }
     
-    if (action === 'publish-gist') {
-      if (config.value) config.value.gistId = data.id;
-      else config.gistId = data.id;
-    }
+    const updatedConfig = stampGistMetadata(configData, {
+      id: data.id,
+      updatedAt: data.updated_at || new Date().toISOString(),
+      fetchedAt: new Date().toISOString(),
+    });
+    fileSystem.saveConfig(updatedConfig);
     
     if (fileSystem.isVirtual?.value) {
-      fileSystem.hasUnsavedChanges.value = false;
-      fileSystem.persist?.();
+      fileSystem.markSaved?.();
     }
 
     publishedGistData.value = {
@@ -108,10 +122,6 @@ export function useGist() {
     const gistId = urlParams.get('gistId');
     if (!gistId) return;
 
-    if (fileSystem.isVirtual.value && hasGistLocalData(gistId)) {
-      return;
-    }
-
     try {
       const gist = await fetchGistApi(gistId);
       let gistFiles = {};
@@ -127,18 +137,68 @@ export function useGist() {
           gistFiles = restoreMissingGistFiles(gistConfig, gistFiles);
         } catch(e) {}
       }
-      gistConfig.gistId = gistId;
+      gistConfig = stampGistMetadata(gistConfig, {
+        id: gistId,
+        updatedAt: gist.updated_at,
+        fetchedAt: new Date().toISOString(),
+      });
 
       if (fileSystem.isVirtual.value) {
-        setConfig(gistConfig, true);
-        setAllFiles(gistFiles);
+        const hasLocal = hasGistLocalData(gistId);
+        if (!hasLocal) {
+          setConfig(gistConfig, true);
+          setAllFiles(gistFiles);
+          fileSystem.saveConfig(gistConfig);
+          fileSystem.markSaved?.();
+          return;
+        }
+        const localGistUpdatedAt = toTimestamp(fileSystem.config?.gistUpdatedAt);
+        const remoteGistUpdatedAt = toTimestamp(gist.updated_at);
+        const isRemoteNewer =
+          remoteGistUpdatedAt > 0 &&
+          (localGistUpdatedAt === 0 || remoteGistUpdatedAt > localGistUpdatedAt);
+        if (isRemoteNewer) {
+          const overwrite = confirm(
+            "A newer version of this gist exists on GitHub. Overwrite your local draft with the newer gist?",
+          );
+          if (!overwrite) {
+            fileSystem.saveConfig(
+              stampGistMetadata(fileSystem.config, {
+                id: gistId,
+                updatedAt: gist.updated_at,
+                fetchedAt: new Date().toISOString(),
+              }),
+            );
+            return;
+          }
+          setConfig(gistConfig, true);
+          setAllFiles(gistFiles);
+          fileSystem.saveConfig(gistConfig);
+          fileSystem.markSaved?.();
+        } else {
+          fileSystem.saveConfig(
+            stampGistMetadata(fileSystem.config, {
+              id: gistId,
+              updatedAt: gist.updated_at,
+              fetchedAt: new Date().toISOString(),
+            }),
+          );
+        }
       } else {
-        const shouldReplace = confirm("A gist ID is present. Overwrite current project with gist contents? (This cannot be undone)");
+        const dirtyMessage = fileSystem.hasUnsavedChanges.value
+          ? "You have unsaved local changes."
+          : "This will replace the current project files.";
+        const shouldReplace = confirm(
+          `A gist ID is present. ${dirtyMessage} Overwrite current project with gist contents?`,
+        );
         if (shouldReplace) {
-           setConfig(gistConfig, false);
-           setAllFiles(gistFiles, false);
-           fileSystem.saveConfig(gistConfig);
-           fileSystem.socket.send(JSON.stringify({ type: "save", files: gistFiles }));
+          fileSystem.socket.send(
+            JSON.stringify({
+              type: "replace-project",
+              config: gistConfig,
+              files: gistFiles,
+            }),
+          );
         }
       }
     } catch (err) {
@@ -214,11 +274,25 @@ export function useGist() {
         } catch (e) {}
       }
       
+      gistConfig = stampGistMetadata(gistConfig, {
+        id: gistId,
+        updatedAt: gist.updated_at,
+        fetchedAt: new Date().toISOString(),
+      });
+
       setConfig(gistConfig, true);
       setAllFiles(gistFiles);
       if (fileSystem.isVirtual.value) {
-        fileSystem.hasUnsavedChanges.value = false;
-        fileSystem.persist();
+        fileSystem.markSaved?.();
+        fileSystem.saveConfig(gistConfig);
+      } else if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
+        fileSystem.socket.send(
+          JSON.stringify({
+            type: "replace-project",
+            config: gistConfig,
+            files: gistFiles,
+          }),
+        );
       }
       triggerToast('success', 'Reverted', 'Successfully reverted to gist.');
     } catch(err) {

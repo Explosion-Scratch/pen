@@ -239,6 +239,66 @@
             </div>
           </div>
         </div>
+        <div class="settings-section">
+          <div class="section-header">
+            <h3>Storage Inspector</h3>
+            <button class="refresh-btn" @click="refreshStoredDrafts">Refresh</button>
+          </div>
+          <div v-if="storedDrafts.length === 0" class="empty-storage">
+            No local drafts indexed yet.
+          </div>
+          <div v-else class="storage-list">
+            <div v-for="draft in storedDrafts" :key="draft.id" class="storage-item">
+              <div class="storage-main">
+                <div class="storage-title-row">
+                  <strong>{{ draft.title }}</strong>
+                  <span v-if="draft.configKey === activeDraftConfigKey" class="storage-current">current</span>
+                  <span class="storage-mode">{{ draft.mode }}</span>
+                  <span v-if="draft.dirty" class="storage-dirty">dirty</span>
+                </div>
+                <div class="storage-meta">
+                  <span>{{ formatDate(draft.lastSeenAt) }}</span>
+                  <span>{{ draft.fileCount }} file{{ draft.fileCount === 1 ? '' : 's' }}</span>
+                  <span v-if="draft.gistId">gist: {{ draft.gistId }}</span>
+                </div>
+              </div>
+              <div class="storage-actions">
+                <button class="compact-btn" @click="toggleDraft(draft.configKey)">
+                  {{ expandedDrafts[draft.configKey] ? 'Collapse' : 'Expand' }}
+                </button>
+                <button class="compact-btn" @click="exportDraft(draft.configKey)">Export</button>
+                <button class="compact-btn compact-btn-primary" @click="restoreDraft(draft.configKey)">Import</button>
+                <button
+                  class="compact-btn compact-btn-danger"
+                  :disabled="draft.configKey === activeDraftConfigKey"
+                  @click="removeDraft(draft.configKey)"
+                >
+                  Delete
+                </button>
+              </div>
+              <div v-if="expandedDrafts[draft.configKey]" class="storage-details">
+                <div class="storage-detail-row">
+                  <span>Created:</span>
+                  <span>{{ formatDate(draft.createdAt) }}</span>
+                </div>
+                <div class="storage-detail-row">
+                  <span>Last dirty:</span>
+                  <span>{{ formatDate(draft.lastDirtyAt) }}</span>
+                </div>
+                <div class="storage-files">
+                  <div class="storage-files-title">Files</div>
+                  <code
+                    v-for="filename in Object.keys((draftDetails[draft.configKey]?.files) || {})"
+                    :key="filename"
+                    class="storage-file"
+                  >
+                    {{ filename }}
+                  </code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <footer class="modal-footer">
         <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
@@ -250,6 +310,12 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue'
+import {
+  listStoredDrafts,
+  readStoredDraft,
+  deleteStoredDraft,
+  getActiveStorageConfigKey
+} from '../filesystem.js'
 
 const CDNJS_ALGOLIA_APP = '2QWLVLXZB6'
 const CDNJS_ALGOLIA_KEY = '2663c73014d2e4d6d1778cc8ad9fd010'
@@ -269,7 +335,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'save', 'toast'])
+const emit = defineEmits(['close', 'save', 'toast', 'restore-snapshot'])
 
 const localConfig = ref(JSON.parse(JSON.stringify(props.config)))
 const localSettings = ref(JSON.parse(JSON.stringify(props.settings)))
@@ -291,6 +357,10 @@ const previewInject = computed({
 
 let scriptSearchTimer = null
 let scriptBlurTimer = null
+const storedDrafts = ref([])
+const expandedDrafts = ref({})
+const draftDetails = ref({})
+const activeDraftConfigKey = ref(null)
 
 function copyPath() {
   if (props.currentPath) {
@@ -301,6 +371,96 @@ function copyPath() {
       message: 'Project path copied to clipboard'
     })
   }
+}
+
+function formatDate(ts) {
+  if (!ts) return 'Unknown';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return 'Unknown';
+  return d.toLocaleString();
+}
+
+function refreshStoredDrafts() {
+  activeDraftConfigKey.value = getActiveStorageConfigKey();
+  const drafts = listStoredDrafts();
+  storedDrafts.value = drafts.filter((d) => d.fileCount > 0 || d.configKey === activeDraftConfigKey.value);
+}
+
+function toggleDraft(configKey) {
+  expandedDrafts.value[configKey] = !expandedDrafts.value[configKey];
+  if (expandedDrafts.value[configKey] && !draftDetails.value[configKey]) {
+    draftDetails.value[configKey] = readStoredDraft(configKey);
+  }
+}
+
+function restoreDraft(configKey) {
+  const draft = readStoredDraft(configKey);
+  if (!draft) {
+    emit('toast', {
+      type: 'error',
+      title: 'Restore Failed',
+      message: 'Draft data is unavailable or corrupted.'
+    });
+    return;
+  }
+  emit('restore-snapshot', draft);
+}
+
+function exportDraft(configKey) {
+  const draft = readStoredDraft(configKey);
+  if (!draft) {
+    emit('toast', {
+      type: 'error',
+      title: 'Export Failed',
+      message: 'Draft data is unavailable or corrupted.'
+    });
+    return;
+  }
+  const payload = JSON.stringify({
+    meta: draft.meta,
+    config: draft.config,
+    files: draft.files
+  }, null, 2);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateKey = new Date().toISOString().replace(/[:.]/g, '-');
+  const title = (draft.meta?.title || 'draft').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+  a.href = url;
+  a.download = `pen-storage-${title}-${dateKey}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function removeDraft(configKey) {
+  if (configKey === activeDraftConfigKey.value) {
+    emit('toast', {
+      type: 'error',
+      title: 'Cannot Delete Current Project',
+      message: 'Switch to another project before deleting this storage entry.'
+    })
+    return
+  }
+  if (!confirm('Delete this stored draft from browser storage? This cannot be undone.')) return
+  const deleted = deleteStoredDraft(configKey)
+  if (!deleted) {
+    emit('toast', {
+      type: 'error',
+      title: 'Delete Failed',
+      message: 'Draft entry was not found.'
+    })
+    return
+  }
+  delete expandedDrafts.value[configKey]
+  delete draftDetails.value[configKey]
+  refreshStoredDrafts()
+  emit('toast', {
+    type: 'success',
+    title: 'Draft Deleted',
+    message: 'Removed draft from local browser storage.'
+  })
 }
 
 
@@ -463,6 +623,8 @@ watch(() => props.config, (newConfig) => {
 watch(() => props.settings, (newSettings) => {
   localSettings.value = JSON.parse(JSON.stringify(newSettings))
 }, { deep: true })
+
+refreshStoredDrafts()
 </script>
 
 <style scoped>
@@ -604,6 +766,161 @@ watch(() => props.settings, (newSettings) => {
 
 .settings-section:last-child {
   margin-bottom: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.refresh-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-background-alt);
+  color: var(--color-text-muted);
+}
+
+.refresh-btn:hover {
+  color: var(--color-text);
+  background: var(--color-border-light);
+}
+
+.empty-storage {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 8px 4px;
+}
+
+.storage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.storage-item {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  background: var(--color-background-alt);
+}
+
+.storage-main {
+  min-width: 0;
+}
+
+.storage-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.storage-mode {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.storage-current {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.storage-dirty {
+  font-size: 10px;
+  color: var(--color-accent);
+}
+
+.storage-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.storage-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.compact-btn {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+}
+
+.compact-btn:hover {
+  color: var(--color-text);
+}
+
+.compact-btn-primary {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.compact-btn-danger {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.compact-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.storage-details {
+  margin-top: 8px;
+  border-top: 1px solid var(--color-border-light);
+  padding-top: 8px;
+}
+
+.storage-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.storage-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.storage-files-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.storage-file {
+  font-size: 11px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
 }
 
 .settings-section h3 {
