@@ -62,7 +62,7 @@ export class LESSAdapter extends CSSAdapter {
       }
 
       const filename = 'style.less'
-      const result = await less.render(code, {
+      let result = await less.render(code, {
         filename,
         ...(wantMaps ? {
           sourceMap: { 
@@ -72,6 +72,14 @@ export class LESSAdapter extends CSSAdapter {
           }
         } : {})
       })
+      
+      // Fix Less turning '@apply flex block' into '@apply flex, block'
+      if (result.css && result.css.includes('@apply ')) {
+        result.css = result.css.replace(/@apply\s+([^;]+);/g, (match, contents) => {
+          return '@apply ' + contents.replace(/,/g, '') + ';'
+        })
+      }
+
       return { css: result.css, map: wantMaps ? result.map : undefined }
     } catch (err) {
       // LESS error object usually has line, column, message

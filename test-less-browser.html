@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://esm.sh/less@4.2.0?bundle"></script>
+</head>
+<body>
+<script>
+window.onload = () => {
+  less.render(`#app { @apply flex h-screen; }`).then(res => console.log(res.css));
+}
+</script>
+</body>
+</html>

@@ -54,6 +54,41 @@
         <div class="settings-section">
           <h3>Global Resources</h3>
           <div class="resource-group">
+            <h4>Google Fonts</h4>
+            <div
+              v-for="(font, index) in localConfig.globalResources.fonts"
+              :key="'font-' + index"
+              class="resource-item-wrapper"
+            >
+              <div class="resource-item">
+                <input 
+                  type="text" 
+                  :value="font"
+                  @input="e => updateFontValue(index, e.target.value)"
+                  placeholder="Font Name (e.g. Roboto)"
+                />
+                <button class="remove-btn" @click="removeFont(index)" title="Remove Font">
+                  <i class="ph-duotone ph-trash"></i>
+                </button>
+              </div>
+            </div>
+            <div class="resource-add">
+              <input
+                type="text"
+                v-model="fontInput"
+                placeholder="Font name (e.g. Inter or Fira Code:400,700)"
+                @keydown.enter.prevent="addFont"
+              />
+              <button
+                v-if="fontInput.trim()"
+                class="add-url-btn"
+                @mousedown.prevent="addFont"
+              >
+                Add font
+              </button>
+            </div>
+          </div>
+          <div class="resource-group">
             <h4>Scripts</h4>
             <div
               v-for="(script, index) in localConfig.globalResources.scripts"
@@ -240,6 +275,7 @@ const localConfig = ref(JSON.parse(JSON.stringify(props.config)))
 const localSettings = ref(JSON.parse(JSON.stringify(props.settings)))
 const scriptInput = ref('')
 const styleInput = ref('')
+const fontInput = ref('')
 const scriptSuggestions = ref([])
 const scriptFocused = ref(false)
 const previewInject = computed({
@@ -342,6 +378,24 @@ function addStyleFromUrl(url) {
   if (!u) return
   localConfig.value.globalResources.styles.push(u)
   styleInput.value = ''
+}
+
+function addFont() {
+  const f = (fontInput.value || '').trim()
+  if (!f) return
+  if (!localConfig.value.globalResources.fonts) {
+    localConfig.value.globalResources.fonts = []
+  }
+  localConfig.value.globalResources.fonts.push(f)
+  fontInput.value = ''
+}
+
+function removeFont(index) {
+  localConfig.value.globalResources.fonts.splice(index, 1)
+}
+
+function updateFontValue(index, value) {
+  localConfig.value.globalResources.fonts[index] = value
 }
 
 function removeScript(index) {

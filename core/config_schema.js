@@ -10,7 +10,8 @@ export const PenConfigStructure = {
   ],
   globalResources: {
     scripts: ['string'],
-    styles: ['string']
+    styles: ['string'],
+    fonts: ['string']
   }
 }
 
@@ -42,7 +43,8 @@ export function createDefaultConfig(name = 'untitled') {
     editors: [],
     globalResources: {
       scripts: [],
-      styles: []
+      styles: [],
+      fonts: []
     }
   }
 }

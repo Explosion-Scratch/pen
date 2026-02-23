@@ -477,6 +477,34 @@ function getHtmlSourceMapResource(filename, content) {
 function injectGlobalResources(resourceManager, config) {
   if (!config.globalResources) return;
   
+  // Fonts
+  for (const fontDef of config.globalResources.fonts || []) {
+    if (typeof fontDef === "string") {
+      const formattedName = fontDef.trim().replace(/ /g, '+');
+      resourceManager.add({
+        tagType: 'link',
+        priority: 5,
+        injectTo: 'head',
+        injectPosition: 'beforeend',
+        attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' }
+      });
+      resourceManager.add({
+        tagType: 'link',
+        priority: 5,
+        injectTo: 'head',
+        injectPosition: 'beforeend',
+        attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' }
+      });
+      resourceManager.add({
+        tagType: 'link',
+        priority: 6,
+        injectTo: 'head',
+        injectPosition: 'beforeend',
+        attrs: { rel: 'stylesheet', href: `https://fonts.googleapis.com/css?family=${formattedName}&display=swap` }
+      });
+    }
+  }
+
   // Scripts
   for (const scriptDef of config.globalResources.scripts || []) {
     const isString = typeof scriptDef === "string";
