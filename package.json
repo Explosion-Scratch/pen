@@ -1,6 +1,6 @@
 {
   "name": "pen",
-  "version": "v1.0.0",
+  "version": "1.0.2",
   "description": "A Rich programming playground with live preview and preprocessing support",
   "type": "module",
   "bin": {
