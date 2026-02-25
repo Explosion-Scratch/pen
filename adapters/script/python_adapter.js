@@ -16,17 +16,7 @@ export class PythonAdapter extends BaseAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('python', variables)
-    if (template) return template
-
-    return `# ${variables.projectName || 'Pen'} Python Script
-# Make sure Brython CDN is loaded in project settings
-from browser import document
-
-def greet(event):
-    print("${variables.projectName || 'Pen'} is ready!")
-
-# document.bind("DOMContentLoaded", greet)`
+    return await loadAndRenderTemplate('python', variables)
   }
 
   static getDefaultSettings() {

@@ -27,17 +27,7 @@ export class LESSAdapter extends CSSAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('less', variables)
-    if (template) return template
-
-    return `/* ${variables.projectName || 'Pen'} Styles (LESS) */
-@color-accent: #C2410C;
-
-.container {
-  h1 {
-    color: @color-accent;
-  }
-}`
+    return await loadAndRenderTemplate('less', variables)
   }
 
   initialize(codemirrorInstance, fullConfig) {

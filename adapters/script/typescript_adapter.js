@@ -27,33 +27,7 @@ export class TypeScriptAdapter extends JavaScriptAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('typescript', variables)
-    if (template) return template
-
-    return `/**
- * ${variables.projectName || 'Pen'} Script
- */
-
-interface AppConfig {
-  name: string
-  version: string
-}
-
-const config: AppConfig = {
-  name: '${variables.projectName || 'Pen'}',
-  version: '1.0.0'
-}
-
-document.addEventListener('DOMContentLoaded', (): void => {
-  console.log(\`\${config.name} v\${config.version} is ready!\`)
-
-  const container = document.querySelector('.container')
-  if (container) {
-    container.addEventListener('click', (event: Event): void => {
-      console.log('Container clicked!', event)
-    })
-  }
-})`
+    return await loadAndRenderTemplate('typescript', variables)
   }
 
   static getDefaultSettings() {

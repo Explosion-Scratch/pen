@@ -33,23 +33,7 @@ export class JavaScriptAdapter extends BaseAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('javascript', variables)
-    if (template) return template
-
-    return `/**
- * ${variables.projectName || 'Pen'} Script
- */
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('${variables.projectName || 'Pen'} is ready!')
-
-  const container = document.querySelector('.container')
-  if (container) {
-    container.addEventListener('click', () => {
-      console.log('Container clicked!')
-    })
-  }
-})`
+    return await loadAndRenderTemplate('javascript', variables)
   }
 
   static getDefaultSettings() {

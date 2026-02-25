@@ -1,7 +1,27 @@
 import JSZip from 'jszip'
 import { executeSequentialRender } from '../../core/pipeline_processor.js'
 
-export async function exportAsZip(files, config, filename) {
+function triggerDownload(url, filename) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+function downloadFile(blob, filename) {
+  try {
+    const url = URL.createObjectURL(blob)
+    triggerDownload(url, filename)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+  } catch (err) {
+    console.warn('URL.createObjectURL failed, falling back to data URI', err)
+    const reader = new FileReader()
+    reader.onload = (e) => triggerDownload(e.target.result, filename)
+    reader.readAsDataURL(blob)
+  }
+}export async function exportAsZip(files, config, filename) {
   try {
     const zip = new JSZip()
     
@@ -14,14 +34,7 @@ export async function exportAsZip(files, config, filename) {
     zip.file('pen.json', JSON.stringify(config, null, 2))
     
     const content = await zip.generateAsync({ type: 'blob' })
-    const url = URL.createObjectURL(content)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename || `${config.name || 'project'}.zip`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadFile(content, filename || `${config.name || 'project'}.zip`)
   } catch (err) {
     console.error('Export Zip error:', err)
     throw err
@@ -32,14 +45,7 @@ export async function exportProject(files, config) {
   try {
     const { html } = await executeSequentialRender({ ...files }, { ...config }, { dev: false })
     const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${config.name || 'pen-project'}.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadFile(blob, `${config.name || 'pen-project'}.html`)
   } catch (err) {
     console.error('Export error:', err)
     throw err
@@ -87,14 +93,7 @@ export async function exportEditor(files, config) {
     }
 
     const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${config.name || "pen-editor"}-portable.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadFile(blob, `${config.name || "pen-editor"}-portable.html`);
   } catch (err) {
     console.error("Export Editor error:", err);
     throw err;

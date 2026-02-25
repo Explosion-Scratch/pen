@@ -121,10 +121,7 @@ export class JSXAdapter extends JavaScriptAdapter {
 
     // Fallback to generic jsx template
     template = await loadAndRenderTemplate("jsx", variables);
-    if (template) return template;
-
-    // Absolute fallback (rarely hit now)
-    return `import React from 'react'\nexport default () => <div>Hello World</div>`;
+    return template || "";
   }
 
   static getDefaultSettings() {

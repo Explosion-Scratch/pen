@@ -24,48 +24,7 @@ export class CSSAdapter extends BaseAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('css', variables)
-    if (template) return template
-
-    return `/* ${variables.projectName || 'Pen'} Styles */
-
-:root {
-  --color-background: #FDFCFB;
-  --color-text: #1A1A1A;
-  --color-accent: #C2410C;
-  --font-serif: 'Source Serif Pro', Georgia, serif;
-  --font-mono: 'Maple Mono', 'Fira Code', monospace;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: var(--font-serif);
-  background: var(--color-background);
-  color: var(--color-text);
-  line-height: 1.6;
-  padding: 2rem;
-}
-
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-h1 {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  color: var(--color-accent);
-}
-
-p {
-  font-size: 1.125rem;
-  margin-bottom: 1rem;
-}`
+    return await loadAndRenderTemplate('css', variables)
   }
 
   static getDefaultSettings() {

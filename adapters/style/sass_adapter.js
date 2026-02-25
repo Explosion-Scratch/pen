@@ -31,46 +31,7 @@ export class SASSAdapter extends CSSAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('sass', variables)
-    if (template) return template
-
-    return `/* ${variables.projectName || 'Pen'} Styles */
-
-$color-background: #FDFCFB;
-$color-text: #1A1A1A;
-$color-accent: #C2410C;
-$font-serif: 'Source Serif Pro', Georgia, serif;
-$font-mono: 'Maple Mono', 'Fira Code', monospace;
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: $font-serif;
-  background: $color-background;
-  color: $color-text;
-  line-height: 1.6;
-  padding: 2rem;
-}
-
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-
-  h1 {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
-    color: $color-accent;
-  }
-
-  p {
-    font-size: 1.125rem;
-    margin-bottom: 1rem;
-  }
-}`
+    return await loadAndRenderTemplate('sass', variables)
   }
 
   static getDefaultSettings() {

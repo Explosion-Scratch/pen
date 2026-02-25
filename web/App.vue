@@ -1,51 +1,80 @@
 <template>
   <div class="app">
-    <Toolbar
-      :project-name="config?.name"
-      :settings="appSettings"
-      :preview-state="previewState"
-      :is-virtual="isVirtual"
-      :has-unsaved-changes="hasUnsavedChanges"
-      @settings="showSettings = true"
-      @new-project="showTemplatePicker = true"
-      @update-settings="handleAppSettingsUpdate"
-      @update-project-name="handleProjectNameUpdate"
-      @export="handleExport"
-      @export-editor="handleExportEditor"
-      @export-zip="handleExportZip"
-      @import="handleImportFolder"
-      @import-file="handleImportFile"
-      :config="config"
-    />
-    <PaneManager
-      :editors="editors"
-      :files="files"
-      :adapters="adapters"
-      :preview-state="previewState"
-      :settings="appSettings"
-      :errors="errors"
-      @update="handleFileUpdate"
-      @render="(isManual) => handleRender(isManual)"
-      :last-manual-render="lastManualRender"
-      @rename="handleRename"
-      @settings-update="handleEditorSettingsUpdate"
-      @format="handleFormat"
-      @minify="handleMinify"
-      @compile="handleCompile"
-      @settings="showSettings = true"
-      @jump="handleJump"
-      @clear-errors="handleClearErrors"
-    />
+    <template v-if="showHomeScreen">
+      <HomeScreen
+        :projects="homeProjects"
+        @new-project="showTemplatePicker = true"
+        @open-project="openProject"
+        @import-folder="handleImportFolder"
+        @import-file="handleImportFile"
+        @import-gist="handleImportGist"
+        @import-url="handleImportUrl"
+      />
+    </template>
+
+    <template v-else-if="!isLoading">
+      <Toolbar
+        :project-name="config?.name"
+        :settings="appSettings"
+        :preview-state="previewState"
+        :is-virtual="isVirtual"
+        :config="config"
+        @settings="showSettings = true"
+        @new-project="showTemplatePicker = true"
+        @update-settings="handleAppSettingsUpdate"
+        @update-project-name="handleProjectNameUpdate"
+        @export="handleExport"
+        @export-editor="handleExportEditor"
+        @export-zip="handleExportZip"
+        @export-url="handleExportUrl"
+        @import="handleImportFolder"
+        @import-file="handleImportFile"
+        @import-gist="handleImportGist"
+        @import-url="handleImportUrl"
+        @open-projects="showProjects = true"
+        @open-project="openProject"
+        @show-homescreen="goHome"
+      />
+      <PaneManager
+        :editors="editors"
+        :files="files"
+        :adapters="adapters"
+        :preview-state="previewState"
+        :settings="appSettings"
+        :errors="errors"
+        @update="handleFileUpdate"
+        @render="(isManual) => handleRender(isManual)"
+        :last-manual-render="lastManualRender"
+        @rename="handleRename"
+        @settings-update="handleEditorSettingsUpdate"
+        @format="handleFormat"
+        @minify="handleMinify"
+        @compile="handleCompile"
+        @settings="showSettings = true"
+        @jump="handleJump"
+        @clear-errors="handleClearErrors"
+      />
+    </template>
+
     <SettingsModal
       v-if="showSettings"
       :config="config"
       :settings="appSettings"
       :current-path="currentPath"
+      :is-portable="isVirtual"
       @close="showSettings = false"
       @save="handleSettingsSave"
       @toast="addToast"
       @restore-snapshot="handleRestoreSnapshot"
     />
+
+    <ProjectsModal
+      v-if="showProjects"
+      @close="showProjects = false"
+      @open-project="openProjectFromModal"
+      @toast="addToast"
+    />
+
     <Toast :toasts="toasts" @remove="removeToast" @jump="handleJump" />
 
     <Teleport to="body">
@@ -55,10 +84,24 @@
         @click.self="showTemplatePicker = false"
       >
         <TemplatePickerModal
+          :skip-name="!isVirtual"
           @close="showTemplatePicker = false"
           @select="handleTemplateSelect"
         />
       </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <NamePromptModal
+        v-if="namePrompt"
+        :title="namePrompt.title"
+        :label="namePrompt.label"
+        :placeholder="namePrompt.placeholder"
+        :initial="namePrompt.initial"
+        :confirm-text="namePrompt.confirmText"
+        @confirm="namePrompt.onConfirm"
+        @cancel="namePrompt = null"
+      />
     </Teleport>
 
     <div v-if="isLoading" class="loading-overlay">
@@ -69,7 +112,6 @@
       </div>
     </div>
 
-    <!-- GitHub Token Prompt -->
     <GistAuthModal />
   </div>
 </template>
@@ -82,6 +124,9 @@ import TemplatePickerModal from "./components/TemplatePickerModal.vue";
 import Toolbar from "./components/Toolbar.vue";
 import Toast from "./components/Toast.vue";
 import GistAuthModal from "./components/GistAuthModal.vue";
+import HomeScreen from "./components/HomeScreen.vue";
+import ProjectsModal from "./components/ProjectsModal.vue";
+import NamePromptModal from "./components/NamePromptModal.vue";
 import {
   editorStateManager,
   fileSystemMirror,
@@ -93,8 +138,11 @@ import {
 } from "./state_management.js";
 import { fileSystem, hasPersistentBackingStore } from "./filesystem.js";
 import { useGist } from "./composables/useGist.js";
+import { projectManager, projectIdForGist } from "./project_manager.js";
+import { parseURLData, buildShareURL, parseGistId, decodeProjectFromURL } from "./utils/url_codec.js";
 import { importer } from "./utils/importer.js";
-import JSZip from "jszip";
+import { loadProjectTemplate } from "../core/project_templates.js";
+import { getAllAdapters } from "../core/adapter_registry.js";
 
 const {
   files,
@@ -124,14 +172,16 @@ watch(
 const currentPath = ref("");
 const adapters = ref([]);
 const showSettings = ref(false);
+const showProjects = ref(false);
 const showTemplatePicker = ref(false);
-const lastActivity = ref({});
+const showHomeScreen = ref(false);
+const homeProjects = ref([]);
+const namePrompt = ref(null);
 const toasts = ref([]);
 const lastManualRender = ref(0);
 const previewState = ref({ displayURL: "", contentURL: "", externalURL: "" });
 const EXTERNAL_SYNC_IDLE_MS = 10000;
 const isLoading = ref(true);
-let saveDebounceTimer = null;
 let externalApplyTimer = null;
 const lastUserEditAt = ref(Date.now());
 const pendingExternalReinit = ref(null);
@@ -140,21 +190,24 @@ const { initGist, setupGistListeners } = useGist();
 setupGistListeners();
 
 onMounted(async () => {
-  // Listen for preview updates from state manager (which gets them from FS writePreview)
   window.addEventListener("pen-preview-update", (e) => {
     previewState.value = e.detail;
   });
 
-  // Connect to FS
   try {
     await fileSystem.connect();
-    await initGist();
+
+    if (fileSystem.isVirtual.value) {
+      await resolvePortableStartup();
+    } else {
+      await initGist();
+    }
+
     if (fileSystem.isVirtual.value && !hasPersistentBackingStore) {
       addToast({
         type: "error",
         title: "Persistent Storage Unavailable",
-        message:
-          "Browser storage is unavailable. Export your work to avoid losing changes on refresh.",
+        message: "Browser storage is unavailable. Export your work to avoid losing changes on refresh.",
       });
     }
   } catch (err) {
@@ -172,8 +225,88 @@ onMounted(async () => {
   window.addEventListener("beforeunload", handleBeforeUnload);
 });
 
+async function resolvePortableStartup() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const gistIdParam = urlParams.get('gistId');
+
+  const urlData = parseURLData();
+  if (urlData) {
+    const name = urlData.config?.name || 'Imported';
+    const id = projectManager.createProject(name, urlData.files, urlData.config);
+    fileSystem.loadFromData(id, urlData.files, urlData.config);
+    adapters.value = getAllAdapters();
+    window.history.replaceState({}, '', window.location.pathname);
+    return;
+  }
+
+  if (gistIdParam) {
+    const projId = projectIdForGist(gistIdParam);
+    if (projectManager.hasProject(projId)) {
+      fileSystem.loadProject(projId);
+    } else {
+      const id = projectManager.createProject(`Gist ${gistIdParam}`, {}, {}, gistIdParam);
+      fileSystem.loadFromData(id, {}, { name: `Gist ${gistIdParam}`, gistId: gistIdParam, editors: [] });
+    }
+    adapters.value = getAllAdapters();
+    await initGist();
+    return;
+  }
+
+  if (window.__initial_file_map__) {
+    const initialConfig = window.__initial_config__ || {};
+    const initialFiles = window.__initial_file_map__;
+    const name = initialConfig.name || 'Portable Pen';
+    const existingProjects = projectManager.listProjects();
+    const matchingProject = existingProjects.find(p =>
+      p.name === name && !p.gistId
+    );
+
+    if (matchingProject) {
+      fileSystem.loadProject(matchingProject.id);
+    } else {
+      const id = projectManager.createProject(name, initialFiles, initialConfig);
+      fileSystem.loadFromData(id, initialFiles, initialConfig);
+    }
+    adapters.value = getAllAdapters();
+    return;
+  }
+
+  const allProjects = projectManager.listProjects();
+  const nonGist = allProjects.filter(p => !p.gistId);
+
+  if (allProjects.length === 0) {
+    homeProjects.value = allProjects;
+    showHomeScreen.value = true;
+    return;
+  }
+
+  if (nonGist.length === 1 && allProjects.length <= 1) {
+    fileSystem.loadProject(nonGist[0].id);
+    adapters.value = getAllAdapters();
+    return;
+  }
+
+  homeProjects.value = allProjects;
+  showHomeScreen.value = true;
+}
+
+function openProject(projectId) {
+  showHomeScreen.value = false;
+  fileSystem.loadProject(projectId);
+  adapters.value = getAllAdapters();
+}
+
+function openProjectFromModal(projectId) {
+  showProjects.value = false;
+  openProject(projectId);
+}
+
+function goHome() {
+  homeProjects.value = projectManager.listProjects();
+  showHomeScreen.value = true;
+}
+
 onUnmounted(() => {
-  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
   if (externalApplyTimer) clearTimeout(externalApplyTimer);
   window.removeEventListener("keydown", handleKeydown);
   window.removeEventListener("beforeunload", handleBeforeUnload);
@@ -263,23 +396,20 @@ fileSystem.on((message) => {
       },
     });
   }
-  
+
   if (message.type === "toast-success") {
     addToast({ type: "success", title: message.title, message: message.message });
   }
 });
 
 function handleFileUpdate(filename, content) {
-  // Update state (triggers render if autoRun)
   updateFile(filename, content);
-  lastActivity.value[filename] = Date.now();
   lastUserEditAt.value = Date.now();
   if (pendingExternalReinit.value) scheduleExternalReinitApply();
 }
 
 function handleRender(isManual = false) {
   if (isManual) lastManualRender.value = Date.now();
-
   const firstFile = Object.keys(files)[0];
   if (firstFile) updateFile(firstFile, files[firstFile]);
 }
@@ -290,9 +420,7 @@ function handleRename(oldFilename, newFilename, newType) {
     Object.prototype.hasOwnProperty.call(files, newFilename);
   let allowOverwrite = false;
   if (hasConflict) {
-    allowOverwrite = confirm(
-      `A file named "${newFilename}" already exists. Overwrite it?`,
-    );
+    allowOverwrite = confirm(`A file named "${newFilename}" already exists. Overwrite it?`);
     if (!allowOverwrite) return;
   }
 
@@ -312,12 +440,7 @@ function handleRename(oldFilename, newFilename, newType) {
     editor.filename = newFilename;
     editor.type = newType;
   }
-  const renamed = fileSystem.renameFile(
-    oldFilename,
-    newFilename,
-    newType,
-    allowOverwrite,
-  );
+  const renamed = fileSystem.renameFile(oldFilename, newFilename, newType, allowOverwrite);
   if (renamed) {
     fileSystem.saveConfig(config);
   }
@@ -341,21 +464,14 @@ function handleEditorSettingsUpdate(filename, settings) {
   }
 }
 
-function handleFormat(filename) {
-  triggerAction(filename, "format");
-}
-function handleMinify(filename) {
-  triggerAction(filename, "minify");
-}
-function handleCompile(filename, target) {
-  triggerAction(filename, "compile", target);
-}
+function handleFormat(filename) { triggerAction(filename, "format") }
+function handleMinify(filename) { triggerAction(filename, "minify") }
+function handleCompile(filename, target) { triggerAction(filename, "compile", target) }
 
 function handleSettingsSave(newConfig, newSettings) {
   setConfig(newConfig);
   if (newSettings) Object.assign(appSettings, newSettings);
   showSettings.value = false;
-
   const finalConfig = {
     ...newConfig,
     autoRun: appSettings.autoRun,
@@ -369,36 +485,31 @@ function handleProjectNameUpdate(newName) {
   const newConfig = { ...config, name: newName };
   setConfig(newConfig);
   fileSystem.saveConfig({ ...newConfig, ...appSettings });
+  if (fileSystem.activeProjectId?.value) {
+    projectManager.renameProject(fileSystem.activeProjectId.value, newName);
+  }
 }
 
 function handleExport() {
-  exportProject().catch((err) => {
-    addToast({
-      type: "error",
-      title: "Export Failed",
-      message: err.message,
-    });
-  });
+  exportProject().catch((err) => addToast({ type: "error", title: "Export Failed", message: err.message }));
 }
 
 function handleExportZip() {
-  exportAsZip().catch((err) => {
-    addToast({
-      type: "error",
-      title: "Export Failed",
-      message: err.message,
-    });
-  });
+  exportAsZip().catch((err) => addToast({ type: "error", title: "Export Failed", message: err.message }));
 }
 
 function handleExportEditor() {
-  exportEditor().catch((err) => {
-    addToast({
-      type: "error",
-      title: "Export Failed",
-      message: err.message,
-    });
-  });
+  exportEditor().catch((err) => addToast({ type: "error", title: "Export Failed", message: err.message }));
+}
+
+function handleExportUrl() {
+  try {
+    const url = buildShareURL({ files: { ...fileSystem.files }, config: { ...fileSystem.config } });
+    navigator.clipboard.writeText(url);
+    addToast({ type: "success", title: "URL Copied", message: "Share URL copied to clipboard." });
+  } catch (err) {
+    addToast({ type: "error", title: "Export Failed", message: err.message });
+  }
 }
 
 async function handleImportFolder() {
@@ -406,9 +517,8 @@ async function handleImportFolder() {
   input.type = "file";
   input.webkitdirectory = true;
   input.onchange = async (e) => {
-    const files = e.target.files;
-    if (!files || !files.length) return;
-    await processImportResult(files);
+    if (!e.target.files?.length) return;
+    await importAndCreateProject(e.target.files);
   };
   input.click();
 }
@@ -418,110 +528,165 @@ async function handleImportFile() {
   input.type = "file";
   input.accept = ".zip,.html";
   input.onchange = async (e) => {
-    const files = e.target.files;
-    if (!files || !files.length) return;
-    await processImportResult(files);
+    if (!e.target.files?.length) return;
+    await importAndCreateProject(e.target.files);
   };
   input.click();
 }
 
-async function processImportResult(files) {
+async function importAndCreateProject(fileList) {
   try {
-    const importConfirmMessage = hasUnsavedChanges.value
-      ? "You have unsaved changes. Replace the current project with imported files?"
-      : "Importing will replace the current project files. Continue?";
-    if (!confirm(importConfirmMessage)) return;
-    const result = await importer.processFiles(files);
-    if (result) {
+    const result = await importer.processFiles(fileList);
+    if (!result) return;
+
+    if (fileSystem.capabilities.multiProject) {
+      const suggestedName = result.config?.name || 'Imported';
+      namePrompt.value = {
+        title: 'Name Imported Project',
+        label: 'Project name',
+        placeholder: 'Imported Project',
+        initial: suggestedName,
+        confirmText: 'Import',
+        onConfirm: (name) => {
+          namePrompt.value = null;
+          result.config.name = name;
+          const id = projectManager.createProject(name, result.files, result.config);
+          showHomeScreen.value = false;
+          fileSystem.loadFromData(id, result.files, result.config);
+          adapters.value = getAllAdapters();
+          addToast({ type: "success", title: "Imported", message: `Created project "${name}"` });
+        },
+      };
+    } else {
+      if (!confirm("Importing will replace the current project files. Continue?")) return;
       setConfig(result.config);
       setAllFiles(result.files);
-      if (fileSystem.isVirtual.value || fileSystem.fallbackMode) {
-        fileSystem.saveConfig(result.config);
-      } else if (
-        fileSystem.socket &&
-        fileSystem.socket.readyState === WebSocket.OPEN
-      ) {
-        fileSystem.socket.send(
-          JSON.stringify({
-            type: "replace-project",
-            config: result.config,
-            files: result.files,
-          }),
-        );
+      if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
+        fileSystem.socket.send(JSON.stringify({ type: "replace-project", config: result.config, files: result.files }));
       }
-      addToast({
-        type: "success",
-        title: "Import Successful",
-        message: `Imported ${Object.keys(result.files).length} files`,
-      });
+      addToast({ type: "success", title: "Import Successful", message: `Imported ${Object.keys(result.files).length} files` });
     }
   } catch (err) {
-    addToast({
-      type: "error",
-      title: "Import Failed",
-      message: err.message,
-    });
+    addToast({ type: "error", title: "Import Failed", message: err.message });
   }
 }
 
-async function handleImport() {
-  // Traditional singular import removed in favor of explicit folder/file
+function handleImportGist() {
+  namePrompt.value = {
+    title: 'Import Gist',
+    label: 'Gist URL or ID',
+    placeholder: 'https://gist.github.com/user/abc123',
+    initial: '',
+    confirmText: 'Import',
+    onConfirm: async (input) => {
+      namePrompt.value = null;
+      const gistId = parseGistId(input);
+      if (!gistId) {
+        addToast({ type: "error", title: "Invalid Gist", message: "Could not parse a gist ID from that input." });
+        return;
+      }
+      try {
+        const { fetchGistApi, restoreMissingGistFiles } = await import('../core/gist_api.js');
+        const gist = await fetchGistApi(gistId);
+        let gistFiles = {};
+        for (const [filename, fileObj] of Object.entries(gist.files)) {
+          gistFiles[filename] = fileObj.content;
+        }
+        let gistConfig = { name: `Gist ${gistId}`, editors: [], gistId };
+        if (gistFiles['.pen.config.json']) {
+          try {
+            Object.assign(gistConfig, JSON.parse(gistFiles['.pen.config.json']));
+            delete gistFiles['.pen.config.json'];
+            gistFiles = restoreMissingGistFiles(gistConfig, gistFiles);
+          } catch {}
+        }
+        gistConfig.gistId = gistId;
+
+        if (fileSystem.capabilities.multiProject) {
+          const projId = projectIdForGist(gistId);
+          if (projectManager.hasProject(projId)) {
+            openProject(projId);
+          } else {
+            const id = projectManager.createProject(gistConfig.name, gistFiles, gistConfig, gistId);
+            openProject(id);
+          }
+        } else {
+          setConfig(gistConfig);
+          setAllFiles(gistFiles);
+          if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
+            fileSystem.socket.send(JSON.stringify({ type: "replace-project", config: gistConfig, files: gistFiles }));
+          }
+        }
+        addToast({ type: "success", title: "Gist Imported", message: `Loaded gist ${gistId}` });
+      } catch (err) {
+        addToast({ type: "error", title: "Gist Import Failed", message: err.message });
+      }
+    },
+  };
 }
 
-// Global drag and drop support for folders and files
-onMounted(() => {
-  window.addEventListener("dragover", handleGlobalDragOver);
-  window.addEventListener("drop", handleGlobalDrop);
-});
-
-onUnmounted(() => {
-  window.removeEventListener("dragover", handleGlobalDragOver);
-  window.removeEventListener("drop", handleGlobalDrop);
-});
-
-function handleGlobalDragOver(e) {
-  e.preventDefault();
+function handleImportUrl() {
+  namePrompt.value = {
+    title: 'Import from URL',
+    label: 'Pen share URL',
+    placeholder: 'https://...?data=...',
+    initial: '',
+    confirmText: 'Import',
+    onConfirm: (input) => {
+      namePrompt.value = null;
+      try {
+        const url = new URL(input.trim());
+        const data = url.searchParams.get('data');
+        if (!data) {
+          addToast({ type: "error", title: "Invalid URL", message: "No project data found in URL." });
+          return;
+        }
+        const parsed = decodeProjectFromURL(data);
+        if (!parsed) {
+          addToast({ type: "error", title: "Invalid Data", message: "Could not decode project data." });
+          return;
+        }
+        const name = parsed.config?.name || 'Imported';
+        if (fileSystem.capabilities.multiProject) {
+          const id = projectManager.createProject(name, parsed.files, parsed.config);
+          openProject(id);
+        } else {
+          setConfig(parsed.config);
+          setAllFiles(parsed.files);
+        }
+        addToast({ type: "success", title: "Imported", message: `Imported project "${name}" from URL.` });
+      } catch (err) {
+        addToast({ type: "error", title: "Import Failed", message: err.message });
+      }
+    },
+  };
 }
 
-async function handleGlobalDrop(e) {
-  e.preventDefault();
-  const files = e.dataTransfer.files;
-  if (files && files.length) {
-    await processImportResult(files);
-  }
-}
-
-
-
-
-async function handleTemplateSelect(templateId) {
+async function handleTemplateSelect({ templateId, name }) {
   showTemplatePicker.value = false;
 
-  const templateConfirmMessage = hasUnsavedChanges.value
-    ? "You have unsaved changes. Continue and replace the current project?"
-    : "Starting a new template will replace current files. Continue?";
-  if (!confirm(templateConfirmMessage)) return;
-
-  if (fileSystem.isVirtual.value) {
-    const { loadProjectTemplate } =
-      await import("../core/project_templates.js");
+  if (fileSystem.isVirtual.value && fileSystem.capabilities.multiProject) {
     const template = await loadProjectTemplate(templateId);
     if (!template) return;
-
-    const newConfig = { ...template.config, name: config.name || "Untitled" };
-    setConfig(newConfig, true);
-    if (template.files) setAllFiles(template.files);
-
-    const { getAllAdapters } = await import("../core/adapter_registry.js");
+    const newConfig = { ...template.config, name: name || 'Untitled' };
+    const id = projectManager.createProject(newConfig.name, template.files, newConfig);
+    showHomeScreen.value = false;
+    fileSystem.loadFromData(id, template.files, newConfig);
     adapters.value = getAllAdapters();
-  } else if (
-    fileSystem.socket &&
-    fileSystem.socket.readyState === WebSocket.OPEN
-  ) {
-    fileSystem.socket.send(
-      JSON.stringify({ type: "start-template", templateId }),
-    );
+    return;
   }
+
+  if (!fileSystem.isVirtual.value && fileSystem.socket?.readyState === WebSocket.OPEN) {
+    fileSystem.socket.send(JSON.stringify({ type: "start-template", templateId }));
+    return;
+  }
+
+  const template = await loadProjectTemplate(templateId);
+  if (!template) return;
+  const newConfig = { ...template.config, name: name || config.name || "Untitled" };
+  setConfig(newConfig, true);
+  if (template.files) setAllFiles(template.files);
+  adapters.value = getAllAdapters();
 }
 
 function addToast(toast) {
@@ -535,15 +700,10 @@ function removeToast(id) {
 }
 
 function handleJump(details) {
-  editorStateManager.jumpToLocation(
-    details.filename,
-    details.line,
-    details.column,
-  );
+  editorStateManager.jumpToLocation(details.filename, details.line, details.column);
 }
 
 function handleClearErrors() {
-  console.log("App: Clearing errors");
   fileSystemMirror.setErrors([]);
 }
 
@@ -551,6 +711,8 @@ function handleKeydown(event) {
   if (event.key === "Escape") {
     if (showSettings.value) showSettings.value = false;
     if (showTemplatePicker.value) showTemplatePicker.value = false;
+    if (showProjects.value) showProjects.value = false;
+    if (namePrompt.value) namePrompt.value = null;
   }
   if ((event.metaKey || event.ctrlKey) && event.key === "s") {
     event.preventDefault();
@@ -569,11 +731,7 @@ function handleBeforeUnload(event) {
 
 async function handleRestoreSnapshot(snapshot) {
   if (!snapshot?.config || !snapshot?.files) {
-    addToast({
-      type: "error",
-      title: "Restore Failed",
-      message: "Draft data is unavailable.",
-    });
+    addToast({ type: "error", title: "Restore Failed", message: "Draft data is unavailable." });
     return;
   }
   const overwriteMessage = hasUnsavedChanges.value
@@ -596,17 +754,32 @@ async function handleRestoreSnapshot(snapshot) {
 
   if (fileSystem.socket && fileSystem.socket.readyState === WebSocket.OPEN) {
     fileSystem.socket.send(
-      JSON.stringify({
-        type: "replace-project",
-        config: snapshot.config,
-        files: snapshot.files,
-      }),
+      JSON.stringify({ type: "replace-project", config: snapshot.config, files: snapshot.files }),
     );
     addToast({
       type: "success",
       title: "Draft Imported",
       message: `Applied "${snapshot.meta?.title || snapshot.config.name || "Untitled"}" to the current project.`,
     });
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("dragover", handleGlobalDragOver);
+  window.addEventListener("drop", handleGlobalDrop);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("dragover", handleGlobalDragOver);
+  window.removeEventListener("drop", handleGlobalDrop);
+});
+
+function handleGlobalDragOver(e) { e.preventDefault() }
+
+async function handleGlobalDrop(e) {
+  e.preventDefault();
+  if (e.dataTransfer.files?.length) {
+    await importAndCreateProject(e.dataTransfer.files);
   }
 }
 </script>
@@ -632,12 +805,8 @@ async function handleRestoreSnapshot(snapshot) {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0 }
+  to { opacity: 1 }
 }
 
 .loading-overlay {
@@ -674,8 +843,6 @@ async function handleRestoreSnapshot(snapshot) {
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg) }
 }
 </style>

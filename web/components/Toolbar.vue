@@ -2,7 +2,7 @@
   <header class="toolbar">
     <div class="toolbar-left">
       <div class="logo">
-        <i class="ph-duotone ph-pen-nib"></i>
+        <i class="ph-duotone ph-pen-nib" @click="$emit('show-homescreen')" style="cursor:pointer"></i>
         <input
           ref="titleInput"
           v-model="localProjectName"
@@ -17,15 +17,10 @@
       <div
         v-if="isVirtual"
         class="vfs-badge"
-        :title="
-          hasUnsavedChanges
-            ? 'Virtual storage has unsaved changes'
-            : 'Using virtual storage'
-        "
+        title="Using browser storage"
       >
         <i class="ph-bold ph-hard-drive"></i>
         <span>Portable</span>
-        <span v-if="hasUnsavedChanges" class="unsaved-dot"></span>
       </div>
     </div>
     <div class="toolbar-right">
@@ -41,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import DropdownMenu from "./DropdownMenu.vue";
 import {
   detectEditors,
@@ -52,34 +47,17 @@ import {
   getAllEditorDefs,
 } from "../utils/editor_registry.js";
 import { useGist } from "../composables/useGist.js";
+import { projectManager } from "../project_manager.js";
+import { fileSystem } from "../filesystem.js";
 
 const { publishGist, updateGist, revertGist } = useGist();
 
 const props = defineProps({
-  projectName: {
-    type: String,
-    default: "Pen",
-  },
-  settings: {
-    type: Object,
-    required: true,
-  },
-  previewState: {
-    type: Object,
-    default: () => ({ displayURL: "", contentURL: "", externalURL: "" }),
-  },
-  isVirtual: {
-    type: Boolean,
-    default: false,
-  },
-  hasUnsavedChanges: {
-    type: Boolean,
-    default: false,
-  },
-  config: {
-    type: Object,
-    default: () => ({}),
-  }
+  projectName: { type: String, default: "Pen" },
+  settings: { type: Object, required: true },
+  previewState: { type: Object, default: () => ({ displayURL: "", contentURL: "", externalURL: "" }) },
+  isVirtual: { type: Boolean, default: false },
+  config: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits([
@@ -90,19 +68,21 @@ const emit = defineEmits([
   "export",
   "export-editor",
   "export-zip",
+  "export-url",
   "import",
   "import-file",
+  "import-gist",
+  "import-url",
+  "open-projects",
+  "open-project",
+  "show-homescreen",
 ]);
 
 const localProjectName = ref(props.projectName);
 const titleInput = ref(null);
+const isDark = ref(false);
 
-watch(
-  () => props.projectName,
-  (newVal) => {
-    localProjectName.value = newVal;
-  },
-);
+watch(() => props.projectName, (newVal) => { localProjectName.value = newVal });
 
 function saveTitle() {
   if (localProjectName.value && localProjectName.value !== props.projectName) {
@@ -122,166 +102,171 @@ function openPreviewTab() {
   window.open(url, "_blank");
 }
 
-// computed(() => {
-// return document.documentElement.getAttribute('data-theme') !== 'light'
-// })
-const isDark = ref(false)
-
 function buildEditorChildren() {
   if (editorsLoading.value || !editorsDetected.value) {
-    return [{ label: "Detecting...", icon: "ph-duotone ph-spinner", disabled: true }]
+    return [{ label: "Detecting...", icon: "ph-duotone ph-spinner", disabled: true }];
   }
-
-  const dark = isDark.value
-  const defs = getAllEditorDefs(dark)
-  const installed = defs.filter(d => availableEditors.value.includes(d.id))
-
+  const defs = getAllEditorDefs(isDark.value);
+  const installed = defs.filter(d => availableEditors.value.includes(d.id));
   if (installed.length === 0) {
-    return [{ label: "No editors found", icon: "ph-duotone ph-warning", disabled: true }]
+    return [{ label: "No editors found", icon: "ph-duotone ph-warning", disabled: true }];
   }
-
   return installed.map(ed => ({
     label: ed.name,
     iconSrc: ed.iconSrc,
     action: () => openInEditor(ed.id),
-  }))
+  }));
+}
+
+function buildRecentProjectChildren() {
+  const projects = projectManager.listProjects();
+  const activeId = fileSystem.activeProjectId?.value;
+  if (projects.length === 0) {
+    return [{ label: "No projects", icon: "ph-duotone ph-folder-notch", disabled: true }];
+  }
+  const items = projects.slice(0, 8).map(p => {
+    const badges = [];
+    if (p.id === activeId) badges.push({ text: "current", type: "accent" });
+    if (p.gistId) badges.push({ text: "gist", type: "muted" });
+    return {
+      label: p.name,
+      icon: p.gistId ? "ph-duotone ph-github-logo" : "ph-duotone ph-folder-notch-open",
+      badges,
+      action: () => emit("open-project", p.id),
+    };
+  });
+  items.push({ divider: true });
+  items.push({
+    label: "All Projects…",
+    icon: "ph-duotone ph-folders",
+    action: () => emit("open-projects"),
+  });
+  if (fileSystem.capabilities.multiProject) {
+    items.push({
+      label: "Home",
+      icon: "ph-duotone ph-house",
+      action: () => emit("show-homescreen"),
+    });
+  }
+  return items;
 }
 
 onMounted(() => {
-  if (!props.isVirtual) {
-    detectEditors()
-  }
-})
+  if (!props.isVirtual) detectEditors();
+});
+
+const urlParams = new URLSearchParams(window.location.search);
+const gistIdParam = urlParams.get('gistId');
 
 const menuItems = computed(() => {
-  const items = [
-    {
-      label: "New Project",
-      icon: "ph-duotone ph-plus",
-      action: () => emit("new-project"),
-    },
-    {
-      label: "Import Pen",
-      icon: "ph-duotone ph-folder-open",
-      children: [
-        {
-          label: "Import Folder",
-          icon: "ph-duotone ph-folder",
-          action: () => emit("import"),
-        },
-        {
-          label: "Import File (ZIP/HTML)",
-          icon: "ph-duotone ph-file-zip",
-          action: () => emit("import-file"),
-        },
-      ],
-    },
-    {
-      label: "Open preview",
-      icon: "ph-duotone ph-arrow-square-out",
-      action: () => openPreviewTab(),
-    },
-  ]
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const gistIdParam = urlParams.get('gistId');
   const activeGistId = props.config.gistId || gistIdParam;
+  const items = [];
+
+  items.push({
+    label: "New Project",
+    icon: "ph-duotone ph-plus",
+    action: () => emit("new-project"),
+  });
+
+  if (fileSystem.capabilities.multiProject) {
+    items.push({
+      label: "Open Project",
+      icon: "ph-duotone ph-folder-notch-open",
+      children: buildRecentProjectChildren(),
+    });
+  }
+
+  items.push({
+    label: "Import",
+    icon: "ph-duotone ph-download-simple",
+    children: [
+      { label: "Import Folder", icon: "ph-duotone ph-folder", action: () => emit("import") },
+      { label: "Import File (ZIP/HTML)", icon: "ph-duotone ph-file-zip", action: () => emit("import-file") },
+      { label: "Import Gist", icon: "ph-duotone ph-github-logo", action: () => emit("import-gist") },
+      { label: "Import from URL", icon: "ph-duotone ph-link", action: () => emit("import-url") },
+    ],
+  });
+
+  items.push({
+    label: "Open preview",
+    icon: "ph-duotone ph-arrow-square-out",
+    action: () => openPreviewTab(),
+  });
 
   if (!props.isVirtual) {
     const editorChildren = buildEditorChildren();
-    
     if (activeGistId) {
       editorChildren.unshift({
         label: "GitHub Gist (Portable Editor)",
         icon: "ph-duotone ph-github-logo",
-        action: () => window.open(`https://explosion-scratch.github.io/pen?gistId=${activeGistId}`, '_blank')
+        action: () => window.open(`https://explosion-scratch.github.io/pen?gistId=${activeGistId}`, '_blank'),
       });
     }
-
     items.push({
       label: "Open in...",
       icon: "ph-duotone ph-app-window",
       children: editorChildren,
-    })
-  }
-
-  const gistChildren = [];
-
-  if (props.config.gistId) {
-    gistChildren.push({
-      label: "Update Gist",
-      icon: "ph-duotone ph-cloud-arrow-up",
-      action: () => updateGist(),
-    });
-  } else {
-    gistChildren.push({
-      label: "Publish to Gist",
-      icon: "ph-duotone ph-github-logo",
-      action: () => publishGist(),
     });
   }
 
-  if (gistIdParam) {
-    gistChildren.push({
+  if (activeGistId) {
+    items.push({
       label: "Revert to Gist",
       icon: "ph-duotone ph-arrow-counter-clockwise",
       action: () => revertGist(),
     });
   }
 
-  if (gistChildren.length > 0) {
-    items.push({
-      label: "GitHub Gist",
+  const exportChildren = [
+    { label: "Export HTML", icon: "ph-duotone ph-download-simple", action: () => emit("export") },
+    { label: "Export ZIP", icon: "ph-duotone ph-file-zip", action: () => emit("export-zip") },
+    { label: "Export Editor", icon: "ph-duotone ph-grid-four", action: () => emit("export-editor") },
+    { label: "Copy Share URL", icon: "ph-duotone ph-link", action: () => emit("export-url") },
+  ];
+
+  if (props.config.gistId) {
+    exportChildren.push({
+      label: "Update Gist",
+      icon: "ph-duotone ph-cloud-arrow-up",
+      action: () => updateGist(),
+    });
+  } else {
+    exportChildren.push({
+      label: "Publish to Gist",
       icon: "ph-duotone ph-github-logo",
-      children: gistChildren
+      action: () => publishGist(),
     });
   }
 
-  items.push(
-    {
-      label: "Export",
-      icon: "ph-duotone ph-export",
-      children: [
-        {
-          label: "Export HTML",
-          icon: "ph-duotone ph-download-simple",
-          action: () => emit("export"),
-        },
-        {
-          label: "Export ZIP",
-          icon: "ph-duotone ph-file-zip",
-          action: () => emit("export-zip"),
-        },
-        {
-          label: "Export Editor",
-          icon: "ph-duotone ph-grid-four",
-          action: () => emit("export-editor"),
-        },
-      ],
-    },
-    {
-      label: "Switch orientations",
-      icon:
-        props.settings.layoutMode === "columns"
-          ? "ph-duotone ph-rows"
-          : "ph-duotone ph-columns",
-      action: () =>
-        emit("update-settings", {
-          layoutMode:
-            props.settings.layoutMode === "columns" ? "rows" : "columns",
-        }),
-    },
-    {
-      divider: true,
-    },
-    {
-      label: "Settings",
-      icon: "ph-duotone ph-gear",
-      action: () => emit("settings"),
-    },
-  )
+  items.push({
+    label: "Export",
+    icon: "ph-duotone ph-export",
+    children: exportChildren,
+  });
 
-  return items
+  items.push({
+    label: "Switch orientations",
+    icon: props.settings.layoutMode === "columns" ? "ph-duotone ph-rows" : "ph-duotone ph-columns",
+    action: () => emit("update-settings", { layoutMode: props.settings.layoutMode === "columns" ? "rows" : "columns" }),
+  });
+
+  items.push({ divider: true });
+
+  items.push({
+    label: "Settings",
+    icon: "ph-duotone ph-gear",
+    action: () => emit("settings"),
+  });
+
+  if (fileSystem.capabilities.multiProject) {
+    items.push({
+      label: "Projects",
+      icon: "ph-duotone ph-folders",
+      action: () => emit("open-projects"),
+    });
+  }
+
+  return items;
 });
 </script>
 
@@ -355,15 +340,6 @@ const menuItems = computed(() => {
   border-color: var(--color-accent);
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .toolbar-btn {
   display: flex;
   align-items: center;
@@ -413,14 +389,6 @@ const menuItems = computed(() => {
 
 .vfs-badge i {
   font-size: 12px;
-}
-
-.unsaved-dot {
-  width: 4px;
-  height: 4px;
-  background: var(--color-accent);
-  border-radius: 50%;
-  margin-left: 2px;
 }
 
 @media (max-width: 768px) {

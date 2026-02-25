@@ -33,6 +33,7 @@
                   <img v-if="item.iconSrc" :src="item.iconSrc" class="item-icon-img" />
                   <i v-else-if="item.icon" :class="[item.icon, 'item-icon']"></i>
                   <span class="item-label">{{ item.label }}</span>
+                  <span v-for="(b, bi) in (item.badges || [])" :key="bi" class="item-badge" :class="'item-badge--' + (b.type || 'muted')">{{ b.text }}</span>
                 </div>
                 
                 <i v-if="item.children?.length > 0" :class="['submenu-icon', isMobileDevice ? (expandedItem === index ? 'ph ph-caret-up' : 'ph ph-caret-down') : (align === 'right' ? 'ph ph-caret-left' : 'ph ph-caret-right')]"></i>
@@ -62,6 +63,7 @@
                     <img v-if="child.iconSrc" :src="child.iconSrc" class="item-icon-img" />
                     <i v-else-if="child.icon" :class="[child.icon, 'item-icon']"></i>
                     <span class="item-label">{{ child.label }}</span>
+                    <span v-for="(b, bi) in (child.badges || [])" :key="bi" class="item-badge" :class="'item-badge--' + (b.type || 'muted')">{{ b.text }}</span>
                   </div>
                 </div>
               </div>
@@ -310,6 +312,26 @@ export default {
 
 .item-label {
   flex: 1;
+}
+
+.item-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.item-badge--accent {
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+}
+
+.item-badge--muted {
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-light);
 }
 
 .submenu-icon {

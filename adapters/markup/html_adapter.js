@@ -17,13 +17,7 @@ export class HTMLAdapter extends BaseAdapter {
   }
 
   static async getDefaultTemplate(variables = {}) {
-    const template = await loadAndRenderTemplate('html', variables)
-    if (template) return template
-
-    return `<div class="container">
-  <h1>Welcome to ${variables.projectName || 'Pen'}</h1>
-  <p>Start editing to see your changes live!</p>
-</div>`
+    return await loadAndRenderTemplate('html', variables)
   }
 
   static getDefaultSettings() {

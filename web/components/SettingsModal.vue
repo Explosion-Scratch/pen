@@ -8,7 +8,7 @@
         </button>
       </header>
       <div class="modal-body">
-        <div class="settings-section">
+        <div v-if="!isPortable" class="settings-section">
           <h3>Project Location</h3>
           <div class="settings-row path-row">
             <code 
@@ -239,7 +239,7 @@
             </div>
           </div>
         </div>
-        <div class="settings-section">
+        <div v-if="!isPortable" class="settings-section">
           <div class="section-header">
             <h3>Storage Inspector</h3>
             <button class="refresh-btn" @click="refreshStoredDrafts">Refresh</button>
@@ -333,6 +333,10 @@ const props = defineProps({
   currentPath: {
     type: String,
     default: ''
+  },
+  isPortable: {
+    type: Boolean,
+    default: false
   }
 })
 
