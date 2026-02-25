@@ -63,10 +63,7 @@
         </div>
       </div>
 
-      <div v-else class="hs-empty">
-        <i class="ph-duotone ph-notebook"></i>
-        <p>No projects yet. Create one to get started.</p>
-      </div>
+
     </div>
   </div>
 </template>
@@ -136,6 +133,7 @@ onUnmounted(() => window.removeEventListener('click', handleClickOutside))
 
 .hs-logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 10px;
