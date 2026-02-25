@@ -316,6 +316,7 @@ import {
   deleteStoredDraft,
   getActiveStorageConfigKey
 } from '../filesystem.js'
+import { exportAsZip } from '../utils/exports.js'
 
 const CDNJS_ALGOLIA_APP = '2QWLVLXZB6'
 const CDNJS_ALGOLIA_KEY = '2663c73014d2e4d6d1778cc8ad9fd010'
@@ -406,7 +407,7 @@ function restoreDraft(configKey) {
   emit('restore-snapshot', draft);
 }
 
-function exportDraft(configKey) {
+async function exportDraft(configKey) {
   const draft = readStoredDraft(configKey);
   if (!draft) {
     emit('toast', {
@@ -416,22 +417,25 @@ function exportDraft(configKey) {
     });
     return;
   }
-  const payload = JSON.stringify({
-    meta: draft.meta,
-    config: draft.config,
-    files: draft.files
-  }, null, 2);
-  const blob = new Blob([payload], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  
   const dateKey = new Date().toISOString().replace(/[:.]/g, '-');
   const title = (draft.meta?.title || 'draft').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
-  a.href = url;
-  a.download = `pen-storage-${title}-${dateKey}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const filename = `pen-storage-${title}-${dateKey}.zip`;
+  
+  try {
+    await exportAsZip(draft.files, draft.config, filename);
+    emit('toast', {
+      type: 'success',
+      title: 'Export Successful',
+      message: 'Snapshot exported as ZIP.'
+    });
+  } catch (err) {
+    emit('toast', {
+      type: 'error',
+      title: 'Export Failed',
+      message: 'Failed to create ZIP export.'
+    });
+  }
 }
 
 function removeDraft(configKey) {

@@ -1,13 +1,13 @@
 import JSZip from 'jszip'
 import { executeSequentialRender } from '../../core/pipeline_processor.js'
 
-export async function exportAsZip(files, config) {
+export async function exportAsZip(files, config, filename) {
   try {
     const zip = new JSZip()
     
     // Add all files
-    for (const [filename, content] of Object.entries(files)) {
-      zip.file(filename, content)
+    for (const [path, content] of Object.entries(files)) {
+      zip.file(path, content)
     }
     
     // Add config
@@ -17,7 +17,7 @@ export async function exportAsZip(files, config) {
     const url = URL.createObjectURL(content)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${config.name || 'project'}.zip`
+    a.download = filename || `${config.name || 'project'}.zip`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
