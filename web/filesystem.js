@@ -282,8 +282,10 @@ class WebSocketFS extends BaseFileSystem {
   async connect(url = "ws://localhost:3001") {
     if (this.fallbackMode) return;
 
-    if (window.location.protocol === "file:") {
-      console.log("File protocol detected, skipping WebSocket connection.");
+    const isSecurePage = window.location.protocol === "https:";
+    const isInsecureSocket = url.startsWith("ws://");
+
+    if (window.location.protocol === "file:" || (isSecurePage && isInsecureSocket)) {
       await this.enableFallbackMode();
       return;
     }
@@ -309,16 +311,13 @@ class WebSocketFS extends BaseFileSystem {
           this.retryCount++;
           setTimeout(() => this._connectRecursive(url, resolve, reject), 200);
         } else {
-          console.warn("Max retries reached. Switching to fallback mode.");
           this.enableFallbackMode();
           resolve();
         }
       }
     };
 
-    this.socket.onerror = (err) => {
-      console.error("FileSystem WebSocket error:", err);
-    };
+    this.socket.onerror = () => {};
 
     this.socket.onmessage = (event) => {
       try {
